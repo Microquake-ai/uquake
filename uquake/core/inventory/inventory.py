@@ -32,10 +32,9 @@ from obspy.core.inventory.util import (Equipment, Operator, Person,
                                        PhoneNumber, Site, _textwrap,
                                        _unified_content_strings)
 
-from ..handlers import _set_attr_handler_inventory as _set_attr_handler
-
 from obspy.clients.nrl import NRL
-from microquake.helpers.logging import logger
+from .logging import logger
+
 nrl = NRL()
 
 import pandas as pd

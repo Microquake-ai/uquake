@@ -8,6 +8,12 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = "^3.8"
 obspy = "^1.2.2"
+loguru = "^0.5.3"
+pandas = "^1.2.1"
+numpy = "^1.19.5"
+ipython = "^7.19.0"
+jedi = "0.17.2"
+pytest = "^6.2.1"
 
 [tool.poetry.dev-dependencies]
 
