@@ -33,7 +33,7 @@ from obspy.core.inventory.util import (Equipment, Operator, Person,
                                        _unified_content_strings)
 
 from obspy.clients.nrl import NRL
-from ..logging import logger
+from .logging import logger
 from uquake import __package_name__ as ns
 
 nrl = NRL()
@@ -478,6 +478,7 @@ class Station(inventory.Station):
             channel.y = cha['y']
             channel.z = cha['z']
             channel.set_orientation(cha['orientation'])
+            channel.alternative_code = stn['code']
 
         return sta
 
@@ -662,7 +663,7 @@ class Sensor:
 class Channel(inventory.Channel):
 
     defaults = {}
-    extra_keys = ['x', 'y', 'z']
+    extra_keys = ['x', 'y', 'z', 'alternative_code']
 
     __doc__ = inventory.Channel.__doc__.replace('obspy', ns)
 
@@ -791,5 +792,15 @@ class Channel(inventory.Channel):
     @property
     def loc(self):
         return np.array([self.x, self.y, self.z])
+
+    @property
+    def alternative_code(self):
+        if self.extra:
+            if self.extra.get('alternative_code', None):
+                return self.extra.alternative_code.value  # obspy inv_read converts everything in extra to str
+            else:
+                raise AttributeError
+        else:
+            raise AttributeError
 
 
