@@ -33,13 +33,12 @@ from obspy.core.inventory.util import (Equipment, Operator, Person,
                                        _unified_content_strings)
 
 from obspy.clients.nrl import NRL
-from .logging import logger
+from ..logging import logger
+from uquake import __package_name__ as ns
 
 nrl = NRL()
 
 import pandas as pd
-
-ns = 'microquake'
 
 
 def load_from_excel(file_name):
@@ -277,7 +276,7 @@ def accelerometer_response(resonance_frequency, gain, sensitivity=1,
 
 
 read_inventory.__doc__ = inventory.read_inventory.__doc__.replace(
-    'obspy', 'microquake')
+    'obspy', ns)
 
 
 def get_response_from_nrl(datalogger_keys, sensor_keys):
@@ -286,17 +285,20 @@ def get_response_from_nrl(datalogger_keys, sensor_keys):
 
 # class Inventory(inventory.Inventory):
 #
-#     __doc__ = inventory.Inventory.__doc__.replace('obspy', 'microquake')
+#     __doc__ = inventory.Inventory.__doc__.replace('obspy', ns)
 #
 #     def __init__(self, *args, **kwargs):
 #         super().__init__(*args, **kwargs)
 
 class Inventory(inventory.Inventory):
 
+    # def __init__(self, *args, **kwargs):
+    #     super().__init__(self, *args, **kwargs)
+
     @classmethod
     def from_obspy_inventory_object(cls, obspy_inventory):
 
-        source = 'microquake'         # Network ID of the institution sending
+        source = ns         # Network ID of the institution sending
         # the message.
 
         for network in obspy_inventory.networks:
@@ -307,6 +309,12 @@ class Inventory(inventory.Inventory):
             network.stations = stations
 
         return Inventory([network], source)
+
+    def write(self, path_or_file_obj, format='stationxml', nsmap={ns:ns},
+              *args, **kwargs):
+        return super().write(path_or_file_obj, format, nsmap=nsmap,
+                             *args, **kwargs)
+
 
     def get_station(self, sta):
         return self.select(sta)
@@ -349,6 +357,12 @@ class Inventory(inventory.Inventory):
         else:
             return station_found
 
+    def __eq__(self, other):
+        return np.all(self.sensors == other.sensors)
+
+    # def write(self, filename):
+    #     super().write(self, filename, format='stationxml', nsmap={ns: ns})
+
     @property
     def sensors(self):
         sensors = []
@@ -362,9 +376,9 @@ class Inventory(inventory.Inventory):
 
 class Station(inventory.Station):
 
-    __doc__ = inventory.Station.__doc__.replace('obspy', 'microquake')
+    __doc__ = inventory.Station.__doc__.replace('obspy', ns)
 
-    extra_keys = ['x', 'y', 'z', 'cos1', 'cos2', 'cos3', 'cosines']
+    extra_keys = ['x', 'y', 'z']
 
     def __init__(self, *args, **kwargs):
         super(Station, self).__init__(*args, **kwargs)
@@ -387,30 +401,6 @@ class Station(inventory.Station):
                 stn.__dict__[key] = obspy_station.__dict__[key]
             except Exception as e:
                 logger.error(e)
-
-        # [stn.__setattr__(key, None) for key in self.extra_keys]
-
-        # cls.__dict__ = obspy_station.__dict__
-
-        # sta = cls(stn.code, stn.latitude, stn.longitude, stn.elevation,
-        #           channels=stn.channels, site=stn.site, vault=stn.vault,
-        #           geology=stn.geology, equipments=stn.equipments,
-        #           total_number_of_channels=stn.total_number_of_channels,
-        #           selected_number_of_channels=stn.selected_number_of_channels,
-        #           description=stn.description,
-        #           restricted_status=stn.restricted_status,
-        #           alternate_code=stn.alternate_code,
-        #           comments=stn.comments, start_date=stn.start_date,
-        #           end_date=stn.end_date,
-        #           historical_code=stn.historical_code,
-        #           data_availability=stn.data_availability)
-
-        # return stn
-        # stn.extra = AttribDict()
-        # stn.extra = copy.deepcopy(obspy_station.extra)
-
-        # if getattr(stn, 'extra', None):
-        #
 
         stn.channels = []
 
@@ -484,15 +474,10 @@ class Station(inventory.Station):
 
             sta.channels.append(channel)
 
-            channel.extra = AttribDict(
-                {'cos1'   : {'namespace': ns, 'value': cha['orientation'][0]},
-                 'cos2'   : {'namespace': ns, 'value': cha['orientation'][1]},
-                 'cos3'   : {'namespace': ns, 'value': cha['orientation'][2]},
-                 'cosines': {'namespace': ns, 'value': cha['orientation']},
-                 'x'      : {'namespace': ns, 'value': cha['x']},
-                 'y'      : {'namespace': ns, 'value': cha['y']},
-                 'z'      : {'namespace': ns, 'value': cha['z']},
-                 })
+            channel.x = cha['x']
+            channel.y = cha['y']
+            channel.z = cha['z']
+            channel.set_orientation(cha['orientation'])
 
         return sta
 
@@ -559,8 +544,6 @@ class Station(inventory.Station):
             channel_dict[channel.location_code] = []
 
         for channel in self.channels:
-            # locations.append(f'{self.code}.{channel.location_code}.'
-            #                  f'{channel.code[0:-1]}')
 
             channel_dict[channel.location_code].append(channel)
 
@@ -594,8 +577,8 @@ class Station(inventory.Station):
                        "\tChannel Count: {selected}/{total}"
                        " (Selected/Total)\n"
                        "\t{start_date} - {end_date}\n"
-                       "\tNorthing: {x:.2f}, Easting: {y:.2f}, "
-                       "Elevation: {z:.1f} m\n")
+                       "\tEasting [x]: {x:.0f} m, Northing [y] m: {y:.0f}, "
+                       "Elevation [z]: {z:.0f} m\n")
 
         ret = ret.format(
             station_name=contents["stations"][0],
@@ -681,7 +664,7 @@ class Channel(inventory.Channel):
     defaults = {}
     extra_keys = ['x', 'y', 'z']
 
-    __doc__ = inventory.Channel.__doc__.replace('obspy', 'microquake')
+    __doc__ = inventory.Channel.__doc__.replace('obspy', ns)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -701,7 +684,8 @@ class Channel(inventory.Channel):
 
         if hasattr(obspy_channel, 'extra'):
             for key in cha.extra_keys:
-                cha.__dict__[key] = obspy_channel.__dict__[key]
+                cha.__dict__['extra'][key] = \
+                    obspy_channel.__dict__['extra'][key]
 
         for key in obspy_channel.__dict__.keys():
             cha.__dict__[key] = obspy_channel.__dict__[key]
@@ -716,6 +700,60 @@ class Channel(inventory.Channel):
             self.extra[key] = {'value': value, 'namespace': ns}
         else:
             super().__setattr__(key, value)
+
+    def __repr__(self):
+
+        ret = f'Channel {self.code}, Location {self.location_code}\n' \
+              f'Time range: {self.start_date} - {self.end_date}\n' \
+              f'Easting [x]: {self.x:0.0f} m, Northing [y]: ' \
+              f'{self.y:0.0f} m, Elevation [z]: {self.z:0.0f} m\n' \
+              f'Dip (degrees): {self.dip:0.0f}, Azimuth (degrees): ' \
+              f'{self.azimuth:0.0f}\n' \
+
+        if self.response:
+            ret += "Response information available"
+        else:
+            ret += "Response information not available"
+
+        return ret
+
+# Time range: 2015-12-31T12:23:34.500000Z - 2599-12-31T12:23:34.500000Z
+# Latitude: 0.00, Longitude: 0.00, Elevation: 0.0 m, Local Depth: 0.0 m
+# Azimuth: 0.00 degrees from north, clockwise
+# Dip: 0.00 degrees down from horizontal
+# Response information available'
+
+    def set_orientation(self, orientation_vector):
+        """
+        set the Azimuth and Dip from an orientation vector assuming the
+        orientation vector provided is east, north, up.
+        :param self:
+        :param orientation_vector:
+        :return:
+        """
+
+        east = orientation_vector[0]
+        north = orientation_vector[1]
+        up = orientation_vector[2]
+
+        horizontal_length = np.linalg.norm([east, north])
+
+        azimuth = np.arctan2(east, north) * 180 / np.pi
+        if azimuth < 0:
+            self.azimuth = 360 + self.azimuth
+        else:
+            self.azimuth = azimuth
+
+        self.dip = np.arctan2(-up, horizontal_length) * 180 / np.pi
+
+    @property
+    def orientation_vector(self):
+
+        up = -np.sin(self.dip)
+        east = np.sin(self.azimuth) * np.cos(self.dip)
+        north = np.cos(self.azimuth) * np.cos(self.dip)
+
+        return np.array([east, north, up])
 
     @property
     def x(self):

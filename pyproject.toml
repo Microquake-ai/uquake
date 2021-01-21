@@ -7,13 +7,15 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-obspy = "^1.2.2"
+numpy = "1.18.0"
 loguru = "^0.5.3"
 pandas = "^1.2.1"
-numpy = "^1.19.5"
 ipython = "^7.19.0"
 jedi = "0.17.2"
 pytest = "^6.2.1"
+openpyxl = "^3.0.6"
+setuptools = "^51.3.3"
+obspy = "^1.2.2"
 
 [tool.poetry.dev-dependencies]
 
