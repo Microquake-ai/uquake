@@ -4,31 +4,24 @@ from subprocess import call
 from obspy.core.util.base import ENTRY_POINTS, _get_entry_points
 
 # appending elements to the obspy ENTRY_POINTS
-ENTRY_POINTS['grid'] = _get_entry_points('microquake.plugin.grid', 'readFormat')
-ENTRY_POINTS['grid_write'] = _get_entry_points('microquake.plugin.grid',
-                                               'writeFormat')
-ENTRY_POINTS['site'] = _get_entry_points('microquake.plugin.site', 'readFormat')
-ENTRY_POINTS['site_write'] = _get_entry_points('microquake.plugin.site',
+ENTRY_POINTS['grid'] = _get_entry_points('uquake.io.grid', 'readFormat')
+ENTRY_POINTS['grid_write'] = _get_entry_points('uquake.io.grid',
                                                'writeFormat')
 
-# ENTRY_POINTS['waveform'].append(_get_entry_points('microquake.io.waveform',
-#                                                   'readFormat'))
-#
-# ENTRY_POINTS['waveform_write'].append(_get_entry_points(
-#                                       'microquake.io.waveform',
-#                                       'writeFormat'))
+gfr_entry_points = _get_entry_points('uquake.io.waveform', 'readFormat')
+gfw_entry_points = _get_entry_points('uquake.io.waveform', 'writeformat')
 
-wf_entry_points = _get_entry_points('microquake.io.waveform', 'readFormat')
+wf_entry_points = _get_entry_points('uquake.io.waveform', 'readFormat')
 
 for key in wf_entry_points.keys():
     ENTRY_POINTS['waveform'][key] = wf_entry_points[key]
 
-wfw_entry_points = _get_entry_points('microquake.io.waveform', 'writeFormat')
+wfw_entry_points = _get_entry_points('uquake.io.waveform', 'writeFormat')
 
 for key in wfw_entry_points.keys():
     ENTRY_POINTS['waveform_write'][key] = wfw_entry_points[key]
 
-evt_entry_points = _get_entry_points('microquake.io.event', 'readFormat')
+evt_entry_points = _get_entry_points('uquake.io.event', 'readFormat')
 
 for key in evt_entry_points.keys():
     ENTRY_POINTS['event'][key] = evt_entry_points[key]
@@ -36,7 +29,7 @@ for key in evt_entry_points.keys():
 
 def proc(cmd, cwd='.', silent=True):
 
-    from microquake.helpers.logging import logger
+    from ..logging import logger
 
     try:
         if silent:

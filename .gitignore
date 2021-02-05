@@ -1,6 +1,10 @@
 .idea
 *.mseed
 *~
+*.csv
+*.pickle
+*.vti
+*.tmp
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
