@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "uquake"
-version = "0.1.0"
+version = "0.1.1"
 description = "extension of the ObsPy library for local seismicity"
 authors = ["uQuake development team <dev@uQuake.org>"]
 license = "MIT"
@@ -14,7 +14,6 @@ ipython = "^7.19.0"
 jedi = "0.17.2"
 pytest = "^6.2.1"
 openpyxl = "^3.0.6"
-setuptools = "^51.3.3"
 obspy = "^1.2.2"
 
 [tool.poetry.dev-dependencies]
@@ -22,3 +21,69 @@ obspy = "^1.2.2"
 [build-system]
 requires = ["poetry>=0.12"]
 build-backend = "poetry.masonry.api"
+
+[tool.poetry.plugins] # Optional super table
+[tool.poetry.plugins."uquake.io.waveform"]
+ESG_SEGY = "uquake.io.waveform"
+HSF = "micorquake.io.waveform"
+TEXCEL_CSV = "uquake.io.waveform"
+IMS_CONTINUOUS = "uquake.io.waveform"
+IMS_ASCII = "uquake.io.waveform"
+
+[tool.poetry.plugins."uquake.io.event"]
+QUAKEML = "uquake.io.quakeml"
+NLLOC = "uquake.io.nlloc"
+
+[tool.poetry.plugins."uquake.io.waveform.ESG_SEGY"]
+readFormat = "uquake.io.waveform:read_ESG_SEGY"
+
+[tool.poetry.plugins."uquake.io.waveform.HSF"]
+readFormat = "uquake.io.waveform:read_HSF"
+
+[tool.poetry.plugins."uquake.io.waveform.TEXCEL_CSV"]
+readFormat = "uquake.io.waveform:read_TEXCEL_CSV"
+
+[tool.poetry.plugins."uquake.io.waveform.IMS_ASCII"]
+readFormat = "uquake.io.waveform:read_IMS_ASCII"
+
+[tool.poetry.plugins."uquake.io.nlloc.NLLOC"]
+NLLOC = "uquake.io.nlloc"
+readFormat = "uquake.io.waveform:read_nlloc_hypo"
+
+[tool.poetry.plugins."uquake.io.grid"]
+NLLOC = "uquake.io.grid"
+VTK = "uquake.io.grid"
+PICKLE = "uquake.io.grid"
+CSV = "uquake.io.grid"
+
+[tool.poetry.plugins."uquake.io.grid.NLLOC"]
+readFormat = "uquake.io.grid:read_nll"
+writeFormat = "uquake.io.grid:write_nll"
+
+[tool.poetry.plugins."uquake.io.grid.VTK"]
+writeFormat = "uquake.io.grid:write_vtk"
+
+[tool.poetry.plugins."uquake.io.grid.PICKLE"]
+readFormat = "uquake.io.grid:read_pickle"
+writeFormat = "uquake.io.grid:write_pickle"
+
+[tool.poetry.plugins."uquake.io.grid.CSV"]
+writeFormat = "uquake.io.grid:write_csv"
+readFormat = "uquake.io.grid:read_csv"
+
+[tool.poetry.plugins."uquake.io.site.CSV"]
+readFormat = "uquake.io.site:read_csv"
+writeFormat = "uquake.io.site:write_csv"
+
+[tool.poetry.plugins."uquake.io.site.PICKLE"]
+readFormat = "uquake.io.site:read_pickle"
+writeFormat = "uquake.io.site:write_pickle"
+
+[tool.poetry.plugins."uquake.io.site.VTK"]
+writeFormat = "uquake.io.site:write_vtk"
+
+[tool.poetry.plugins."uquake.io.nlloc"]
+NLLOC = "uquake.io.nlloc"
+
+[tool.poetry.plugins."uquake.io.event.NLLOC"]
+readFormat = "uquake.io.nlloc.core:read_nll_event_file"
