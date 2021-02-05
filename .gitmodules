@@ -2,5 +2,5 @@
 	path = tests
 	url = ssh://jpmercier01@gmail.com@source.developers.google.com:2022/p/uquake/r/uquake_test
 [submodule "test"]
-	path = test
+	path = tests
 	url = ssh://jpmercier01@gmail.com@source.developers.google.com:2022/p/uquake/r/uquake_test

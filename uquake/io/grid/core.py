@@ -2,76 +2,33 @@
 # ------------------------------------------------------------------
 # Filename: grid.py
 #  Purpose: plugin for reading and writing GridData object into various format 
-#   Author: microquake development team
-#    Email: devs@microquake.org
+#   Author: uquake development team
+#    Email: devs@uquake.org
 #
-# Copyright (C) 2016 microquake development team
+# Copyright (C) 2016 uquake development team
 # --------------------------------------------------------------------
 """
 plugin for reading and writing GridData object into various format 
 
 :copyright:
-    microquake development team (devs@microquake.org)
+    uquake development team (devs@uquake.org)
 :license:
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
 
 import numpy as np
-import pandas as pd
-from loguru import logger
 
 
-def read_nll(filename, **kwargs):
-    """
-    read NLLoc grid file into a GridData object
-    :param filename: filename with or without the extension
-    :type filename: str
-    :rtype: ~microquake.core.data.grid.GridData
-    """
-    from microquake.core.nlloc import read_NLL_grid
-    return read_NLL_grid(filename)
-
-
-def read_pickle(filename, **kwargs):
+def read_pickle(filename, protocol=-1, **kwargs):
     """
     read grid saved in PICKLE format into a GridData object
     :param filename: full path to the filename
     :type filename: str
-    :rtype: ~microquake.core.data.grid.GridData
+    :rtype: ~uquake.core.data.grid.Grid
     """
-    import numpy as np
-    return np.load(filename)
-
-
-def read_hdf5(filename, **kwargs):
-    """
-    read a grid file in hdf5 into a microquake.core.data.grid.GridCollection
-    object
-    :param filename: filename
-    :param kwargs: additional keyword argument passed from wrapper.
-    :return: microquake.core.data.grid.GridCollection
-    """
-
-
-def write_nll(grid, filename, **kwargs):
-    """
-    write a GridData object to disk in NLLoc format
-    :param filename: full path to file with or without the extension
-    :type filename: str
-    :param grid: grid to be saved
-    :type grid: ~microquake.core.data.grid.GridData
-    """
-
-    from microquake.core.nlloc import write_nll_grid
-    data = grid.data
-    origin = grid.origin
-    spacing = grid.spacing
-    grid_type = grid.type
-    seed = grid.seed
-    label = grid.seed_label
-    write_nll_grid(filename, data, origin, spacing, grid_type,
-        seed=seed, label=label, **kwargs)
+    import pickle
+    return pickle.load(open(filename, 'rb'))
 
 
 def write_pickle(grid, filename, protocol=-1, **kwargs):
@@ -80,18 +37,31 @@ def write_pickle(grid, filename, protocol=-1, **kwargs):
     format
     using the pickle module
     :param grid: grid to be saved
-    :type grid: ~microquake.core.data.grid.GridData
+    :type grid: ~uquake.core.data.grid.GridData
     :param filename: full path to file with extension
     :type filename: str
     :param protocol: pickling protocol level
     :type protocol: int
     """
-    import pickle as pickle
+    import pickle
     with open(filename, 'wb') as of:
         pickle.dump(grid, of, protocol=protocol)
 
+    return True
 
-def write_csv(grid, filename, **kwargs):
+
+def read_hdf5(filename, **kwargs):
+    """
+    read a grid file in hdf5 into a uquake.core.data.grid.GridCollection
+    object
+    :param filename: filename
+    :param kwargs: additional keyword argument passed from wrapper.
+    :return: uquake.core.data.grid.GridCollection
+    """
+    pass
+
+
+def write_csv(grid, filename):
     """
     Write a GridData object to disk in Microquake csv format
     :param grid: grid to be saved
@@ -99,45 +69,46 @@ def write_csv(grid, filename, **kwargs):
     :return:
     """
     data = grid.data
-    shape = data.shape
+    shape = grid.shape
     origin = grid.origin
     spacing = grid.spacing
-    grid_type = grid.type
-    seed = grid.seed
-    seed_label = grid.seed_label
-    x = np.arange(0, shape[0]) * spacing + origin[0]
-    y = np.arange(0, shape[1]) * spacing + origin[1]
-    z = np.arange(0, shape[2]) * spacing + origin[2]
 
-    xg, yg, zg = np.meshgrid(x, y, z)
+    v = grid.get_grid_point_coordinates()
 
     flat_data = data.reshape(np.product(shape))
-    flat_xg = xg.reshape(np.product(shape))
-    flat_yg = yg.reshape(np.product(shape))
-    flat_zg = zg.reshape(np.product(shape))
-
-    data_dict = {'value': flat_data,
-                 'x': flat_xg,
-                 'y': flat_yg,
-                 'z': flat_zg}
 
     with open(filename, 'w') as f_out:
-        # writing header
-        f_out.write('Microquake grid\n')
-        f_out.write(f'grid_type: {grid_type}\n')
-        f_out.write(f'spacing: {spacing}')
-        f_out.write(f'origin: {origin}')
-        f_out.write(f'shape: {shape}')
-        f_out.write(f'seed: {seed}\n')
-        f_out.write(f'seed_label: {seed_label}\n')
-        f_out.write('x, y, z, value\n')
-        for f_d, f_x, f_y, f_z in zip(flat_data, flat_xg, flat_yg, flat_zg):
-            f_out.write(f'{f_x}, {f_y}, {f_z}, {f_d}\n')
+        if grid.ndim == 3:
+            f_out.write('uquake grid\n')
+            f_out.write(f'spacing: {spacing}')
+            f_out.write(f'origin: {origin}')
+            f_out.write(f'shape: {shape}')
+            f_out.write('x,y,z,value\n')
+
+
+            for k in range(grid.shape[2]):
+                for j in range(grid.shape[1]):
+                    for i in range(grid.shape[0]):
+                        f_out.write(f'{v[0][i]},{v[1][j]},{v[2][k]},'
+                                    f'{grid.data[i, j, k]}\n')
+
+        if grid.ndim == 2:
+            f_out.write('uquake grid\n')
+            f_out.write(f'spacing: {spacing}')
+            f_out.write(f'origin: {origin}')
+            f_out.write(f'shape: {shape}')
+            f_out.write('x,y,value\n')
+            for j in range(grid.shape[1]):
+                for i in range(grid.shape[0]):
+                    f_out.write(f'{v[0][i]},{v[0][j]},'
+                                f'{grid.data[i, j]}\n')
+
+    return True
 
 
 def read_csv(filename, *args, **kwargs):
     """
-    Read a microquake grid save in Microquake CSV format
+    Read a grid save in uquake CSV format
     :param filename: path to file
     :param args:
     :param kwargs:
@@ -145,35 +116,8 @@ def read_csv(filename, *args, **kwargs):
     """
     pass
 
-    # with open(filename, 'r') as f_in:
-    #     line = f_in.readline().strip()
-    #     if 'Microquake grid' not in line:
-    #         logger.error('not a Microquake csv grid')
-    #         raise IOError
-    #
-    #     line = f_in.readline().strip()
-    #     grid_type = line.split(':')[1]
-    #
-    #     line = f_in.readline().strip()
-    #     spacing = np.float(line.split(':')[1])
-    #
-    #     line = f_in.readline().strip()
-    #     origin = np.array(eval(line.split(':')[1]))
-    #
-    #     line = f_in.readline().strip()
-    #     shape = np.array(eval(line.split(':')[1]))
-    #
-    #     line = f_in.readline().strip()
-    #     seed = np.array(eval(line.split(':')[1]))
-    #
-    #     line = f_in.readline().strip()
-    #     seed_label = line.split(':')[1]
-    #
-    #
-    # data = np.zeros(shape)
 
-
-def write_vtk(grid, filename, *args, **kwargs):
+def write_vtk(grid, filename):
     """
     write a GridData object to disk in VTK format (Paraview, MayaVi2,
     etc.) using
@@ -182,24 +126,41 @@ def write_vtk(grid, filename, *args, **kwargs):
     extension for vtk image data (grid data) is usually .vti. 
     :type filename; str
     :param grid: grid to be saved
-    :type grid: ~microquake.core.data.grid.GridData
+    :type grid: ~uquake.core.data.grid.GridData
     .. NOTE:
         see the imageToVTK function from the pyevtk.hl module for more
         information on possible additional paramter.
     """
-    from pyevtk.hl import imageToVTK
+    import vtk
 
     if filename[-4:] in ['.vti', '.vtk']:
         filename = filename[:-4]
 
-    if isinstance(grid.spacing, tuple):
-        spacing = grid.spacing[0]
-    else:
-        spacing = tuple([grid.spacing] * 3)
+    image_data = vtk.vtkImageData()
+    image_data.SetDimensions(grid.shape)
+    image_data.SetSpacing(grid.spacing)
+    image_data.SetOrigin(grid.origin)
+    image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
 
-    origin = tuple(grid.origin)
+    if grid.ndim == 3:
+        for z in range(grid.shape[2]):
+            for y in range(grid.shape[1]):
+                for x in range(grid.shape[0]):
+                    image_data.SetScalarComponentFromFloat(x, y, z, 0,
+                                                           grid.data[x, y, z])
 
-    cell_data = {grid.type: grid.data}
-    imageToVTK(filename, origin, spacing, pointData=cell_data)
+    if grid.ndim == 2:
+        for y in range(grid.shape[1]):
+            for x in range(grid.shape[0]):
+                image_data.SetScalarComponentFromFloat(x, y, 0,
+                                                       grid.data[x, y])
+
+    writer = vtk.vtkXMLImageDataWriter()
+    writer.SetFileName(f'{filename}.vti')
+    writer.SetInputData(image_data)
+    writer.Write()
+    return True
 
 
+def read_vtk(filename, *args, **kwargs):
+    pass
