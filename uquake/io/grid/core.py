@@ -61,7 +61,7 @@ def read_hdf5(filename, **kwargs):
     pass
 
 
-def write_csv(grid, filename):
+def write_csv(grid, filename, **kwargs):
     """
     Write a GridData object to disk in Microquake csv format
     :param grid: grid to be saved
@@ -117,7 +117,7 @@ def read_csv(filename, *args, **kwargs):
     pass
 
 
-def write_vtk(grid, filename):
+def write_vtk(grid, filename, **kwargs):
     """
     write a GridData object to disk in VTK format (Paraview, MayaVi2,
     etc.) using

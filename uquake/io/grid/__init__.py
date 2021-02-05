@@ -1,2 +1,2 @@
-from microquake.plugin.grid.core import *
+from .core import *
 

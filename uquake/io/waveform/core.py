@@ -118,90 +118,6 @@ def read_IMS_ASCII(path, net='', **kwargs):
     return Stream(traces=traces)
 
 
-def read_IMS_CONTINUOUS(dname, site=None, site_list=None, event_name=None,
-                        **kwargs):
-    """
-    read continuous IMS ASCII data and turn them into a valid stream with
-    network, station and component information properly filled
-    :param dname: directory where the files for all site are stored
-    :param site: a site object containing sensor information
-    :type site: ~microquake.core.station.Site
-    :param site_list: list of site number to read
-    :type site_list: list
-    :param event_name: root of the event name, to select a particular event
-    should there be many event in a single
-    directory
-    :type event_name: basestring
-    :return: ~microquake.core.stream.Stream
-    """
-
-    traces = []
-
-    for directory in glob(dname + '/site*'):
-        if site_list:
-            site_no = int(directory.split('site')[-1])
-
-            if site_no not in site_list:
-                continue
-        print(directory)
-        # reading data
-        # racer()()
-
-        if event_name:
-            sfile = glob(directory + '\%s.casc' % event_name)
-        else:
-            sfile = glob(directory + '\*.casc')
-
-        if not sfile:
-            continue
-        sfile = sfile[0]
-        stats = Stats()
-        with open(sfile) as datafile:
-            data = []
-            X = []
-            Y = []
-            Z = []
-
-            for i, line in enumerate(datafile):
-                # reading header
-                field = line.split(',')
-
-                if i == 0:
-                    timetmp = datetime.fromtimestamp(float(field[5]),
-                                                     tz=timezone('UTC')) \
-                        + timedelta(seconds=float(field[6]) / 1e6)
-
-                    stats.starttime = UTCDateTime(timetmp)
-                    stats.sampling_rate = float(field[2])
-                    stats.station = field[8]
-
-                else:
-                    try:
-                        X.append(float(field[2]))
-                    except:
-                        pass
-
-                    try:
-                        Y.append(float(field[3]))
-                    except:
-                        pass
-
-                    Z.append(float(field[4]))
-
-            stats.npts = len(Z)
-
-            if X:
-                stats.channel = 'X'
-                traces.append(Trace(data=np.array(X), header=stats))
-                stats.channel = 'Y'
-                traces.append(Trace(data=np.array(Y), header=stats))
-
-            stats.channel = 'Z'
-            traces.append(Trace(data=np.array(Z), header=stats))
-
-    return Stream(traces=traces)
-
-
 @uncompress
 def read_ESG_SEGY(fname, site=None, **kwargs):
     """
@@ -278,7 +194,7 @@ def read_ESG_SEGY(fname, site=None, **kwargs):
     return Stream(traces=traces)
 
 @uncompress
-def read_texcel_csv(filename, **kwargs):
+def read_TEXCEL_CSV(filename, **kwargs):
     """
     Reads a texcel csv file and returns a microquake Stream object.
 

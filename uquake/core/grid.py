@@ -24,39 +24,21 @@ from copy import deepcopy
 from pkg_resources import load_entry_point
 from .util import ENTRY_POINTS
 
-__valid_phases__ = ('P', 'S')
 
-__valid_grid_types__ = (
-    'VELOCITY',
-    'VELOCITY_METERS',
-    'SLOWNESS',
-    'VEL2',
-    'SLOW2',
-    'SLOW2_METERS',
-    'SLOW_LEN',
-    'STACK',
-    'TIME',
-    'TIME2D',
-    'PROB_DENSITY',
-    'MISFIT',
-    'ANGLE',
-    'ANGLE2D'
-)
+def read_grid(filename, format='PICKLE', **kwargs):
 
+    format = format.upper()
 
-class ValidTypes:
+    if format not in ENTRY_POINTS['grid'].keys():
+        raise TypeError(f'format {format} is currently not supported '
+                        f'for Grid objects')
 
-    def __init__(self, valid_types):
+    format_ep = ENTRY_POINTS['grid'][format]
+    read_format = load_entry_point(format_ep.dist.key,
+                                   f'uquake.io.grid.{format_ep.name}',
+                                   'readFormat')
 
-        self.valid_type = valid_types
-
-    def __str__(self):
-        return '\n'.join(self.valid_type)
-    def __repr__(self):
-        return self.__str__(self)
-
-
-valid_grid_types = ValidTypes(__valid_grid_types__)
+    return read_format(filename, **kwargs)
 
 
 class Grid:
@@ -145,22 +127,12 @@ class Grid:
         cls.fill_homogeneous(val)
         return cls
 
-    @property
-    def n_dimensions(self):
-        return np.min(self.data.shape)
-
-    @property
-    def shape(self):
-        return self.data.shape
-
     def __repr__(self):
         repr_str = """
         spacing: %s
         origin : %s
         shape  : %s
-        seed   : %s
-        type   : %s
-        """ % (self.spacing, self.origin, self.shape, self.seed, self.type)
+        """ % (self.spacing, self.origin, self.shape)
         return repr_str
 
     def __str__(self):
@@ -234,15 +206,27 @@ class Grid:
         format = format.upper()
 
         if format not in ENTRY_POINTS['grid'].keys():
-            logger.error('format %s is not currently supported for Grid '
-                         'objects' % format)
-            return
+            raise TypeError(f'format {format} is currently not supported '
+                            f'for Grid objects')
 
         format_ep = ENTRY_POINTS['grid'][format]
         write_format = load_entry_point(format_ep.dist.key,
-                                        'microquake.plugin.grid.%s' % format_ep.name, 'writeFormat')
+                                        f'uquake.io.grid.{format_ep.name}',
+                                        'writeFormat')
 
-        write_format(self, filename, **kwargs)
+        return write_format(self, filename, **kwargs)
+
+    @property
+    def n_dimensions(self):
+        return np.min(self.data.shape)
+
+    @property
+    def shape(self):
+        return self.data.shape
+
+    @property
+    def ndim(self):
+        return len(self.origin)
 
 
 
