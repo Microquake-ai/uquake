@@ -46,22 +46,31 @@ class Grid:
     Object containing a regular grid
     """
 
-    def __init__(self, data, spacing=None, origin=None, resource_id=None):
+    def __init__(self, data_or_dims, spacing=None, origin=None,
+                 resource_id=None, value=0):
 
         """
         can hold both 2 and 3 dimensional grid
-        :param data: Grid
-        :type numpy.array:
+        :param data_or_dims: either a numpy array or a tuple/list with the grid
+        dimensions. If grid dimensions are specified, the grid is initialized
+        with value
         :param spacing: Spacing
-        :type tuple:
+        :type spacing: typle
         :param origin: tuple, list or array containing the origin of the grid
-        :type tuple:
+        :type origin: tuple
         :param resource_id: unique identifier for the grid, if set to None,
+        :param value: value to fill the grid should dims be specified
+        :type value:
         uuid4 is used to define a unique identifier.
-        :type str:
+        :type uuid4: str
         """
 
-        self.data = np.array(data)
+        data_or_dims = np.array(data_or_dims)
+
+        if data_or_dims.ndim == 1:
+            self.data = np.ones(data_or_dims) * value
+        else:
+            self.data = data_or_dims
 
         if resource_id is None:
             self.resource_id = str(uuid4())
@@ -69,23 +78,23 @@ class Grid:
             self.resource_id = resource_id
 
         if origin is None:
-            self.origin = np.zeros(len(data.shape))
+            self.origin = np.zeros(len(self.data.shape))
         else:
             origin = np.array(origin)
-            if origin.shape[0] == len(data.shape):
+            if origin.shape[0] == len(self.data.shape):
                 self.origin = origin
             else:
-                logger.error(f'origin shape should be {len(data.shape)}')
+                logger.error(f'origin shape should be {len(self.data.shape)}')
                 raise ValueError
 
         if spacing is None:
-            self.spacing = np.ones(len(data.shape))
+            self.spacing = np.ones(len(self.data.shape))
         else:
             spacing = np.array(spacing)
-            if spacing.shape[0] == len(data.shape):
+            if spacing.shape[0] == len(self.data.shape):
                 self.spacing = spacing
             else:
-                logger.error(f'spacing shape should be {len(data.shape)}')
+                logger.error(f'spacing shape should be {len(self.data.shape)}')
                 raise ValueError
 
     @classmethod
@@ -217,8 +226,8 @@ class Grid:
         return write_format(self, filename, **kwargs)
 
     @property
-    def n_dimensions(self):
-        return np.min(self.data.shape)
+    def ndim(self):
+        return self.data.ndim
 
     @property
     def shape(self):
