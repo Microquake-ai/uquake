@@ -144,14 +144,14 @@ class Stream(obsstream.Stream):
         for tr in self.traces:
             tr.stats.station = tr.stats.station.lstrip('0')
 
-    def plot(self, *args, **kwargs):
-        """
-        see Obspy stream.plot()
-        """
-        from microquake.imaging.waveform import WaveformPlotting
-        waveform = WaveformPlotting(stream=self, *args, **kwargs)
-
-        return waveform.plotWaveform(*args, **kwargs)
+    # def plot(self, *args, **kwargs):
+    #     """
+    #     see Obspy stream.plot()
+    #     """
+    #     from microquake.imaging.waveform import WaveformPlotting
+    #     waveform = WaveformPlotting(stream=self, *args, **kwargs)
+    #
+    #     return waveform.plotWaveform(*args, **kwargs)
 
     def distance_time_plot(self, event, site, scale=20, freq_min=100,
                            freq_max=1000):

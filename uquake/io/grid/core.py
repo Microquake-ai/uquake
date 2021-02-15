@@ -78,13 +78,12 @@ def write_csv(grid, filename, **kwargs):
     flat_data = data.reshape(np.product(shape))
 
     with open(filename, 'w') as f_out:
-        if grid.ndim == 3:
+        if data.ndim == 3:
             f_out.write('uquake grid\n')
             f_out.write(f'spacing: {spacing}')
             f_out.write(f'origin: {origin}')
             f_out.write(f'shape: {shape}')
             f_out.write('x,y,z,value\n')
-
 
             for k in range(grid.shape[2]):
                 for j in range(grid.shape[1]):
@@ -92,7 +91,7 @@ def write_csv(grid, filename, **kwargs):
                         f_out.write(f'{v[0][i]},{v[1][j]},{v[2][k]},'
                                     f'{grid.data[i, j, k]}\n')
 
-        if grid.ndim == 2:
+        elif data.ndim == 2:
             f_out.write('uquake grid\n')
             f_out.write(f'spacing: {spacing}')
             f_out.write(f'origin: {origin}')
