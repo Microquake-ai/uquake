@@ -23,6 +23,7 @@ from .logging import logger
 from copy import deepcopy
 from pkg_resources import load_entry_point
 from .util import ENTRY_POINTS
+from pathlib import Path
 
 
 def read_grid(filename, format='PICKLE', **kwargs):
@@ -186,7 +187,7 @@ class Grid:
     def copy(self):
         return deepcopy(self)
 
-    def get_grid_point_coordinates(self, meshgrid=True):
+    def get_grid_point_coordinates(self, mesh_grid=True):
         """
         """
         x = []
@@ -195,7 +196,7 @@ class Grid:
             v = np.arange(0, dimension) * spacing + self.origin[0]
             x.append(v)
 
-        if not meshgrid:
+        if not mesh_grid:
             return tuple(x)
 
         if len(x) == 2:
@@ -213,6 +214,8 @@ class Grid:
         :type format: str
         """
         format = format.upper()
+
+        Path(filename).parent.mkdirs(parent=True, exist_ok=True)
 
         if format not in ENTRY_POINTS['grid'].keys():
             raise TypeError(f'format {format} is currently not supported '
