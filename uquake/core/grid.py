@@ -274,8 +274,8 @@ class Grid:
 
         write_format(self, filename, **kwargs)
 
-    def interpolate(self, coord, grid_coordinate=True, mode='nearest', order=1,
-                    **kwargs):
+    def interpolate(self, coord, grid_coordinate=True, mode='nearest',
+                    order=1, **kwargs):
         """
         This function interpolate the values at a given point expressed
         either in grid or absolute coordinates
