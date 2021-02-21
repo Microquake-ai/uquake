@@ -563,7 +563,9 @@ class RayCollection:
 
 class Ray:
 
-    def __init__(self, nodes=[]):
+    def __init__(self, nodes=[], station_code=None, arrival_id=None,
+                 phase=None, azimuth=None, takeoff_angle=None,
+                 travel_time=None):
         self.nodes = np.array(nodes)
         self.station_code = None
         self.arrival_id = None

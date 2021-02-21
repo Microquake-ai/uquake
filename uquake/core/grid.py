@@ -282,8 +282,8 @@ class Grid:
         :param coord: Coordinate of the point(s) at which to interpolate
         either in grid or absolute coordinates
         :type coord: list, tuple, numpy.array
-        :param grid_coordinate: whether the coordinates are provided in grid
-        coordinates or not
+        :param grid_coordinate: true if the coordinates are expressed in
+        grid space (indices can be float) as opposed to model space
         :type grid_coordinate: bool
         :rtype: numpy.array
         """
@@ -300,6 +300,7 @@ class Grid:
             return map_coordinates(self.data, coord, mode=mode, order=order,
                                    **kwargs)
         except Exception as e:
+            logger.warning(e)
             return map_coordinates(self.data, coord.T, mode=mode, order=order,
                                    **kwargs)
 
