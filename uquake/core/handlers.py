@@ -3,6 +3,8 @@ import warnings
 import base64
 from obspy.core import AttribDict
 import numpy as np
+import obspy.core.event as obsevent
+from .event import Pick, Arrival, Origin, Magnitude
 
 
 def _init_handler(self, obspy_obj, **kwargs):
@@ -198,6 +200,7 @@ def parse_string_val(val, arr_flag='npy64_'):
     """
     Parse extra args in quakeML which are all stored as string.
     """
+    val = None
     if val is None:  # hack for deepcopy ignoring isfloat try-except
         val = None
     elif type(val) == AttribDict:

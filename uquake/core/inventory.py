@@ -138,7 +138,6 @@ def load_from_excel(file_name):
     for code in stn_codes:
         chan_rows = df.loc[df['sensor_code'] == code]
         row = chan_rows.iloc[0]
-
         station = {}
         # Set some keys explicitly
         #     from ipdb import set_trace; set_trace()
@@ -315,14 +314,14 @@ class Inventory(inventory.Inventory):
         return super().write(path_or_file_obj, format, nsmap=nsmap,
                              *args, **kwargs)
 
-
     def get_station(self, sta):
         return self.select(sta)
 
     def get_channel(self, sta=None, cha=None):
         return self.select(sta, cha_code=cha)
 
-    def select(self, network=None, station=None, location=None, channel=None):
+    def select(self, network=None, station=None, sensors=None,
+               location=None, channel=None):
         """
             Select a single Station or Channel object out of the Inventory
         """
@@ -466,7 +465,7 @@ class Station(inventory.Station):
                               longitude=0.,  # required
                               elevation=0.,  # required
                               depth=0.,  # required
-                              start_date=UTCDateTime("2015-12-31T12:23:34.5"),
+                              start_date=UTCDateTime("1999-12-31T12:23:34.5"),
                               end_date=UTCDateTime("2599-12-31T12:23:34.5"),
                               azimuth=0,
                               dip=0,
@@ -606,7 +605,7 @@ class Station(inventory.Station):
 class Sensor:
     """
     This class is a container for grouping the channels into coherent entity
-    that are sensors. From the Microquake package perspective a station is
+    that are sensors. From the uquake package perspective a station is
     the physical location where data acquisition instruments are grouped.
     One or multiple sensors can be connected to a station.
     """
@@ -622,18 +621,7 @@ class Sensor:
                          'unique location code')
             raise KeyError
 
-        self.x = channels[0].x
-        self.y = channels[0].y
-        self.z = channels[0].z
         self.station = station
-        station_code = station.code
-        self.station_code = station_code
-        self.channels = channels
-        self.location_code = channels[0].location_code
-        self.code = f'{station_code}{self.location_code}'
-        self.channel_code = channels[0].code[0:-1]
-        self.sensor_code = f'{station_code}.{self.location_code}.' \
-            f'{self.channel_code}'
         self.channels = channels
 
     def __repr__(self):
@@ -658,6 +646,43 @@ class Sensor:
     @property
     def loc(self):
         return np.array([self.x, self.y, self.z])
+
+    @property
+    def alternate_code(self):
+        return self.channels[0].alternative_code
+
+    @property
+    def x(self):
+        return self.channels[0].x
+
+    @property
+    def y(self):
+        return self.channels[0].y
+
+    @property
+    def z(self):
+        return self.channels[0].z
+
+    @property
+    def station_code(self):
+        return self.station.code
+
+    @property
+    def location_code(self):
+        return self.channels[0].location_code
+
+    @property
+    def code(self):
+        return f'{self.station_code}{self.location_code}'
+
+    @property
+    def sensor_type_code(self):
+        return self.channels[0].code[0:-1]
+
+    @property
+    def sensor_code(self):
+        return f'{self.station_code}.{self.location_code}.' \
+               f'{self.sensor_type_code}'
 
 
 class Channel(inventory.Channel):
