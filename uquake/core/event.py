@@ -417,18 +417,11 @@ class Pick(obsevent.Pick):
 
     def __init__(self, obspy_obj=None, **kwargs):
         _init_handler(self, obspy_obj, **kwargs)
-        # MTH  - this seems to have been left out ??
-        if obspy_obj:
-            wid = self.waveform_id
-            self.trace_id = "%s.%s.%s.%s" % (wid.network_code,
-                                             wid.station_code,
-                                             wid.location_code,
-                                             wid.channel_code)
 
     def __setattr__(self, name, value):
         _set_attr_handler(self, name, value)
 
-    def __str__(self, **kwargs):
+    def __repr__(self, **kwargs):
         string = """
           trace_id: %s
               time: %s
@@ -443,9 +436,31 @@ class Pick(obsevent.Pick):
                self.evaluation_status, self.resource_id)
         return string
 
+    def __str__(self):
+        return self.__repr__()
+
     def get_sta(self):
         if self.waveform_id is not None:
             return self.waveform_id.station_code
+        return
+
+    @property
+    def station(self):
+        return self.get_sta()
+
+    @property
+    def sensor(self):
+        if self.waveform_id is not None:
+            sensor = f'{self.waveform_id.station_code}' \
+                     f'{self.waveform_id.location_code}'
+            return self.waveform_id.station_code
+        return
+
+    @property
+    def location(self):
+        if self.waveform_id is not None:
+            return self.waveform_id.location_code
+        return
 
 
 class Arrival(obsevent.Arrival):

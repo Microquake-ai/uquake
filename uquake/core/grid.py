@@ -218,7 +218,7 @@ class Grid:
     def in_grid(self, point):
         """
         Check if a point is inside the grid
-        :param point: the point to check
+        :param point: the point to check in absolute coordinate (model)
         :type point: tuple, list or numpy array
         :returns: True if point is inside the grid
         :rtype: bool
@@ -318,25 +318,6 @@ class Grid:
             # print(i)
             fill = np.linspace(vals[i + 1], vals[i], zinds[i] - zinds[i + 1])
             data[:, :, zinds[i + 1]:zinds[i]] = fill
-
-    def in_grid(self, point):
-        """
-        Check if a point is inside the grid
-        :param point: the point to check
-        :type point: tuple, list or numpy array
-        :returns: True if point is inside the grid
-        :rtype: bool
-        """
-        corner1 = self.origin
-        corner2 = self.origin + self.spacing * np.array(self.shape)
-
-        return np.all((point >= corner1) & (point <= corner2))
-
-    def fill_homogeneous(self, val):
-        self.data = np.ones(self.data.shape) * val
-
-    def copy(self):
-        return deepcopy(self)
 
     def get_grid_point_coordinates(self, mesh_grid=True):
         """
