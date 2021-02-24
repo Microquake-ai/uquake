@@ -455,7 +455,7 @@ class Pick(obsevent.Pick):
         if self.waveform_id is not None:
             sensor = f'{self.waveform_id.station_code}' \
                      f'{self.waveform_id.location_code}'
-            return self.waveform_id.station_code
+            return sensor
         return
 
     @property
