@@ -653,6 +653,23 @@ class Ray:
         return self.__str__()
 
 
+def attribdict_to_dict(attrib_dict):
+    """
+    convert AttribDict to dict
+    :param attrib_dict:
+    :type attrib_dict: obspy.core.event.AttribDict
+    :return:
+    """
+    out_dict = {}
+    for key in attrib_dict.keys():
+        if type(attrib_dict[key]) is AttribDict:
+            dict_item = attribdict_to_dict(attrib_dict[key])
+            out_dict[key] = dict_item
+        out_dict[key] = attrib_dict[key]
+
+    return out_dict
+
+
 def break_down(event):
     origin = event.origins[0]
     print("break_down: Here's what obspy reads:")
@@ -689,6 +706,7 @@ def make_pick(time, phase='P', wave_data=None, snr=None, mode='automatic',
         this_pick.trace_id = wave_data.get_id()
 
     return this_pick
+
 
 def _init_handler(self, obspy_obj, **kwargs):
     """
