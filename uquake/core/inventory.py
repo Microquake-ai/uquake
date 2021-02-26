@@ -268,10 +268,8 @@ def accelerometer_response(resonance_frequency, gain, sensitivity=1,
                                   1, [],
                                   paz['poles'])
 
-
     return Response(instrument_sensitivity=i_s,
                     response_stages=[pzr])
-
 
 
 read_inventory.__doc__ = inventory.read_inventory.__doc__.replace(
@@ -309,9 +307,8 @@ class Inventory(inventory.Inventory):
 
         return Inventory([network], source)
 
-    def write(self, path_or_file_obj, format='stationxml', nsmap={ns:ns},
-              *args, **kwargs):
-        return super().write(path_or_file_obj, format, nsmap=nsmap,
+    def write(self, path_or_file_obj, format='stationxml', *args, **kwargs):
+        return super().write(path_or_file_obj, format, nsmap={ns: ns},
                              *args, **kwargs)
 
     def get_station(self, sta):
