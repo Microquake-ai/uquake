@@ -447,6 +447,12 @@ class Pick(obsevent.Pick):
         if self.waveform_id is not None:
             return self.waveform_id.station_code
 
+    def sensor(self):
+        if self.waveform_id is not None:
+            sensor = self.waveform_id.station_code + \
+                     self.waveform_id.location_code
+            return sensor
+
 
 class Arrival(obsevent.Arrival):
     __doc__ = obsevent.Arrival.__doc__.replace('obspy', 'uquake')
