@@ -447,6 +447,7 @@ class Pick(obsevent.Pick):
         if self.waveform_id is not None:
             return self.waveform_id.station_code
 
+    @property
     def sensor(self):
         if self.waveform_id is not None:
             sensor = self.waveform_id.station_code + \
