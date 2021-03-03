@@ -798,7 +798,7 @@ class Ray:
     def __str__(self):
         txt = \
             f"""
-      station code: {self.station_code}
+       sensor code: {self.sensor_code}
         arrival id: {self.arrival_id}
              phase: {self.phase}
         length (m): {self.length}
