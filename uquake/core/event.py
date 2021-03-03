@@ -737,14 +737,16 @@ class RayCollection:
 
 class Ray:
 
-    def __init__(self, nodes=[]):
+    def __init__(self, nodes=[], sensor_code=None, arrival_id=None,
+                 phase=None, azimuth=None, takeoff_angle=None,
+                 travel_time=None):
         self.nodes = np.array(nodes)
-        self.station_code = None
-        self.arrival_id = None
-        self.phase = None
-        self.azimuth = None
-        self.takeoff_angle = None
-        self.travel_time = None
+        self.sensor_code = sensor_code
+        self.arrival_id = arrival_id
+        self.phase = phase
+        self.azimuth = azimuth
+        self.takeoff_angle = takeoff_angle
+        self.travel_time = travel_time
         self.resource_id = obsevent.ResourceIdentifier()
 
     def __setattr__(self, key, value):
