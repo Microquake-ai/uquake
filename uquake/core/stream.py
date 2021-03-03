@@ -16,6 +16,7 @@ Expansion of the obspy.core.stream module
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+from abc import ABC
 from io import BytesIO
 
 import numpy as np
@@ -26,7 +27,7 @@ from .trace import Trace
 from .util import ENTRY_POINTS, tools
 
 
-class Stream(obsstream.Stream):
+class Stream(obsstream.Stream, ABC):
     __doc__ = obsstream.Stream.__doc__.replace('obspy', 'microquake')
 
     def __init__(self, stream=None, **kwargs):
