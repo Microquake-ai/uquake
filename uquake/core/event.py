@@ -190,7 +190,8 @@ class Event(obsevent.Event):
 class Origin(obsevent.Origin):
     __doc__ = obsevent.Origin.__doc__.replace('obspy', 'uquake')
     extra_keys = ['x', 'y', 'z', 'x_error', 'y_error', 'z_error', 'scatter',
-                  'interloc_vmax', 'interloc_time', '__encoded_rays__']
+                  'interloc_vmax', 'interloc_time', '__encoded_rays__',
+                  'author']
 
     def __init__(self, obspy_obj=None, **kwargs):
         _init_handler(self, obspy_obj, **kwargs)
@@ -291,26 +292,26 @@ class Origin(obsevent.Origin):
                len(self.arrivals))
         return string
 
-    def get_incidence_baz_angles(self, station_code, phase):
+    def get_incidence_baz_angles(self, sensor_code, phase):
         baz = None
         inc = None
         for ray in self.rays:
-            if (ray.station_code == station_code) and (ray.phase == phase):
+            if (ray.sensor_code == sensor_code) and (ray.phase == phase):
                 baz = ray.back_azimuth
                 inc = ray.incidence_angle
                 break
         return baz, inc
 
-    def get_ray_station_phase(self, station_code, phase):
+    def get_ray_station_phase(self, sensor_code, phase):
         out_ray = None
         for ray in self.rays:
-            if (ray.station_code == station_code) and (ray.phase == phase):
+            if (ray.sensor_code == sensor_code) and (ray.phase == phase):
                 out_ray = ray
                 break
         return out_ray
 
-    def distance_station(self, station_code, phase='P'):
-        ray = self.get_ray_station_phase(self, station_code, phase)
+    def distance_station(self, sensor_code, phase='P'):
+        ray = self.get_ray_station_phase(self, sensor_code, phase)
         if ray is None:
             return None
 
@@ -413,7 +414,7 @@ Static stress drop (MPa): {}
 
 class Pick(obsevent.Pick):
     __doc__ = obsevent.Pick.__doc__.replace('obspy', 'uquake')
-    extra_keys = ['method', 'snr', 'trace_id']
+    extra_keys = ['method', 'snr', 'trace_id', 'author']
 
     def __init__(self, obspy_obj=None, **kwargs):
         _init_handler(self, obspy_obj, **kwargs)

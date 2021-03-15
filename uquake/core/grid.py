@@ -270,7 +270,8 @@ class Grid:
 
         format_ep = ENTRY_POINTS['grid'][format]
         write_format = load_entry_point(format_ep.dist.key,
-                                        'microquake.plugin.grid.%s' % format_ep.name, 'writeFormat')
+                                        'microquake.plugin.grid.%s'
+                                        % format_ep.name, 'writeFormat')
 
         write_format(self, filename, **kwargs)
 
@@ -284,6 +285,36 @@ class Grid:
         :type coord: list, tuple, numpy.array
         :param grid_coordinate: true if the coordinates are expressed in
         grid space (indices can be float) as opposed to model space
+        :param mode: {'reflect', 'constant', 'nearest', 'mirror', 'wrap'},
+        optional
+
+        The `mode` parameter determines how the input array is extended
+        beyond its boundaries. Default is 'constant'. Behavior for each valid
+        value is as follows:
+
+        'reflect' (`d c b a | a b c d | d c b a`)
+            The input is extended by reflecting about the edge of the last
+            pixel.
+
+        'constant' (`k k k k | a b c d | k k k k`)
+            The input is extended by filling all values beyond the edge with
+            the same constant value, defined by the `cval` parameter.
+
+        'nearest' (`a a a a | a b c d | d d d d`)
+            The input is extended by replicating the last pixel.
+
+        'mirror' (`d c b | a b c d | c b a`)
+            The input is extended by reflecting about the center of the last
+            pixel.
+
+        'wrap' (`a b c d | a b c d | a b c d`)
+            The input is extended by wrapping around to the opposite edge.
+
+        :param order: int, optional
+            The order of the spline interpolation, default is 3.
+            The order has to be in the range 0-5.
+        :type order: int
+
         :type grid_coordinate: bool
         :rtype: numpy.array
         """
