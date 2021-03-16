@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "uquake"
-version = "0.2.22"
+version = "0.2.23"
 description = "extension of the ObsPy library for local seismicity"
 authors = ["uQuake development team <dev@uQuake.org>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-numpy = "1.18.0"
+numpy = "^1.18.0"
 loguru = "^0.5.3"
 pandas = "^1.2.1"
 ipython = "^7.19.0"
