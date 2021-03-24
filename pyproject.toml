@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "uquake"
-version = "0.3.3"
+version = "0.3.4"
 description = "extension of the ObsPy library for local seismicity"
 authors = ["uQuake development team <dev@uQuake.org>"]
 license = "MIT"
@@ -16,6 +16,8 @@ pytest = "^6.2.1"
 openpyxl = "^3.0.6"
 obspy = "^1.2.2"
 vtk = "^9.0.1"
+scikit-fmm = "^2021.2.2"
+h5py = "^3.2.1"
 
 [tool.poetry.dev-dependencies]
 
