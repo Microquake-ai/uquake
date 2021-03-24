@@ -213,13 +213,13 @@ class GridManager(object):
     """
     Grid management in NLLOC context
     """
-    def __init__(self, path, project_name, network_code):
+    def __init__(self, base_path, project_name, network_code):
         """
         Interface to manage grids using a standard directory structure that is
         compatible with NonLinLoc
 
-        :param path: base path
-        :type path: str
+        :param base_path: base path
+        :type base_path: str
         :param project_name: project name or id
         :type project_name: str
         :param network_code: network name or id
@@ -294,7 +294,7 @@ class GridManager(object):
 
         self.project_name = project_name
         self.network_code = network_code
-        self.root_directory = Path(path) / project_name / network_code
+        self.root_directory = Path(base_path) / project_name / network_code
         # create the directory if it does not exist
         self.root_directory.mkdir(parents=True, exist_ok=True)
 
@@ -351,6 +351,32 @@ class GridManager(object):
         else:
             self.travel_times = TravelTimeEnsemble.from_files(
                 self.travel_time_grid_location)
+
+    def add_velocity(self, velocity, initialize_travel_time=True):
+        """
+        add P- or S-wave velocity model to the project
+        :param velocity: p-wave velocity model
+        :type velocity: nlloc.grid.VelocityGrid3D
+        :param initialize_travel_time: if true initialize the travel time grids
+
+        ..warning:: travel time should be initialized when the sensors/srces
+        are updated. Not doing so, may cause the sensors/source and the
+        travel time grids to be incompatible.
+        """
+
+        velocity.write(path=self.velocity_grid_location)
+
+        if velocity.phase.upper() == 'P':
+            self.p_velocity = velocity
+
+        else:
+            self.s_velocity = velocity
+
+        if initialize_travel_time:
+            self.init_travel_time_grid()
+        else:
+            logger.warning('the inventory and the travel time grids might'
+                           'be out of sync.')
 
     def init_travel_time_grids(self, seeds):
         """
