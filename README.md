@@ -32,7 +32,11 @@ git push
 By adding the following command to your git config you can bump and release a new version with one command
 
 ```
-git config --global alias.bump '!version=$(poetry version | awk "{print \$NF}") && git add pyproject.toml && git commit -m "Bumping version to $version" && git push && git tag "$version" && git push $(git remote) "$version"'
+git config --global alias.patch '!poetry version patch && version=$(poetry version | awk "{print \$NF}") && git add pyproject.toml && git commit -m "Bumping version to $version" && git push && git tag "$version" && git push --tags && poetry build && poetry publish'
+
+git config --global alias.minor '!poetry version minor && version=$(poetry version | awk "{print \$NF}") && git add pyproject.toml && git commit -m "Bumping version to $version" && git push && git tag "$version" && git push --tags && poetry build && poetry publish'
+
+git config --global alias.major '!poetry version major && version=$(poetry version | awk "{print \$NF}") && git add pyproject.toml && git commit -m "Bumping version to $version" && git push && git tag "$version" && git push --tags && poetry build && poetry publish'
 ```
 
 After running the above command you may release a new version with:
