@@ -1101,7 +1101,8 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
 
     nodes.append(end)
 
-    tt = travel_time_grid.interpolate(start, grid_coordinate=False, order=1)
+    tt = travel_time_grid.interpolate(start, grid_coordinate=False, order=1)[0]
+
     az = travel_time_grid.to_azimuth_point(start, grid_coordinate=False,
                                            order=1)
     toa = travel_time_grid.to_takeoff_point(start, grid_coordinate=False,
