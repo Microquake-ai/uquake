@@ -193,9 +193,9 @@ class Grid:
         check if two grids are compatible, i.e., have the same shape, spacing
         and origin
         """
-        return (self.shape == other.shape) and \
-               (self.spacing == other.spacing) and \
-            np.all(self.origin == other.origin)
+        return (np.all(self.shape == other.shape) and
+                np.all(self.spacing == other.spacing) and
+                np.all(self.origin == other.origin))
 
     def __get_shape__(self):
         """
