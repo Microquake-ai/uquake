@@ -1,0 +1,287 @@
+[default]
+project.name = 'test'
+project.network = 'OT'
+project.base_directory = ''
+api_base_url = 'https://api.microquake.org/api/v1/'
+ims_base_url = 'http://10.95.74.35:8002/ims-database-server/databases/mgl'
+project_code = 'OT'
+site = 'Oyu Tolgoi'
+site_code = 'OT'
+network = 'Hugo North Ungerground Network'
+network_code = 'OT'
+redis_rq_url = ''
+logging_level = 0
+DEBUG_LEVEL = 0
+DEBUG_FILE_DIR = '.'
+
+# nlloc
+nlloc.nll_base = 'NLL'
+nlloc.locsig = 'Oyu Tolgoi Geotechnical Monitoring Team'
+nlloc.loccom = 'Prototype'
+nlloc.residual_tolerance = 10e-3
+# locsearch = 'OCT 20 20 30 1e-6 50000 1000 0 1'
+# locsearch = 'OCT 10 10 10 1e-6 20000 1000 0 1'
+nlloc.locsearch = 'OCT 5 5 5 1e-6 5000 500 0 1'
+nlloc.locmeth = 'EDT_OT_WT 9999.0 4 -1 -1 -1 0'
+nlloc.locgau = ''
+nlloc.picking_error = 2.5e-3
+
+time_zone.type = 'UTC_offset'                # either 'UTC_offset or 'time_zone'
+time_zone.time_zone_code = 'ULN'             # time zone code. If type=time_zone, time_zone_code must be a valid pytz timezone
+time_zone.offset = 8                         # time offset in hours, ignored if type=time_zone
+
+pre_processing_message_queue = 'event_connector.pre_processing'
+automatic_pipeline_message_queue = 'workflow.automatic'
+api_message_queue = 'api'
+
+grids.units = 'meter'
+grids.method = 'ODS'
+grids.origin = [650200, 4766170, -500]
+grids.dimensions = [100, 101, 68]
+grids.spacing = 25
+
+grids.velocities.source = 'local'
+grids.velocities.homogeneous = false
+grids.velocities.vp = 'velocities/vp'
+grids.velocities.vs = 'velocities/vs'
+grids.velocities.format = 'NLLOC'
+
+grids.travel_time_h5.fname = 'travel_time_tables.h5f'
+
+sensors.source     = 'local'
+sensors.units      = 'meter'
+sensors.format     = 'csv'
+sensors.path       = 'sensors.csv'
+sensors.stationXML = 'OT.xml'
+sensors.black_list = ['7', '9', '10', '23', '25', '31', '32', '54', '91', '96', '99', '100', '102', '107', '88', '90', '77']
+
+ug_blast_windows_local_time = [7, 19]
+ug_blast_windows_tolerance_minutes = 30
+quakeml_ug_blast_type = 'explosion'
+
+data_connector.minimum_recovery_fraction = 0.85
+data_connector.maximum_attempts = 10 # maximum number of attempts at retrieving the data
+data_connector.minimum_delay_minutes = 0.5
+data_connector.context_trace.filter.freqmin = 60
+data_connector.context_trace.filter.freqmax = 500
+data_connector.likelihood_threshold = 0.50
+data_connector.reconciliation_delay_minutes = 60
+data_connector.reconciliation_interval_hours = 72
+data_connector.maximum_event_elevation = 900
+data_connector.request_range_hours = 72
+data_connector.closing_window_time_seconds = 60 # time after which we
+# consider the continuous data window closed after the event occurred
+data_connector.context_trace_forbiden_sensor = ['7', '9']  # Accelerometers
+
+event_detection.sta_lta_on_value = 3.0
+event_detection.sta_lta_off_value = 1.5
+event_detection.sta_length_second = 10e-3
+event_detection.lta_length_second = 100e-3
+event_detection.onset_threshold = 3
+event_detection.max_trigger_length_second = 0.2
+event_detection.association_time_window_length_second = 1
+event_detection.association_hold_off_time_second = 1.2 # from the start of the sequence
+#event_detection.seismogram_resulting_length_second = 2
+
+#<STALTA_on value="3.0"/>
+#        <STALTA_off value="1.25"/>
+#        <STA value="10e-3"/>
+#		<LTA value="100e-3"/>
+#        <onset_threshold value="3"/> <!-- STALTA function threshold to declare a trigger -->
+#        <max_trigger_length value="0.05"/> <!-- maximum trigger length to declare a trigger valid -->
+#        <association_time value="0.1"/> <!-- length of time window within which trigger are associated -->
+#        <hold_off_time value="0.1"/> <!-- hold off time after an event has been detected to trigger another event -->
+#        <min_number_trigger value="5"/>  <!-- minimum number of trigger required to declare an event -->
+#        <seismogram_length value="300"/>
+
+event_classifier.likelihood_threshold = 0.5
+event_classifier.blast_window_starts = [6, 18]
+event_classifier.blast_window_ends = [8, 20]
+event_classifier.valid_event_types = ['seismic event']
+event_classifier.blast_event_types = ['underground blast']
+event_classifier.uploaded_event_types = ['crusher noise', 'ore pass noise', 'test pulse', 'other blast', 'open pit blast']
+event_classifier.ignore_type_large_event = ['underground blast', 'test pulse', 'open pit blast']
+event_classifier.large_event_processing_threshold = 0.5
+
+interloc.nthreads = 4
+interloc.samplerate_decimated = 3000.0
+interloc.fixed_wlen_sec = 2.0
+interloc.whiten_corner_freqs = [40.0, 50.0, 350.0, 360.0]
+interloc.pair_dist_min = 0.0
+interloc.pair_dist_max = 2000.0
+interloc.cc_smooth_length_sec = 0.005
+interloc.detection_threshold = 0.2
+
+compute_xcorrs.rolling_database_keep_hours = 80
+compute_xcorrs.samplerate_decimated = 2000.0
+compute_xcorrs.onebit_normalization = true
+compute_xcorrs.whiten_corner_freqs = [40.0, 50.0, 390.0, 400.0]
+compute_xcorrs.request_continuous_length_sec = 600
+compute_xcorrs.request_continuous_lag_sec = 1800
+compute_xcorrs.wlen_sec = 10
+compute_xcorrs.stepsize_sec = 10
+compute_xcorrs.keeplag_sec = 1.0
+compute_xcorrs.stack_length_hours = 24.0
+compute_xcorrs.pair_dist_min = 50.0
+compute_xcorrs.pair_dist_max = 500.0
+compute_xcorrs.channel_blacklist = ['.131.X', '.131.Y', '.131.Z', '.56.Y', '.67.Y', '.83.X', '.86.X', '.86.Y', '.86.Z', '.88.X', '.88.Y', '.88.Z', '.90.X', '.90.Z']
+
+
+compute_velchange.coda_start_velocity = 3000.0
+compute_velchange.coda_end_sec = 0.8
+compute_velchange.freq_band_measure = [70.0, 240.0]
+compute_velchange.wlen_sec = 0.02
+compute_velchange.step_factor = 10
+compute_velchange.coherence_welch_nwin = 10
+
+# parameter of the PPV vs Magnitude relationship
+quick_magnitude.a = 1.2
+quick_magnitude.c = 1.1
+
+picker.snr_threshold = 8
+picker.min_num_picks = 20
+picker.residual_tolerance = 100e-3
+picker.waveform_filter.frequency_min = 100
+picker.waveform_filter.frequency_max = 1000
+picker.p_wave.snr_window.noise = 0.005
+picker.p_wave.snr_window.signal = 0.01
+picker.s_wave.snr_window.noise = 0.005
+picker.s_wave.snr_window.signal = 0.01
+picker.p_wave.search_window.start = -100e-3        # start of search window relative to predicted arrival time (s)
+picker.p_wave.search_window.end = 10e-3           # end of the search window relative to predicted arrival time (s)
+picker.p_wave.search_window.resolution = 0.0005   # time resolution of search window (s)
+picker.s_wave.search_window.start = -100e-3        # start of search window relative to predicted arrival time (s)
+picker.s_wave.search_window.end = 20e-3           # end of the search window relative to predicted arrival time (s)
+picker.s_wave.search_window.resolution = 0.0005   # time resolution of search window (s)
+
+picker.second_pass.snr_threshold = 6
+picker.second_pass.min_num_picks = 20
+picker.second_pass.residual_tolerance = 25e-3
+picker.second_pass.waveform_filter.frequency_min = 100
+picker.second_pass.waveform_filter.frequency_max = 1000
+picker.second_pass.p_wave.snr_window.noise = 0.005
+picker.second_pass.p_wave.snr_window.signal = 0.01
+picker.second_pass.s_wave.snr_window.noise = 0.005
+picker.second_pass.s_wave.snr_window.signal = 0.01
+picker.second_pass.p_wave.search_window.start = -25e-3        # start of search window relative to predicted arrival time (s)
+picker.second_pass.p_wave.search_window.end = 25e-3           # end of the search window relative to predicted arrival time (s)
+picker.second_pass.p_wave.search_window.resolution = 0.0005   # time resolution of search window (s)
+picker.second_pass.s_wave.search_window.start = -25e-3        # start of search window relative to predicted arrival time (s)
+picker.second_pass.s_wave.search_window.end = 25e-3           # end of the search window relative to predicted arrival time (s)
+picker.second_pass.s_wave.search_window.resolution = 0.0005   # time resolution of search window (s)
+
+
+location.max_uncertainty = 75
+
+magnitude.ttpath = 'None'
+magnitude.only_triaxial = true
+magnitude.phase_list = 'P'
+magnitude.density = 2700
+magnitude.min_dist = 20
+magnitude.win_length = 0.02
+# len_spectrum is specified in exponent of 2. For instance 14 is equal to 2 ** 14
+magnitude.len_spectrum_exponent = 14
+# could instead specify <len_spectrum> directly
+magnitude.freq = 100
+magnitude.use_sdr_rad = false
+magnitude.use_free_surface_correction = false
+magnitude.make_preferred = true
+magnitude.use_smom = false
+
+magnitude.frequency.phase_list = ['P', 'S']
+magnitude.frequency.use_sdr_rad = false
+magnitude.frequency.make_preferred = false
+magnitude.frequency.use_smom = true
+magnitude.frequency.min_dist = 20
+
+focal_mechanism.npolmin = 8
+focal_mechanism.max_agap = 180
+focal_mechanism.max_pgap = 60
+focal_mechanism.dang = 5
+focal_mechanism.nmc = 30
+focal_mechanism.maxout = 500
+focal_mechanism.badfrac = 0.1
+focal_mechanism.delmax = 120
+focal_mechanism.cangle = 45
+focal_mechanism.prob_max = 0.25
+focal_mechanism.plot_focal_mechs = false
+
+measure_amplitudes.pulse_min_snr_P = 9
+measure_amplitudes.pulse_min_snr_S = 6
+measure_amplitudes.pulse_min_width = 0.0014
+measure_amplitudes.phase_list = 'P'
+
+measure_energy.phase_list = ['P', 'S']
+measure_energy.correct_attenuation = false
+measure_energy.attenuation_Q = 200
+measure_energy.use_sdr_rad = false
+
+measure_smom.phase_list = ['P', 'S']
+measure_smom.S_win_len = 0.1
+measure_smom.pre_window_start_sec = 0.01
+measure_smom.max_S_P_time = 0.25
+measure_smom.use_fixed_fmin_fmax = false
+# These are only used if use_fixed_fmin_fmax = true:
+measure_smom.fmin = 30.0
+measure_smom.fmax = 600.0
+
+kafka.brokers = 'spp-confluent-cp-kafka-headless:9092'
+kafka.group_id = 'seismic_processing_platform'
+kafka.threads = 3
+
+services.channel.interloc = 'spp.services.interloc'
+services.channel.picker = 'spp.services.picker'
+services.channel.nlloc = 'spp.services.nlloc'
+services.channel.magnitude = 'spp.services.magnitude'
+
+# this describes the kafka channel to which the message should be routed
+processing_flow.extract_waveforms.message_queue = 'spp.processing_flow.extract_waveforms'
+processing_flow.automatic.message_queue = 'spp.processing_flow.automatic'
+processing_flow.interactive.message_queue = 'spp.processing_flow.interactive'
+
+processing_flow.automatic.steps = [
+{ module='interloc', input='automatic'},
+{ module='picker'},
+{ module='nlloc'},
+{ module='measure_amplitudes'},
+{ module='measure_smom'},
+{ module='focal_mechanism'},
+{ module='measure_energy'},
+{ module='magnitude'},
+{ module='magnitude', type='frequency'},
+{ module='event_database'}
+]
+
+processing_flow.interactive.steps=[
+{ module='nlloc', input='interactive', output='magnitude'},
+{ module='magnitude', input='magnitude', output='magnitude_frequency'},
+{ module='magnitude', type='frequency', input='magnitude_frequency', output='event_database'},
+{ module='event_database', input='event_database'}
+]
+
+processing_flow.interactive_accepted.trigger_data_name = 'interactive_accepted'
+processing_flow.interactive_accepted.dataset = 'seismic_event'
+processing_flow.interactive_accepted.steps=[
+{ module='measure_smom', input='data_interactive_accepted', output='focal_mechanism'},
+{ module='focal_mechanism', input='focal_mechanism', output='measure_energy'},
+{ module='measure_energy', input='measure_energy', output='magnitude'},
+{ module='magnitude', input='magnitude', output='magnitude_frequency'},
+{ module='magnitude', type='frequency', input='magnitude_frequency', output='event_database'},
+{ module='event_database', input='event_database'}
+]
+
+
+# Settings used in tests to make sure dynaconf behaves as expected
+# (these tests are currently in seismic-api)
+
+testable_settings.def_only_in_microquake = 'not overridden'
+
+testable_settings.def_in_microquake_overrid_in_project = 'this should be overridden'
+
+testable_settings.foo.bar = "this should also be overridden"
+testable_settings.foo.baz = "also not overridden"
+
+testable_settings.bar.zzz = 'not touched from project'
+
+poor_testable_settings.lost = 'this should not be present in final settings'
+poor_testable_settings.why = 'because dynaconf_merge is not used here'
