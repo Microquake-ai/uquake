@@ -5,7 +5,7 @@ from io import BytesIO
 import requests
 from dateutil import parser
 from obspy import UTCDateTime
-from microquake.core.event import Catalog
+from ...core.event import Catalog
 from obspy.core.util.attribdict import AttribDict
 
 from ...core.logging import logger
@@ -13,11 +13,11 @@ from ...core import read
 from ...core.event import Ray, read_events
 from uuid import uuid4
 # import seismic_client
-from microquake.core.settings import settings
+from ...core.settings import settings
 
 timeout = 200
 
-from microquake.core.decorators import deprecated
+from ...core.decorators import deprecated
 
 
 class RequestRay(AttribDict):
