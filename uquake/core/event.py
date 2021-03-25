@@ -23,7 +23,8 @@ import warnings
 
 import numpy as np
 import obspy.core.event as obsevent
-from obspy.core.event import WaveformStreamID, ResourceIdentifier
+from obspy.core.event import (WaveformStreamID, ResourceIdentifier,
+                              OriginUncertainty, ConfidenceEllipsoid)
 from obspy.core.util import AttribDict
 from copy import deepcopy
 from base64 import b64encode, b64decode
@@ -529,6 +530,7 @@ def get_arrival_from_pick(arrivals, pick):
 def read_events(*args, **kwargs):
 
     # converting the obspy object into uquake objects
+
     cat = obsevent.read_events(*args, **kwargs)
     mq_catalog = Catalog(obspy_obj=cat)
 

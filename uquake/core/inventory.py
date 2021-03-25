@@ -25,12 +25,11 @@ from obspy.signal.invsim import corn_freq_2_paz
 from obspy.core.inventory import (Response, InstrumentSensitivity,
                                   PolesZerosResponseStage)
 import numpy as np
-import copy
 
-# from obspy.core.inventory import Inventory
 from obspy.core.inventory.util import (Equipment, Operator, Person,
                                        PhoneNumber, Site, _textwrap,
                                        _unified_content_strings)
+from pathlib import Path
 
 from obspy.clients.nrl import NRL
 from .logging import logger
@@ -211,6 +210,9 @@ def load_from_excel(file_name):
 
 
 def read_inventory(path_or_file_object, format='STATIONXML', *args, **kwargs):
+
+    if type(path_or_file_object) is Path:
+        path_or_file_object = str(path_or_file_object)
 
     obspy_inv = inventory.read_inventory(path_or_file_object,
                                          format=format,

@@ -331,6 +331,7 @@ class Grid:
                                    **kwargs)
         except Exception as e:
             logger.warning(e)
+            logger.info('transposing the coordinate array')
             return map_coordinates(self.data, coord.T, mode=mode, order=order,
                                    **kwargs)
 
