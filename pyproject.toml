@@ -18,6 +18,7 @@ obspy = "^1.2.2"
 vtk = "^9.0.1"
 scikit-fmm = "^2021.2.2"
 h5py = "^3.2.1"
+dynaconf = "^3.1.4"
 
 [tool.poetry.dev-dependencies]
 
