@@ -13,6 +13,9 @@ from uquake.grid import nlloc as nlloc_grid
 from uuid import uuid4
 from time import time
 import numpy as np
+import os
+import shutil
+from .settings import Settings
 
 
 def calculate_uncertainty(point_cloud):
@@ -185,6 +188,18 @@ class ProjectManager(object):
         self.inventory_file = self.inventory_location / 'inventory.xml'
         self.srces_file = self.inventory_location / 'srces.pickle'
 
+        self.settings_location = self.root_directory / 'settings'
+
+        self.settings_file = self.settings_location / 'settings.toml'
+
+        if not self.settings_file.exists():
+            settings_template = Path(os.path.realpath(__file__)) / \
+                                    'settings_template.toml'
+
+            shutil.copy(str(settings_template), str(self.settings_file))
+
+        self.settings = Settings(self.settings_file)
+
         self.srces = None
         self.inventory = None
 
@@ -314,11 +329,25 @@ class ProjectManager(object):
         self.last_event_hypocenter = None
         self.last_event_time = None
 
+        self.last_location = None
+
     @classmethod
     def init_from_settings(cls, settings):
-        base_directory = settings.project.base_directory
-        name = settings.project.name
-        network = settings.project.network
+        try:
+            base_directory = settings.project.base_directory
+            name = settings.project.name
+            network = settings.project.network
+        except Exception as e:
+            logger.error(e)
+            logger.error('a settings_template.toml file comprising the three'
+                         ' following variable must be present either in '
+                         'the current directory of in a directory defined '
+                         'by the UQUAKE_CONFIG environment variable. '
+                         'Alternatively, the following environment variables '
+                         'shall be set: \n'
+                         '- UQUAKE_PROJECT__BASE_DIRECTORY\n'
+                         '- UQUAKE_PROJECT__NAME\n'
+                         '- UQUAKE_PROJECT__NETWORK')
         return cls(base_directory, name, network)
 
     def init_travel_time_grid(self):
@@ -579,9 +608,12 @@ class ProjectManager(object):
         self.observations = observations
 
     def run_location(self, observations=None, calculate_rays=True,
-                     delete_output_files=True):
+                     delete_output_files=True, event=None):
 
         import subprocess
+
+        if event is not None:
+            observations = Observations.from_event(event=event)
 
         if (observations is None) and (self.observations is None):
             raise ValueError('The current run does not contain travel time'
@@ -634,24 +666,22 @@ class ProjectManager(object):
 
             self.output_file_path.parent.rmdir()
 
-        return {'event_id': str(t),
-                'time': t,
-                'hypocenter_location': np.array([x, y, z]),
-                'scatters': scatters,
-                'rays': rays,
-                'uncertainty': uncertainty_ellipsoid}
+        result = {'event_id': str(t),
+                  'time': t,
+                  'hypocenter_location': np.array([x, y, z]),
+                  'scatters': scatters,
+                  'rays': rays,
+                  'uncertainty': uncertainty_ellipsoid}
 
+        self.last_location = result
+
+        return result
 
     def rays(self, hypocenter_location):
-        if self.last_event_hypocenter is None:
-            raise ValueError('location must be run prior to calculating the '
-                             'rays. To locate an event, use the run_location '
-                             'method.')
         return self.travel_times.ray_tracer(hypocenter_location)
 
     @property
     def nlloc_files(self):
-        observation_files = Path(self.observation_file)
         return NllocInputFiles(self.observation_file,
                                self.travel_time_grid_location /
                                self.network_code,

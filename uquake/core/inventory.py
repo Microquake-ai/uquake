@@ -40,187 +40,6 @@ nrl = NRL()
 import pandas as pd
 
 
-def load_from_excel(file_name):
-    """
-    Read in a multi-sheet excel file with network metadata sheets:
-        Sites, Networks, Hubs, Stations, Components, Sensors, Cables,
-        Boreholes
-    Organize these into a microquake Inventory object
-
-    :param xls_file: path to excel file
-    :type: xls_file: str
-    :return: inventory
-    :rtype: microquake.core.data.inventory.Inventory
-
-    """
-
-    df_dict = pd.read_excel(file_name, sheet_name=None)
-
-    source = df_dict['Sites'].iloc[0]['code']
-    # sender (str, optional) Name of the institution sending this message.
-    sender = df_dict['Sites'].iloc[0]['operator']
-    net_code = df_dict['Networks'].iloc[0]['code']
-    net_descriptions = df_dict['Networks'].iloc[0]['name']
-
-    contact_name = df_dict['Networks'].iloc[0]['contact_name']
-    contact_email = df_dict['Networks'].iloc[0]['contact_email']
-    contact_phone = df_dict['Networks'].iloc[0]['contact_phone']
-    site_operator = df_dict['Sites'].iloc[0]['operator']
-    site_country = df_dict['Sites'].iloc[0]['country']
-    site_name = df_dict['Sites'].iloc[0]['name']
-    site_code = df_dict['Sites'].iloc[0]['code']
-
-    print("source=%s" % source)
-    print("sender=%s" % sender)
-    print("net_code=%s" % net_code)
-
-    network = Network(net_code)
-    inventory = Inventory([network], source)
-
-    # obspy requirements for PhoneNumber are super specific:
-    # So likely this will raise an error if/when someone changes the value in
-    # Networks.contact_phone
-    """
-    PhoneNumber(self, area_code, phone_number, country_code=None, 
-    description=None):
-        :type area_code: int
-        :param area_code: The area code.
-        :type phone_number: str
-        :param phone_number: The phone number minus the country and 
-        area code. Must be in the form "[0-9]+-[0-9]+", e.g. 1234-5678.
-        :type country_code: int, optional
-        :param country_code: The country code.
-    """
-
-    import re
-    phone = re.findall(r"[\d']+", contact_phone)
-    area_code = int(phone[0])
-    number = "%s-%s" % (phone[1], phone[2])
-    phone_number = PhoneNumber(area_code=area_code, phone_number=number)
-
-    person = Person(names=[contact_name], agencies=[site_operator],
-                    emails=[contact_email], phones=[phone_number])
-    operator = Operator(site_operator, contacts=[person])
-    site = Site(name=site_name, description=site_name,
-                country=site_country)
-
-    # Merge Stations+Components+Sensors+Cables info into sorted stations +
-    # channels dicts:
-
-    df_dict['Stations']['station_code'] = df_dict['Stations']['code']
-    df_dict['Sensors']['sensor_code'] = df_dict['Sensors']['code']
-    df_dict['Components']['code_channel'] = df_dict['Components']['code']
-    df_dict['Components']['sensor'] = df_dict['Components']['sensor__code']
-    df_merge = pd.merge(df_dict['Stations'], df_dict['Sensors'],
-                        left_on='code', right_on='station__code',
-                        how='inner', suffixes=('', '_channel'))
-
-    df_merge2 = pd.merge(df_merge, df_dict['Components'],
-                         left_on='sensor_code', right_on='sensor__code',
-                         how='inner', suffixes=('', '_sensor'))
-
-    df_merge3 = pd.merge(df_merge2, df_dict['Cable types'],
-                         left_on='cable__code', right_on='code',
-                         how='inner', suffixes=('', '_cable'))
-
-    df_merge4 = pd.merge(df_merge3, df_dict['Sensor types'],
-                         left_on='sensor_type__model', right_on='model',
-                         how='inner', suffixes=('', '_sensor_type'))
-
-    df = df_merge4.sort_values(['sensor_code', 'location_code']).fillna(0)
-
-    # Need to sort by unique station codes, then look through 1-3 channels
-    # to add
-    stn_codes = set(df['sensor_code'])
-    stations = []
-
-    for code in stn_codes:
-        chan_rows = df.loc[df['sensor_code'] == code]
-        row = chan_rows.iloc[0]
-        station = {}
-        # Set some keys explicitly
-        #     from ipdb import set_trace; set_trace()
-        station['code'] = '{}'.format(row['sensor_code'])
-        station['x'] = row['location_x_channel']
-        station['y'] = row['location_y_channel']
-        station['z'] = row['location_z_channel']
-        station['loc'] = np.array(
-            [station['x'], station['y'], station['z']])
-        station['long_name'] = "{}.{}.{:02d}".format(row['network__code'],
-                                                     row['station_code'],
-                                                     row['location_code'])
-
-        # MTH: 2019/07 Seem to have moved from pF to F on Cables sheet:
-        station['cable_capacitance_pF_per_meter'] = row['c'] * 1e12
-
-        # Set the rest (minus empty fields) directly from spreadsheet names:
-        renamed_keys = {'sensor_code', 'location_x', 'location_y',
-                        'location_z', 'name'}
-
-        # These keys are either redundant or specific to channel, not station:
-        remove_keys = {'code', 'id_channel', 'orientation_x',
-                       'orientation_y', 'orientation_z', 'id_sensor',
-                       'enabled_channel', 'station_id', 'id_cable'}
-        keys = row.keys()
-        empty_keys = keys[pd.isna(row)]
-        keys = set(keys) - set(empty_keys) - renamed_keys - remove_keys
-
-        for key in keys:
-            station[key] = row[key]
-
-        # Added keys:
-        station['motion'] = 'VELOCITY'
-
-        if row['sensor_type'].upper() == 'ACCELEROMETER':
-            station['motion'] = 'ACCELERATION'
-
-        # Attach channels:
-        station['channels'] = []
-
-        for index, rr in chan_rows.iterrows():
-            chan = {}
-            chan['cmp'] = rr['code_channel_sensor'].upper()
-            chan['orientation'] = np.array([rr['orientation_x'],
-                                            rr['orientation_y'],
-                                            rr['orientation_z']])
-            chan['x'] = row['location_x_channel']
-            chan['y'] = row['location_y_channel']
-            chan['z'] = row['location_z_channel']
-            chan['enabled'] = rr['enabled']
-            station['channels'].append(chan)
-
-        stations.append(station)
-
-    # from ipdb import set_trace; set_trace()
-
-    # Convert these station dicts to inventory.Station objects and attach to
-    # inventory.network:
-    station_list = []
-
-    for station in stations:
-        # This is where namespace is first employed:
-        station = Station.from_station_dict(station, site_name)
-        station.site = site
-        station.operators = [operator]
-        station_list.append(station)
-
-    network.stations = station_list
-
-    return inventory
-
-
-def read_inventory(path_or_file_object, format='STATIONXML', *args, **kwargs):
-
-    if type(path_or_file_object) is Path:
-        path_or_file_object = str(path_or_file_object)
-
-    obspy_inv = inventory.read_inventory(path_or_file_object,
-                                         format=format,
-                                         *args, **kwargs)
-
-    return Inventory.from_obspy_inventory_object(obspy_inv)
-
-
 def geophone_response(resonance_frequency, gain, damping=0.707,
                       output_resistance=np.inf,
                       cable_length=np.inf, cable_capacitance=np.inf,
@@ -826,5 +645,188 @@ class Channel(inventory.Channel):
                 raise AttributeError
         else:
             raise AttributeError
+
+
+def load_from_excel(file_name) -> Inventory:
+    """
+    Read in a multi-sheet excel file with network metadata sheets:
+        Sites, Networks, Hubs, Stations, Components, Sensors, Cables,
+        Boreholes
+    Organize these into a microquake Inventory object
+
+    :param xls_file: path to excel file
+    :type: xls_file: str
+    :return: inventory
+    :rtype: microquake.core.data.inventory.Inventory
+
+    """
+
+    df_dict = pd.read_excel(file_name, sheet_name=None)
+
+    source = df_dict['Sites'].iloc[0]['code']
+    # sender (str, optional) Name of the institution sending this message.
+    sender = df_dict['Sites'].iloc[0]['operator']
+    net_code = df_dict['Networks'].iloc[0]['code']
+    net_descriptions = df_dict['Networks'].iloc[0]['name']
+
+    contact_name = df_dict['Networks'].iloc[0]['contact_name']
+    contact_email = df_dict['Networks'].iloc[0]['contact_email']
+    contact_phone = df_dict['Networks'].iloc[0]['contact_phone']
+    site_operator = df_dict['Sites'].iloc[0]['operator']
+    site_country = df_dict['Sites'].iloc[0]['country']
+    site_name = df_dict['Sites'].iloc[0]['name']
+    site_code = df_dict['Sites'].iloc[0]['code']
+
+    print("source=%s" % source)
+    print("sender=%s" % sender)
+    print("net_code=%s" % net_code)
+
+    network = Network(net_code)
+    inventory = Inventory([network], source)
+
+    # obspy requirements for PhoneNumber are super specific:
+    # So likely this will raise an error if/when someone changes the value in
+    # Networks.contact_phone
+    """
+    PhoneNumber(self, area_code, phone_number, country_code=None, 
+    description=None):
+        :type area_code: int
+        :param area_code: The area code.
+        :type phone_number: str
+        :param phone_number: The phone number minus the country and 
+        area code. Must be in the form "[0-9]+-[0-9]+", e.g. 1234-5678.
+        :type country_code: int, optional
+        :param country_code: The country code.
+    """
+
+    import re
+    phone = re.findall(r"[\d']+", contact_phone)
+    area_code = int(phone[0])
+    number = "%s-%s" % (phone[1], phone[2])
+    phone_number = PhoneNumber(area_code=area_code, phone_number=number)
+
+    person = Person(names=[contact_name], agencies=[site_operator],
+                    emails=[contact_email], phones=[phone_number])
+    operator = Operator(site_operator, contacts=[person])
+    site = Site(name=site_name, description=site_name,
+                country=site_country)
+
+    # Merge Stations+Components+Sensors+Cables info into sorted stations +
+    # channels dicts:
+
+    df_dict['Stations']['station_code'] = df_dict['Stations']['code']
+    df_dict['Sensors']['sensor_code'] = df_dict['Sensors']['code']
+    df_dict['Components']['code_channel'] = df_dict['Components']['code']
+    df_dict['Components']['sensor'] = df_dict['Components']['sensor__code']
+    df_merge = pd.merge(df_dict['Stations'], df_dict['Sensors'],
+                        left_on='code', right_on='station__code',
+                        how='inner', suffixes=('', '_channel'))
+
+    df_merge2 = pd.merge(df_merge, df_dict['Components'],
+                         left_on='sensor_code', right_on='sensor__code',
+                         how='inner', suffixes=('', '_sensor'))
+
+    df_merge3 = pd.merge(df_merge2, df_dict['Cable types'],
+                         left_on='cable__code', right_on='code',
+                         how='inner', suffixes=('', '_cable'))
+
+    df_merge4 = pd.merge(df_merge3, df_dict['Sensor types'],
+                         left_on='sensor_type__model', right_on='model',
+                         how='inner', suffixes=('', '_sensor_type'))
+
+    df = df_merge4.sort_values(['sensor_code', 'location_code']).fillna(0)
+
+    # Need to sort by unique station codes, then look through 1-3 channels
+    # to add
+    stn_codes = set(df['sensor_code'])
+    stations = []
+
+    for code in stn_codes:
+        chan_rows = df.loc[df['sensor_code'] == code]
+        row = chan_rows.iloc[0]
+        station = {}
+        # Set some keys explicitly
+        #     from ipdb import set_trace; set_trace()
+        station['code'] = '{}'.format(row['sensor_code'])
+        station['x'] = row['location_x_channel']
+        station['y'] = row['location_y_channel']
+        station['z'] = row['location_z_channel']
+        station['loc'] = np.array(
+            [station['x'], station['y'], station['z']])
+        station['long_name'] = "{}.{}.{:02d}".format(row['network__code'],
+                                                     row['station_code'],
+                                                     row['location_code'])
+
+        # MTH: 2019/07 Seem to have moved from pF to F on Cables sheet:
+        station['cable_capacitance_pF_per_meter'] = row['c'] * 1e12
+
+        # Set the rest (minus empty fields) directly from spreadsheet names:
+        renamed_keys = {'sensor_code', 'location_x', 'location_y',
+                        'location_z', 'name'}
+
+        # These keys are either redundant or specific to channel, not station:
+        remove_keys = {'code', 'id_channel', 'orientation_x',
+                       'orientation_y', 'orientation_z', 'id_sensor',
+                       'enabled_channel', 'station_id', 'id_cable'}
+        keys = row.keys()
+        empty_keys = keys[pd.isna(row)]
+        keys = set(keys) - set(empty_keys) - renamed_keys - remove_keys
+
+        for key in keys:
+            station[key] = row[key]
+
+        # Added keys:
+        station['motion'] = 'VELOCITY'
+
+        if row['sensor_type'].upper() == 'ACCELEROMETER':
+            station['motion'] = 'ACCELERATION'
+
+        # Attach channels:
+        station['channels'] = []
+
+        for index, rr in chan_rows.iterrows():
+            chan = {}
+            chan['cmp'] = rr['code_channel_sensor'].upper()
+            chan['orientation'] = np.array([rr['orientation_x'],
+                                            rr['orientation_y'],
+                                            rr['orientation_z']])
+            chan['x'] = row['location_x_channel']
+            chan['y'] = row['location_y_channel']
+            chan['z'] = row['location_z_channel']
+            chan['enabled'] = rr['enabled']
+            station['channels'].append(chan)
+
+        stations.append(station)
+
+    # from ipdb import set_trace; set_trace()
+
+    # Convert these station dicts to inventory.Station objects and attach to
+    # inventory.network:
+    station_list = []
+
+    for station in stations:
+        # This is where namespace is first employed:
+        station = Station.from_station_dict(station, site_name)
+        station.site = site
+        station.operators = [operator]
+        station_list.append(station)
+
+    network.stations = station_list
+
+    return inventory
+
+
+def read_inventory(path_or_file_object, format='STATIONXML', *args, **kwargs)\
+        -> Inventory:
+
+    if type(path_or_file_object) is Path:
+        path_or_file_object = str(path_or_file_object)
+
+    obspy_inv = inventory.read_inventory(path_or_file_object,
+                                         format=format,
+                                         *args, **kwargs)
+
+    return Inventory.from_obspy_inventory_object(obspy_inv)
+
 
 

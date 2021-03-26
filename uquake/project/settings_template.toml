@@ -1,5 +1,5 @@
 [default]
-project.name = 'test'
+project.site = 'test'
 project.network = 'OT'
 project.base_directory = ''
 api_base_url = 'https://api.microquake.org/api/v1/'
