@@ -190,6 +190,8 @@ class ProjectManager(object):
 
         self.settings_location = self.root_directory / 'settings'
 
+        self.settings_location.mkdir(parents=True, exist_ok=True)
+
         self.settings_file = self.settings_location / 'settings.toml'
 
         if not self.settings_file.exists():
