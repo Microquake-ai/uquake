@@ -34,11 +34,11 @@ pre_processing_message_queue = 'event_connector.pre_processing'
 automatic_pipeline_message_queue = 'workflow.automatic'
 api_message_queue = 'api'
 
-grids.units = 'meter'
-grids.method = 'ODS'
-grids.origin = [650200, 4766170, -500]
-grids.dimensions = [100, 101, 68]
-grids.spacing = 25
+# grids.units = 'meter'
+# grids.method = 'ODS'
+# grids.origin = [650200, 4766170, -500]
+# grids.dimensions = [100, 101, 68]
+# grids.spacing = [25, 25, 25]
 
 grids.velocities.source = 'local'
 grids.velocities.homogeneous = false
