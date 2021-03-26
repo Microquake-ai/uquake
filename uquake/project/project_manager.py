@@ -195,7 +195,7 @@ class ProjectManager(object):
         self.settings_file = self.settings_location / 'settings.toml'
 
         if not self.settings_file.exists():
-            settings_template = Path(os.path.realpath(__file__)) / \
+            settings_template = Path(os.path.realpath(__file__)).parent / \
                                     'settings_template.toml'
 
             shutil.copyfile(settings_template, self.settings_file)
