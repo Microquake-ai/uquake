@@ -315,8 +315,11 @@ class ProjectManager(object):
         self.last_event_time = None
 
     @classmethod
-    def init_from_settings(cls):
-        pass
+    def init_from_settings(cls, settings):
+        base_directory = settings.project.base_directory
+        name = settings.project.name
+        network = settings.project.network
+        return cls(base_directory, name, network)
 
     def init_travel_time_grid(self):
         """
