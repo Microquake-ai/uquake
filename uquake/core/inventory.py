@@ -93,10 +93,6 @@ def accelerometer_response(resonance_frequency, gain, sensitivity=1,
                     response_stages=[pzr])
 
 
-read_inventory.__doc__ = inventory.read_inventory.__doc__.replace(
-    'obspy', ns)
-
-
 def get_response_from_nrl(datalogger_keys, sensor_keys):
     pass
 
@@ -827,6 +823,10 @@ def read_inventory(path_or_file_object, format='STATIONXML', *args, **kwargs)\
                                          *args, **kwargs)
 
     return Inventory.from_obspy_inventory_object(obspy_inv)
+
+
+read_inventory.__doc__ = inventory.read_inventory.__doc__.replace(
+    'obspy', ns)
 
 
 
