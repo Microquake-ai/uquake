@@ -12,12 +12,9 @@ from ...core.logging import logger
 from ...core import read
 from ...core.event import Ray, read_events
 from uuid import uuid4
-# import seismic_client
-from ...core.settings import settings
+from ...core.decorators import deprecated
 
 timeout = 200
-
-from ...core.decorators import deprecated
 
 
 class RequestRay(AttribDict):
@@ -541,7 +538,8 @@ def get_event_by_id(api_base_url, event_resource_id):
     # querystring = {"event_resource_id": event_resource_id}
 
     event_resource_id = encode(event_resource_id)
-    response = requests.request("GET", url + event_resource_id, timeout=timeout)
+    response = requests.request("GET", url + event_resource_id,
+                                timeout=timeout)
 
     if response.status_code != 200:
         return None
