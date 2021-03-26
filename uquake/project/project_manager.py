@@ -198,7 +198,7 @@ class ProjectManager(object):
             settings_template = Path(os.path.realpath(__file__)) / \
                                     'settings_template.toml'
 
-            shutil.copy_file(settings_template, self.settings_file)
+            shutil.copyfile(settings_template, self.settings_file)
 
         self.settings = Settings(self.settings_file)
 
