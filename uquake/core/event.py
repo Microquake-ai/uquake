@@ -30,6 +30,7 @@ from base64 import b64encode, b64decode
 from io import BytesIO
 import pickle
 from uquake.waveform.mag_utils import calc_static_stress_drop
+from .logging import logger
 
 debug = False
 
@@ -480,8 +481,15 @@ class Arrival(obsevent.Arrival):
             else:
                 self.get_pick().polarity = 'undecidable'
 
+        if name == 'time_residual':
+            logger.warning('to avoid ambiguity, use the set_time_residual '
+                           'function')
+
         else:
             _set_attr_handler(self, name, value)
+
+    def set_time_residual(self, observed, predicted):
+        self.time_residual = observed - predicted
 
     @property
     def polarity(self):
