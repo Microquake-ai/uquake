@@ -27,6 +27,7 @@ from multiprocessing import Pool, cpu_count
 from functools import partial
 from typing import Optional
 import h5py
+from .base import ray_tracer
 
 
 __cpu_count__ = cpu_count()
@@ -1030,7 +1031,8 @@ class TTGrid(SeededGrid):
         """
 
         return ray_tracer(self, start, grid_coordinate=grid_coordinate,
-                          max_iter=max_iter, arrival_id=arrival_id)
+                          max_iter=max_iter, arrival_id=arrival_id,
+                          earth_model_id=self.model_id)
 
     @classmethod
     def from_velocity(cls, seed, seed_label, velocity_grid):
@@ -1038,81 +1040,6 @@ class TTGrid(SeededGrid):
 
     def write(self, path='.'):
         return super().write(path=path)
-
-
-def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
-               arrival_id=None):
-    """
-    This function calculates the ray between a starting point (start) and an
-    end point, which should be the seed of the travel_time grid, using the
-    gradient descent method.
-    :param travel_time_grid: a travel time grid
-    :type travel_time_grid: TTGrid
-    :param start: the starting point (usually event location)
-    :type start: tuple, list or numpy.array
-    :param grid_coordinate: true if the coordinates are expressed in
-    grid space (indices can be fractional) as opposed to model space
-    (x, y, z)
-    :param max_iter: maximum number of iteration
-    :param arrival_id: id of the arrival associated to the ray if
-    applicable
-    :rtype: numpy.array
-    """
-
-    from uquake.core.event import Ray
-
-    if grid_coordinate:
-        start = np.array(start)
-        start = travel_time_grid.transform_from(start)
-
-    origin = travel_time_grid.origin
-    spacing = travel_time_grid.spacing
-    end = np.array(travel_time_grid.seed)
-    start = np.array(start)
-
-    # calculating the gradient in every dimension at every grid points
-    gds = [Grid(gd, origin=origin, spacing=spacing)
-           for gd in np.gradient(travel_time_grid.data)]
-
-    dist = np.linalg.norm(start - end)
-    cloc = start  # initializing cloc "current location" to start
-    gamma = spacing / 2  # gamma is set to half the grid spacing. This
-    # should be
-    # sufficient. Note that gamma is fixed to reduce
-    # processing time.
-    nodes = [start]
-
-    iter_number = 0
-    while np.all(dist > spacing / 2):
-        if iter_number > max_iter:
-            break
-
-        if np.all(dist < spacing * 4):
-            gamma = np.min(spacing) / 4
-
-        gvect = np.array([gd.interpolate(cloc, grid_coordinate=False,
-                                         order=1)[0] for gd in gds])
-
-        cloc = cloc - gamma * gvect / np.linalg.norm(gvect)
-        nodes.append(cloc)
-        dist = np.linalg.norm(cloc - end)
-
-        iter_number += 1
-
-    nodes.append(end)
-
-    tt = travel_time_grid.interpolate(start, grid_coordinate=False, order=1)[0]
-
-    az = travel_time_grid.to_azimuth_point(start, grid_coordinate=False,
-                                           order=1)
-    toa = travel_time_grid.to_takeoff_point(start, grid_coordinate=False,
-                                            order=1)
-
-    ray = Ray(nodes=nodes, sensor_code=travel_time_grid.seed_label,
-              arrival_id=arrival_id, phase=travel_time_grid.phase,
-              azimuth=az, takeoff_angle=toa, travel_time=tt)
-
-    return ray
 
 
 class TravelTimeEnsemble:
