@@ -23,8 +23,7 @@ import warnings
 
 import numpy as np
 import obspy.core.event as obsevent
-from obspy.core.event import (WaveformStreamID, ResourceIdentifier,
-                              OriginUncertainty, ConfidenceEllipsoid)
+from obspy.core.event import *
 from obspy.core.util import AttribDict
 from copy import deepcopy
 from base64 import b64encode, b64decode
