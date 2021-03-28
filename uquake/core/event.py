@@ -488,8 +488,9 @@ class Arrival(obsevent.Arrival):
         else:
             _set_attr_handler(self, name, value)
 
-    def set_time_residual(self, observed, predicted):
-        self.time_residual = observed - predicted
+    @staticmethod
+    def calculate_time_residual(observed: float, predicted: float):
+        return observed - predicted
 
     @property
     def polarity(self):
