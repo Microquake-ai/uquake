@@ -750,7 +750,7 @@ class Ray:
 
     def __init__(self, nodes=[], sensor_code=None, arrival_id=None,
                  phase=None, azimuth=None, takeoff_angle=None,
-                 travel_time=None):
+                 travel_time=None, earth_model_id=None):
         self.nodes = np.array(nodes)
         self.sensor_code = sensor_code
         self.arrival_id = arrival_id
@@ -759,6 +759,7 @@ class Ray:
         self.takeoff_angle = takeoff_angle
         self.travel_time = travel_time
         self.resource_id = obsevent.ResourceIdentifier()
+        self.earth_model_id = earth_model_id
 
     def __setattr__(self, key, value):
         if key == 'phase':
