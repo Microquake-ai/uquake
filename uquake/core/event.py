@@ -760,9 +760,25 @@ class RayCollection:
 
 class Ray:
 
-    def __init__(self, nodes=[], sensor_code=None, arrival_id=None,
-                 phase=None, azimuth=None, takeoff_angle=None,
-                 travel_time=None, earth_model_id=None):
+    def __init__(self, nodes: list = [], sensor_code: str = None,
+                 arrival_id: ResourceIdentifier = None,
+                 phase: str = None, azimuth: float = None,
+                 takeoff_angle: float = None,
+                 travel_time: float = None,
+                 earth_model_id: ResourceIdentifier = None):
+        """
+        :param nodes: ray nodes
+        :param sensor_code: sensor code
+        :param arrival_id: the ResourceIdentifier of the arrival associated to
+        the ray
+        :param phase: seismic phase ("P" or "S")
+        :param azimuth: Azimuth in degrees
+        :param takeoff_angle: takeoff angle in degrees
+        :param travel_time: travel time between the source and the sensor in
+        second
+        :param earth_model_id: velocity model ResourceIdentifier
+        """
+
         self.nodes = np.array(nodes)
         self.sensor_code = sensor_code
         self.arrival_id = arrival_id
