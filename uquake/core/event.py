@@ -488,6 +488,18 @@ class Arrival(obsevent.Arrival):
         else:
             _set_attr_handler(self, name, value)
 
+    def __repr__(self):
+        out_str = f"""
+       resource_id: {self.resource_id}
+           pick_id: {self.get_pick().resource_id}
+             phase: {self.phase}
+           azimuth: {self.azimuth:0.2f}
+          distance: {self.distance:0.2f}
+     takeoff_angle: {self.takeoff_angle:0.2f}
+     time_residual: {self.time_residual:0.4f}
+       time_weight: {self.time_weight}
+        """
+
     @staticmethod
     def calculate_time_residual(observed: float, predicted: float):
         return observed - predicted
@@ -805,7 +817,7 @@ class Ray:
         return ia
 
     def __len__(self):
-        return self.length
+        return len(self.nodes)
 
     def __str__(self):
         txt = \
