@@ -279,22 +279,18 @@ class Origin(obsevent.Origin):
         return magnitudes
 
     def __str__(self, **kwargs):
-        string = """
-       resource_id: %s
-              time: %s
-                 x: %0.2f
-                 y: %0.2f
-                 z: %0.2f
-       uncertainty: %0.2f
-   evaluation_mode: %s
- evaluation_status: %s
+        string = f"""
+       resource_id: {self.resource_id}
+              time: {self.time}
+                 x: {self.x:>10.2f}
+                 y: {self.y:>10.2f}
+                 z: {self.z:>10.2f}
+       uncertainty: {self.uncertainty:>10.2f} (m)
+   evaluation_mode: {self.evaluation_mode}
+ evaluation_status: {self.evaluation_status}
                 ---------
-          arrivals: %d Elements
-        """ \
-            % (self.resource_id, self.time.strftime("%Y/%m/%d %H:%M:%S.%f"),
-               self.x, self.y, self.z, self.uncertainty, self.evaluation_mode,
-               self.evaluation_status,
-               len(self.arrivals))
+          arrivals: {len(self.arrivals):d}
+        """ 
         return string
 
     def get_incidence_baz_angles(self, sensor_code, phase):
