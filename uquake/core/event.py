@@ -187,6 +187,10 @@ class Event(obsevent.Event):
     def plot_focal_mechanism(self):
         pass
 
+    def append_origin_as_preferred_origin(self, new_origin: Origin):
+        self.origins.append(new_origin)
+        self.preferred_origin_id = new_origin.resource_id
+
 
 class Origin(obsevent.Origin):
     __doc__ = obsevent.Origin.__doc__.replace('obspy', 'uquake')
