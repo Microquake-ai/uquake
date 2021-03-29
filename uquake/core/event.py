@@ -499,6 +499,7 @@ class Arrival(obsevent.Arrival):
      time_residual: {self.time_residual:0.4f}
        time_weight: {self.time_weight}
         """
+        return out_str
 
     @staticmethod
     def calculate_time_residual(observed: float, predicted: float):
