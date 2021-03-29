@@ -493,11 +493,11 @@ class Arrival(obsevent.Arrival):
        resource_id: {self.resource_id}
            pick_id: {self.get_pick().resource_id}
              phase: {self.phase}
-           azimuth: {self.azimuth:0.2f}
-          distance: {self.distance:0.2f}
-     takeoff_angle: {self.takeoff_angle:0.2f}
-     time_residual: {self.time_residual:0.4f}
-       time_weight: {self.time_weight}
+           azimuth: {self.azimuth:0.2f} (deg)
+          distance: {self.distance:0.2f} (m)
+     takeoff_angle: {self.takeoff_angle:0.2f} (deg)
+     time_residual: {self.time_residual*1000:0.0f} (ms)
+       time_weight: {self.time_weight:0.1f}
         """
         return out_str
 
