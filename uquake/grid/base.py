@@ -330,8 +330,8 @@ class Grid:
             return map_coordinates(self.data, coord, mode=mode, order=order,
                                    **kwargs)
         except Exception as e:
-            logger.warning(e)
-            logger.info('transposing the coordinate array')
+            # logger.warning(e)
+            # logger.info('transposing the coordinate array')
             return map_coordinates(self.data, coord.T, mode=mode, order=order,
                                    **kwargs)
 
