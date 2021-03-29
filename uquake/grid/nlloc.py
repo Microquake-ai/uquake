@@ -960,7 +960,8 @@ class TTGrid(SeededGrid):
         gds_tmp = np.gradient(self.data)
         gds = [-gd for gd in gds_tmp]
 
-        azimuth = np.arctan2(gds[0], gds[1])  # azimuth is zero northwards
+        azimuth = np.arctan2(gds[0], gds[1]) * 180 / np.pi
+        # azimuth is zero northwards
 
         return AngleGrid(self.network_code, azimuth, self.origin, self.spacing,
                          self.seed, self.seed_label, 'AZIMUTH',
@@ -972,7 +973,7 @@ class TTGrid(SeededGrid):
         gds = [-gd for gd in gds_tmp]
 
         hor = np.sqrt(gds[0] ** 2 + gds[1] ** 2)
-        takeoff = np.arctan2(hor, -gds[2])
+        takeoff = np.arctan2(hor, -gds[2]) * 180 / np.pi
         # takeoff is zero pointing down
         return AngleGrid(self.network_code, takeoff, self.origin, self.spacing,
                          self.seed, self.seed_label, 'TAKEOFF',
