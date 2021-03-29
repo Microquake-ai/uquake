@@ -28,6 +28,7 @@ from functools import partial
 from typing import Optional
 import h5py
 from .base import ray_tracer
+from tqdm import tqdm
 
 
 __cpu_count__ = cpu_count()
@@ -800,7 +801,10 @@ class VelocityGrid3D(NLLocGrid):
             data.append((seed, seed_label))
 
         with Pool(num_threads) as pool:
-            results = pool.starmap(self.to_time, data)
+            results = []
+            for result in tqdm(pool.starmap(self.to_time, data),
+                               total=len(data)):
+                results.append(result)
 
         tt_grid_ensemble = TravelTimeEnsemble(results)
 
@@ -1241,7 +1245,10 @@ class TravelTimeEnsemble:
                 data.append((travel_time_grid, start))
 
             with Pool(num_threads) as pool:
-                results = pool.starmap(ray_tracer_func, data)
+                results = []
+                for result in tqdm(pool.starmap(ray_tracer_func, data),
+                                   total=len(data)):
+                    results.append(result)
 
         else:
             results = []
