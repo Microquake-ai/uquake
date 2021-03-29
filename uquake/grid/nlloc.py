@@ -760,7 +760,7 @@ class VelocityGrid3D(NLLocGrid):
                              model_id=self.model_id,
                              grid_units=self.grid_units)
 
-        tt_out_grid.data -= tt_out_grid.interpolate(seed,
+        tt_out_grid.data -= tt_out_grid.interpolate(seed.T,
                                                     grid_coordinate=False,
                                                     order=3)
 
@@ -1192,7 +1192,7 @@ class TravelTimeEnsemble:
         labels = []
         for tt_grid in tt_grids:
             labels.append(tt_grid.seed_label)
-            tts.append(tt_grid.interpolate(seed, grid_coordinate=False))
+            tts.append(tt_grid.interpolate(seed.T, grid_coordinate=False))
 
         if sort:
             indices = np.argsort(tts, ascending=ascending)
