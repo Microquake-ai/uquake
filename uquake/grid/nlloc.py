@@ -801,7 +801,7 @@ class VelocityGrid3D(NLLocGrid):
             data.append((seed, seed_label))
 
         with Pool(num_threads) as pool:
-            results = pool.starmap(self.to_time, data))
+            results = pool.starmap(self.to_time, data)
 
         tt_grid_ensemble = TravelTimeEnsemble(results)
 
