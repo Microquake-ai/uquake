@@ -801,11 +801,7 @@ class VelocityGrid3D(NLLocGrid):
             data.append((seed, seed_label))
 
         with Pool(num_threads) as pool:
-            results = []
-            for result in tqdm(pool.starmap(self.to_time, data),
-                               total=len(data)):
-                tqdm.update(1)
-                results.append(result)
+            results = pool.starmap(self.to_time, data))
 
         tt_grid_ensemble = TravelTimeEnsemble(results)
 
@@ -1246,11 +1242,7 @@ class TravelTimeEnsemble:
                 data.append((travel_time_grid, start))
 
             with Pool(num_threads) as pool:
-                results = []
-                for result in tqdm(pool.starmap(ray_tracer_func, data),
-                                   total=len(data)):
-                    tqdm.update(1)
-                    results.append(result)
+                results = pool.starmap(ray_tracer_func, data)
 
         else:
             results = []
