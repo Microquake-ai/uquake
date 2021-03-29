@@ -485,10 +485,6 @@ class Arrival(obsevent.Arrival):
             else:
                 self.get_pick().polarity = 'undecidable'
 
-        if name == 'time_residual':
-            logger.warning('to avoid ambiguity, use the set_time_residual '
-                           'function')
-
         else:
             _set_attr_handler(self, name, value)
 
