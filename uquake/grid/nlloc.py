@@ -333,7 +333,7 @@ class NLLocGrid(Grid):
         :type origin: list
         :param spacing: the spacing between grid nodes
         :type spacing: list
-        :param phase: the useismic phase (value 'P' or 'S')
+        :param phase: the useis phase (value 'P' or 'S')
         :type phase: str
         :param value:
         :type value: float
@@ -664,7 +664,7 @@ class VelocityGrid3D(NLLocGrid):
                 *args, **kwargs):
         """
         Eikonal solver based on scikit fast marching solver
-        :param seed: numpy array location of the seed or origin of useismic wave
+        :param seed: numpy array location of the seed or origin of useis wave
          in model coordinates
         (usually location of a station or an event)
         :type seed: numpy array
