@@ -1206,7 +1206,7 @@ class TravelTimeEnsemble:
 
         return tt_dicts
 
-    def ray_tracer(self, start, seed_labels=None, multithreading=True,
+    def ray_tracer(self, start, seed_labels=None, multithreading=False,
                    cpu_utilisation=0.9, grid_coordinate=False, max_iter=1000):
         """
 

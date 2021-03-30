@@ -2,16 +2,16 @@
 # ------------------------------------------------------------------
 # Filename: core.py
 #  Purpose: Expansion of the obspy.core.stream module
-#   Author: microquake development team
-#    Email: devs@microquake.org
+#   Author: uquake development team
+#    Email: devs@uquake.org
 #
-# Copyright (C) 2016 microquake development team
+# Copyright (C) 2016 uquake development team
 # --------------------------------------------------------------------
 """
 Expansion of the obspy.core.stream module
 
 :copyright:
-    microquake development team (devs@microquake.org)
+    uquake development team (devs@uquake.org)
 :license:
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
@@ -28,7 +28,7 @@ from .util import ENTRY_POINTS, tools
 
 
 class Stream(obsstream.Stream, ABC):
-    __doc__ = obsstream.Stream.__doc__.replace('obspy', 'microquake')
+    __doc__ = obsstream.Stream.__doc__.replace('obspy', 'uquake')
 
     def __init__(self, stream=None, **kwargs):
         super(Stream, self).__init__(**kwargs)
@@ -48,8 +48,8 @@ class Stream(obsstream.Stream, ABC):
         the trace of all component and the phase of the trace (sign) is the
         sign of the first components of a given station.
         :param st: a stream object
-        :type st: ~microquake.core.stream.Stream
-        :rtype: ~microquake.core.stream.Stream
+        :type st: ~uquake.core.stream.Stream
+        :rtype: ~uquake.core.stream.Stream
 
         """
 
@@ -100,7 +100,7 @@ class Stream(obsstream.Stream, ABC):
         return obsstream.Stream.write(st_out, f, format, **kwargs)
 
     write.__doc__ = obsstream.Stream.write.__doc__.replace('obspy',
-                                                           'microquake')
+                                                           'uquake')
 
     def write_bytes(self):
         buf = BytesIO()
@@ -149,7 +149,7 @@ class Stream(obsstream.Stream, ABC):
     #     """
     #     see Obspy stream.plot()
     #     """
-    #     from microquake.imaging.waveform import WaveformPlotting
+    #     from uquake.imaging.waveform import WaveformPlotting
     #     waveform = WaveformPlotting(stream=self, *args, **kwargs)
     #
     #     return waveform.plotWaveform(*args, **kwargs)
@@ -255,7 +255,7 @@ class Stream(obsstream.Stream, ABC):
         return traces
 
 
-# from microquake.core import read, read_events
+# from uquake.core import read, read_events
 # from spp.utils import application
 # app = application.Application()
 # site = app.get_stations()
@@ -269,7 +269,7 @@ def is_valid(st_in, return_stream=False, STA=0.005, LTA=0.1, min_num_valid=5):
     """
         Determine if an event is valid or return valid traces in a  stream
         :param st_in: stream
-        :type st_in: microquake.core.stream.Stream
+        :type st_in: uquake.core.stream.Stream
         :param return_stream: return stream of valid traces if true else return
         true if the event is valid
         :type return_stream: bool
@@ -280,7 +280,7 @@ def is_valid(st_in, return_stream=False, STA=0.005, LTA=0.1, min_num_valid=5):
         :param min_num_valid: minimum number of valid traces to declare the
         event valid
         :type min_num_valid: int
-        :rtype: bool or microquake.core.stream.Stream
+        :rtype: bool or uquake.core.stream.Stream
     """
 
     from scipy.ndimage.filters import gaussian_filter1d
@@ -376,8 +376,8 @@ def composite_traces(st_in):
     the trace of all component and the phase of the trace (sign) is the sign
     of the first components of a given station.
     :param st: a stream object
-    :type st: ~microquake.core.stream.Stream
-    :rtype: ~microquake.core.stream.Stream
+    :type st: ~uquake.core.stream.Stream
+    :rtype: ~uquake.core.stream.Stream
 
     """
 
@@ -431,4 +431,4 @@ def read(fname, format='MSEED', **kwargs):
         return Stream(stream=obsstream.read(fname, format=format, **kwargs))
 
 
-read.__doc__ = obsstream.read.__doc__.replace('obspy', 'microquake')
+read.__doc__ = obsstream.read.__doc__.replace('obspy', 'uquake')

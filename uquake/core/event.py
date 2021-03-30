@@ -281,7 +281,7 @@ class Origin(obsevent.Origin):
     def __str__(self, **kwargs):
         string = f"""
        resource_id: {self.resource_id}
-              time: {self.time}
+         time(UTC): {self.time}
                  x: {self.x:>10.2f}
                  y: {self.y:>10.2f}
                  z: {self.z:>10.2f}
@@ -290,7 +290,7 @@ class Origin(obsevent.Origin):
  evaluation_status: {self.evaluation_status}
                 ---------
           arrivals: {len(self.arrivals):d}
-        """ 
+        """
         return string
 
     def get_incidence_baz_angles(self, sensor_code, phase):
