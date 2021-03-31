@@ -104,6 +104,12 @@ class Trace(ObspyTrace):
 
         return trace_dict
 
+    def plot(self, **kwargs):
+        from ..imaging.waveform import WaveformPlotting
+        waveform = WaveformPlotting(stream=self, **kwargs)
+
+        return waveform.plotWaveform()
+
 
 class Stats(ObspyStats):
     def __init__(self, **kwargs):

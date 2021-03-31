@@ -154,15 +154,6 @@ class Stream(obsstream.Stream, ABC):
         for tr in self.traces:
             tr.stats.station = tr.stats.station.lstrip('0')
 
-    # def plot(self, *args, **kwargs):
-    #     """
-    #     see Obspy stream.plot()
-    #     """
-    #     from uquake.imaging.waveform import WaveformPlotting
-    #     waveform = WaveformPlotting(stream=self, *args, **kwargs)
-    #
-    #     return waveform.plotWaveform(*args, **kwargs)
-
     def distance_time_plot(self, event, site, scale=20, freq_min=100,
                            freq_max=1000):
         """
@@ -262,6 +253,15 @@ class Stream(obsstream.Stream, ABC):
             traces.append(trout)
 
         return traces
+
+    def plot(self, *args, **kwargs):
+        """
+        see Obspy stream.plot()
+        """
+        from ..imaging.waveform import WaveformPlotting
+        waveform = WaveformPlotting(stream=self, *args, **kwargs)
+
+        return waveform.plotWaveform(*args, **kwargs)
 
 
 # from uquake.core import read, read_events
