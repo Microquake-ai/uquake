@@ -228,7 +228,7 @@ class Station(inventory.Station):
 
         equipments = []
         if 'manufacturer_sensor' in stn:
-            equipments = [Equipment(type='Sensor',
+            equipments = [Equipment(type='Site',
                                     manufacturer=stn['manufacturer_sensor'],
                                     model=stn['model'])]
 
@@ -362,7 +362,7 @@ class Station(inventory.Station):
             channel_dict[channel.location_code].append(channel)
 
         for key in channel_dict.keys():
-            sites.append(Sensor(self, channel_dict[key]))
+            sites.append(Site(self, channel_dict[key]))
 
         return sites
 
@@ -376,7 +376,7 @@ class Station(inventory.Station):
         channel_count = len(self.channels)
         ret = (f"\tStation {self.historical_code}\n"
                f"\tStation Code: {self.code}\n"
-               f"\tSensor Count: {site_count}\n"
+               f"\tSite Count: {site_count}\n"
                f"\tChannel Count: {channel_count}\n"
                f"\t{self.start_date} - {self.end_date}\n"
                f"\tx: {x:.0f}, y: {y:.0f}, z: {z:.0f} m\n")
@@ -439,7 +439,7 @@ class Site:
         self.channels = channels
 
     def __repr__(self):
-        ret = f'\tSensor {self.site_code}\n' \
+        ret = f'\tSite {self.site_code}\n' \
               f'\tx: {self.x:.0f} m, y: {self.y:.0f} m z: {self.z:0.0f} m\n' \
               f'\tChannel Count: {len(self.channels)}'
 
@@ -646,7 +646,7 @@ class Channel(inventory.Channel):
 def load_from_excel(file_name) -> Inventory:
     """
     Read in a multi-sheet excel file with network metadata sheets:
-        Sites, Networks, Hubs, Stations, Components, Sensors, Cables,
+        Sites, Networks, Hubs, Stations, Components, Sites, Cables,
         Boreholes
     Organize these into a microquake Inventory object
 
@@ -707,14 +707,14 @@ def load_from_excel(file_name) -> Inventory:
     site = Site(name=site_name, description=site_name,
                 country=site_country)
 
-    # Merge Stations+Components+Sensors+Cables info into sorted stations +
+    # Merge Stations+Components+Sites+Cables info into sorted stations +
     # channels dicts:
 
     df_dict['Stations']['station_code'] = df_dict['Stations']['code']
-    df_dict['Sensors']['sensor_code'] = df_dict['Sensors']['code']
+    df_dict['Sites']['sensor_code'] = df_dict['Sites']['code']
     df_dict['Components']['code_channel'] = df_dict['Components']['code']
     df_dict['Components']['sensor'] = df_dict['Components']['sensor__code']
-    df_merge = pd.merge(df_dict['Stations'], df_dict['Sensors'],
+    df_merge = pd.merge(df_dict['Stations'], df_dict['Sites'],
                         left_on='code', right_on='station__code',
                         how='inner', suffixes=('', '_channel'))
 
@@ -726,7 +726,7 @@ def load_from_excel(file_name) -> Inventory:
                          left_on='cable__code', right_on='code',
                          how='inner', suffixes=('', '_cable'))
 
-    df_merge4 = pd.merge(df_merge3, df_dict['Sensor types'],
+    df_merge4 = pd.merge(df_merge3, df_dict['Site types'],
                          left_on='sensor_type__model', right_on='model',
                          how='inner', suffixes=('', '_sensor_type'))
 
