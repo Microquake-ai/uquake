@@ -31,6 +31,7 @@ from io import BytesIO
 import pickle
 from uquake.waveform.mag_utils import calc_static_stress_drop
 from .logging import logger
+from pathlib import Path
 
 debug = False
 
@@ -544,11 +545,13 @@ def get_arrival_from_pick(arrivals, pick):
     return arrival
 
 
-def read_events(*args, **kwargs):
+def read_events(filename, **kwargs):
 
+    if isinstance(filename, Path):
+        filename = str(filename)
     # converting the obspy object into uquake objects
 
-    cat = obsevent.read_events(*args, **kwargs)
+    cat = obsevent.read_events(filename, **kwargs)
     mq_catalog = Catalog(obspy_obj=cat)
 
     if mq_catalog[0].preferred_origin():
