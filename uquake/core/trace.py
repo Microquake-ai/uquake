@@ -49,11 +49,11 @@ class Trace(obstrace.Trace):
 
         return np.linspace(0, len(self.data) / sr, len(self.data))
 
-    def plot(self, **kwargs):
-        from obspy.imaging.waveform import WaveformPlotting
-        waveform = WaveformPlotting(stream=self, **kwargs)
-
-        return waveform.plotWaveform()
+    # def plot(self, **kwargs):
+    #     from obspy.imaging.waveform import WaveformPlotting
+    #     waveform = WaveformPlotting(stream=self, **kwargs)
+    #
+    #     return waveform.plotWaveform()
 
     def time_within(self, utime, edge_buf=0.0):
         within = True
@@ -84,7 +84,6 @@ class Trace(obstrace.Trace):
 
         for key in self.stats.keys():
             if isinstance(self.stats[key], UTCDateTime):
-                # trace_dict['stats'][key] = int(np.float64(self.stats[key].timestamp) * 1e9)
                 trace_dict['stats'][key] = self.stats[key].isoformat()
             elif isinstance(self.stats[key], AttribDict):
                 trace_dict['stats'][key] = self.stats[key].__dict__
