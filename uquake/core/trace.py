@@ -33,6 +33,10 @@ class Trace(ObspyTrace):
             self.data = trace.data
 
     @property
+    def site(self):
+        return self.stats.station + self.stats.location
+
+    @property
     def sr(self):
         return self.stats.sampling_rate
 

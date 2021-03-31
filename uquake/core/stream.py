@@ -25,6 +25,7 @@ from pkg_resources import load_entry_point
 
 from .trace import Trace
 from .util import ENTRY_POINTS, tools
+from pathlib import Path
 
 
 class Stream(obsstream.Stream, ABC):
@@ -132,12 +133,17 @@ class Stream(obsstream.Stream, ABC):
 
         return ((np.array(sorted_list).astype(str)))
 
+    @property
     def unique_stations(self):
-
         return np.unique([tr.stats.station for tr in self])
 
-    def unique_sites(self):
-        return np.unique([tr.stats.site for tr in self])
+    @property
+    def stations(self):
+        return np.sort(np.unique([tr.stats.station for tr in self]))
+
+    @property
+    def sites(self):
+        return np.sort(np.unique([tr.stats.site for tr in self]))
 
     def zpad_names(self):
         for tr in self.traces:
@@ -378,8 +384,8 @@ def composite_traces(st_in):
     The amplitude of the composite traces are the norm of the amplitude of
     the trace of all component and the phase of the trace (sign) is the sign
     of the first components of a given station.
-    :param st: a stream object
-    :type st: ~uquake.core.stream.Stream
+    :param st_in: a stream object
+    :type st_in: ~uquake.core.stream.Stream
     :rtype: ~uquake.core.stream.Stream
 
     """
@@ -406,20 +412,24 @@ def composite_traces(st_in):
 
         buf = np.sign(trs[0].data) * np.sqrt(buf)
         stats = trs[0].stats.copy()
-        stats.channel = 'C'
+        channel = stats.channel
+        stats.channel = channel.replace(channel[-1], 'C')
         trsout.append(Trace(data=buf.copy(), header=stats))
 
     return Stream(traces=trsout)
 
 
-def read(fname, format='MSEED', **kwargs):
+def read(filename, format='MSEED', **kwargs):
+    if isinstance(filename, Path):
+        filename = str(filename)
+
     if format in ENTRY_POINTS['waveform'].keys():
         format_ep = ENTRY_POINTS['waveform'][format]
         read_format = load_entry_point(format_ep.dist.key,
                                        'obspy.plugin.waveform.%s' %
                                        format_ep.name, 'readFormat')
 
-        st = Stream(stream=read_format(fname, **kwargs))
+        st = Stream(stream=read_format(filename, **kwargs))
 
         # making sure the channel names are upper case
         trs = []
@@ -431,7 +441,7 @@ def read(fname, format='MSEED', **kwargs):
 
         return st
     else:
-        return Stream(stream=obsstream.read(fname, format=format, **kwargs))
+        return Stream(stream=obsstream.read(filename, format=format, **kwargs))
 
 
 read.__doc__ = obsstream.read.__doc__.replace('obspy', 'uquake')
