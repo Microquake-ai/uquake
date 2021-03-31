@@ -124,7 +124,7 @@ def read_ESG_SEGY(fname, site=None, **kwargs):
     read data produced by ESG and turn them into a valid stream with network,
     station and component information properly filled
     :param fname: the filename
-    :param site: a site object containing sensor information
+    :param site: a site object containing site information
     :type site: ~microquake.core.station.Site
     :return: ~microquake.core.stream.Stream
     """

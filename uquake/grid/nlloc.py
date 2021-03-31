@@ -214,18 +214,18 @@ def read_grid(base_name, path='.', float_type=__default_float_type__):
 class Seeds:
     __valid_measurement_units__ = ['METERS', 'KILOMETERS']
 
-    def __init__(self, sensors=[], units='METERS'):
+    def __init__(self, sites=[], units='METERS'):
         """
         specifies a series of source location from an inventory object
-        :param sensors: a list of sensors containing at least the location,
-        and sensor label
-        :type sensors: list of dictionary
+        :param sites: a list of sites containing at least the location,
+        and site label
+        :type sites: list of dictionary
 
         :Example:
 
-        >>> sensor = {'label': 'test', 'x': 1000, 'y': 1000, 'z': 1000,
+        >>> site = {'label': 'test', 'x': 1000, 'y': 1000, 'z': 1000,
                       'elev': 0.0}
-        >>> sensors = [sensor]
+        >>> sites = [site]
         >>> srces = Srces(srces)
 
         """
@@ -233,7 +233,7 @@ class Seeds:
         validate(units, self.__valid_measurement_units__)
         self.units = units
 
-        self.sensors = sensors
+        self.sites = sites
 
     @classmethod
     def from_inventory(cls, inventory):
@@ -244,11 +244,11 @@ class Seeds:
         """
 
         srces = []
-        for sensor in inventory.sensors:
-            srce = {'label': sensor.code,
-                    'x': sensor.x,
-                    'y': sensor.y,
-                    'z': sensor.z,
+        for site in inventory.sites:
+            srce = {'label': site.code,
+                    'x': site.x,
+                    'y': site.y,
+                    'z': site.z,
                     'elev': 0}
             srces.append(srce)
 
@@ -260,20 +260,20 @@ class Seeds:
 
     def add(self, label, x, y, z, elev=0, units='METERS'):
         """
-        Add a single sensor to the source list
-        :param label: sensor label
+        Add a single site to the source list
+        :param label: site label
         :type label: str
         :param x: x location relative to geographic origin expressed
-        in the units of measurements for sensor/source
+        in the units of measurements for site/source
         :type x: float
         :param y: y location relative to geographic origin expressed
-        in the units of measurements for sensor/source
+        in the units of measurements for site/source
         :type y: float
         :param z: z location relative to geographic origin expressed
-        in the units of measurements for sensor/source
+        in the units of measurements for site/source
         :type z: float
         :param elev: elevation above z grid position (positive UP) in
-        kilometers for sensor (Default = 0)
+        kilometers for site (Default = 0)
         :type elev: float
         :param units: units of measurement used to express x, y, and z
         ( 'METERS' or 'KILOMETERS')
@@ -282,7 +282,7 @@ class Seeds:
 
         validate(units.upper(), self.__valid_measurement_units__)
 
-        self.sensors.append({'label': label, 'x': x, 'y': y, 'z': z,
+        self.sites.append({'label': label, 'x': x, 'y': y, 'z': z,
                              elev:'elev'})
 
         self.units = units.upper()
@@ -290,14 +290,14 @@ class Seeds:
     def __repr__(self):
         line = ""
 
-        for sensor in self.sensors:
+        for site in self.sites:
 
-            # test if sensor name is shorter than 6 characters
+            # test if site name is shorter than 6 characters
 
-            line += f'GTSRCE {sensor["label"]} XYZ ' \
-                    f'{sensor["x"] / 1000:>15.6f} ' \
-                    f'{sensor["y"] / 1000:>15.6f} ' \
-                    f'{sensor["z"] / 1000:>15.6f} ' \
+            line += f'GTSRCE {site["label"]} XYZ ' \
+                    f'{site["x"] / 1000:>15.6f} ' \
+                    f'{site["y"] / 1000:>15.6f} ' \
+                    f'{site["z"] / 1000:>15.6f} ' \
                     f'0.00\n'
 
         return line
@@ -305,15 +305,15 @@ class Seeds:
     @property
     def locs(self):
         seeds = []
-        for sensor in self.sensors:
-            seeds.append([sensor['x'], sensor['y'], sensor['z']])
+        for site in self.sites:
+            seeds.append([site['x'], site['y'], site['z']])
         return np.array(seeds)
 
     @property
     def labels(self):
         seed_labels = []
-        for sensor in self.sensors:
-            seed_labels.append(sensor['label'])
+        for site in self.sites:
+            seed_labels.append(site['label'])
 
         return np.array(seed_labels)
 
@@ -439,7 +439,7 @@ class NLLocGrid(Grid):
         return self.resource_id
 
     @property
-    def sensor(self):
+    def site(self):
         return self.seed_label
 
 
@@ -1167,19 +1167,19 @@ class TravelTimeEnsemble:
     def travel_time(self, seed, grid_coordinate=False,
                     seed_labels=None, sort=True, ascending=True):
         """
-        calculate the travel time at a specific point for a series of sensor
+        calculate the travel time at a specific point for a series of site
         ids
         :param seed: travel time seed
         :param grid_coordinate: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
-        :param seed_labels: a list of sensors from which to calculate the
+        :param seed_labels: a list of sites from which to calculate the
         travel time.
         :param sort: sort list if true
         :type sort: bool
         :param ascending: sort in ascending order if true
         :type ascending: bool
-        :return: a list of dictionary containing the travel time and sensor id
+        :return: a list of dictionary containing the travel time and site id
         """
 
         if not self.travel_time_grids[0].in_grid(seed):

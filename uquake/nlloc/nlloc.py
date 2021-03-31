@@ -164,13 +164,13 @@ class Grid2Time:
 
             ctrl.write(f'GTMODE GRID3D {angle_mode}\n')
 
-            for sensor in self.inventory.sensors:
-                # test if sensor name is shorter than 6 characters
+            for site in self.inventory.sites:
+                # test if site name is shorter than 6 characters
 
-                out_line = f'GTSRCE {sensor.code} XYZ ' \
-                           f'{sensor.x / 1000:>10.6f} ' \
-                           f'{sensor.y / 1000 :>10.6f} ' \
-                           f'{sensor.z / 1000 :>10.6f} ' \
+                out_line = f'GTSRCE {site.code} XYZ ' \
+                           f'{site.x / 1000:>10.6f} ' \
+                           f'{site.y / 1000 :>10.6f} ' \
+                           f'{site.z / 1000 :>10.6f} ' \
                            f'0.00\n'
 
                 ctrl.write(out_line)
@@ -700,7 +700,7 @@ class Observations:
             if pick.evaluation_status == 'rejected':
                 continue
 
-            sensor = pick.sensor
+            site = pick.site
             instrument_identification = pick.waveform_id.channel_code[0:2]
             component = pick.waveform_id.channel_code[-1]
             phase_onset = 'e' if pick.onset in ['emergent', 'questionable'] \
@@ -725,7 +725,7 @@ class Observations:
             period = -1
             phase_weight = 1
 
-            line = f'{sensor:<6s} {instrument_identification:<4s} ' \
+            line = f'{site:<6s} {instrument_identification:<4s} ' \
                    f'{component:<4s} {phase_onset:1s} ' \
                    f'{phase_descriptor:<6s} {first_motion:1s} ' \
                    f'{datetime_str} {error_type} {pick_error} ' \
@@ -805,18 +805,18 @@ class GridTimeMode:
 class Srces:
     __valid_measurement_units__ = ['METERS', 'KILOMETERS']
 
-    def __init__(self, sensors=[], units='METERS'):
+    def __init__(self, sites=[], units='METERS'):
         """
         specifies a series of source location from an inventory object
-        :param sensors: a list of sensors containing at least the location,
-        and sensor label
-        :type sensors: list of dictionary
+        :param sites: a list of sites containing at least the location,
+        and site label
+        :type sites: list of dictionary
 
         :Example:
 
-        >>> sensor = {'label': 'test', 'x': 1000, 'y': 1000, 'z': 1000,
+        >>> site = {'label': 'test', 'x': 1000, 'y': 1000, 'z': 1000,
                       'elev': 0.0}
-        >>> sensors = [sensor]
+        >>> sites = [site]
         >>> srces = Srces(srces)
 
         """
@@ -824,7 +824,7 @@ class Srces:
         validate(units, self.__valid_measurement_units__)
         self.units = units
 
-        self.sensors = sensors
+        self.sites = sites
 
     @classmethod
     def from_inventory(cls, inventory):
@@ -835,32 +835,32 @@ class Srces:
         """
 
         srces = []
-        for sensor in inventory.sensors:
-            srce = {'label': sensor.code,
-                    'x': sensor.x,
-                    'y': sensor.y,
-                    'z': sensor.z,
+        for site in inventory.sites:
+            srce = {'label': site.code,
+                    'x': site.x,
+                    'y': site.y,
+                    'z': site.z,
                     'elev': 0}
             srces.append(srce)
 
         return cls(srces)
 
-    def add_sensor(self, label, x, y, z, elev=0, units='METERS'):
+    def add_site(self, label, x, y, z, elev=0, units='METERS'):
         """
-        Add a single sensor to the source list
-        :param label: sensor label
+        Add a single site to the source list
+        :param label: site label
         :type label: str
         :param x: x location relative to geographic origin expressed
-        in the units of measurements for sensor/source
+        in the units of measurements for site/source
         :type x: float
         :param y: y location relative to geographic origin expressed
-        in the units of measurements for sensor/source
+        in the units of measurements for site/source
         :type y: float
         :param z: z location relative to geographic origin expressed
-        in the units of measurements for sensor/source
+        in the units of measurements for site/source
         :type z: float
         :param elev: elevation above z grid position (positive UP) in
-        kilometers for sensor (Default = 0)
+        kilometers for site (Default = 0)
         :type elev: float
         :param units: units of measurement used to express x, y, and z
         ( 'METERS' or 'KILOMETERS')
@@ -869,7 +869,7 @@ class Srces:
 
         validate(units.upper(), self.__valid_measurement_units__)
 
-        self.sensors.append({'label': label, 'x': x, 'y': y, 'z': z,
+        self.sites.append({'label': label, 'x': x, 'y': y, 'z': z,
                              elev:'elev'})
 
         self.units = units.upper()
@@ -877,14 +877,14 @@ class Srces:
     def __repr__(self):
         line = ""
 
-        for sensor in self.sensors:
+        for site in self.sites:
 
-            # test if sensor name is shorter than 6 characters
+            # test if site name is shorter than 6 characters
 
-            line += f'GTSRCE {sensor["label"]} XYZ ' \
-                    f'{sensor["x"] / 1000:>15.6f} ' \
-                    f'{sensor["y"] / 1000:>15.6f} ' \
-                    f'{sensor["z"] / 1000:>15.6f} ' \
+            line += f'GTSRCE {site["label"]} XYZ ' \
+                    f'{site["x"] / 1000:>15.6f} ' \
+                    f'{site["y"] / 1000:>15.6f} ' \
+                    f'{site["z"] / 1000:>15.6f} ' \
                     f'0.00\n'
 
         return line
@@ -892,15 +892,15 @@ class Srces:
     @property
     def locs(self):
         seeds = []
-        for sensor in self.sensors:
-            seeds.append([sensor['x'], sensor['y'], sensor['z']])
+        for site in self.sites:
+            seeds.append([site['x'], site['y'], site['z']])
         return np.array(seeds)
 
     @property
     def labels(self):
         seed_labels = []
-        for sensor in self.sensors:
-            seed_labels.append(sensor['label'])
+        for site in self.sites:
+            seed_labels.append(site['label'])
 
         return np.array(seed_labels)
 

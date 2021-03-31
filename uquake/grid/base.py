@@ -507,7 +507,7 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
     toa = travel_time_grid.to_takeoff_point(start, grid_coordinate=False,
                                             order=1)
 
-    ray = Ray(nodes=nodes, sensor_code=travel_time_grid.seed_label,
+    ray = Ray(nodes=nodes, site_code=travel_time_grid.seed_label,
               arrival_id=arrival_id, phase=travel_time_grid.phase,
               azimuth=az, takeoff_angle=toa, travel_time=tt,
               earth_model_id=earth_model_id)
