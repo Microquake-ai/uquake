@@ -18,25 +18,31 @@ Expansion of the obspy.core.trace module
 """
 
 import numpy as np
-import obspy.core.trace as obstrace
+from obspy.core.trace import Trace as ObspyTrace
+from obspy.core.trace import Stats as ObspyStats
 from obspy import UTCDateTime
 from obspy.core.trace import AttribDict
 
 
-class Trace(obstrace.Trace):
+class Trace(ObspyTrace):
     def __init__(self, trace=None, **kwargs):
         super(Trace, self).__init__(**kwargs)
 
         if trace:
-            self.stats = trace.stats
+            self.stats = Stats(**trace.stats.__dict__)
             self.data = trace.data
 
     @property
     def sr(self):
         return self.stats.sampling_rate
 
+    @property
     def ppv(self):
         return np.max(np.abs(self.data))
+
+    @property
+    def ppa(self):
+        return None
 
     def time_to_index(self, time):
         return int((time - self.stats.starttime) * self.sr)
@@ -93,3 +99,17 @@ class Trace(obstrace.Trace):
         trace_dict['data'] = self.data.tolist()
 
         return trace_dict
+
+
+class Stats(ObspyStats):
+    def __init__(self, **kwargs):
+        super().__init__()
+        for key in kwargs.keys():
+            self.__dict__[key] = kwargs[key]
+
+    @property
+    def site(self):
+        return f'{self.station}{self.location}'
+
+
+

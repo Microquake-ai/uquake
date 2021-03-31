@@ -134,7 +134,7 @@ class Inventory(inventory.Inventory):
     def get_channel(self, sta=None, cha=None):
         return self.select(sta, cha_code=cha)
 
-    def select(self, network=None, station=None, sensors=None,
+    def select(self, network=None, station=None, sites=None,
                location=None, channel=None):
         """
             Select a single Station or Channel object out of the Inventory
@@ -171,20 +171,20 @@ class Inventory(inventory.Inventory):
             return station_found
 
     def __eq__(self, other):
-        return np.all(self.sensors == other.sensors)
+        return np.all(self.sites == other.sites)
 
     # def write(self, filename):
     #     super().write(self, filename, format='stationxml', nsmap={ns: ns})
 
     @property
-    def sensors(self):
-        sensors = []
+    def sites(self):
+        sites = []
         for network in self.networks:
             for station in network.stations:
-                for sensor in station.sensors:
-                    sensors.append(sensor)
+                for site in station.sites:
+                    sites.append(site)
 
-        return np.sort(sensors)
+        return np.sort(sites)
 
 
 class Station(inventory.Station):
@@ -349,10 +349,10 @@ class Station(inventory.Station):
             raise AttributeError
 
     @property
-    def sensors(self):
+    def sites(self):
         location_codes = []
         channel_dict = {}
-        sensors = []
+        sites = []
         for channel in self.channels:
             location_codes.append(channel.location_code)
             channel_dict[channel.location_code] = []
@@ -362,9 +362,9 @@ class Station(inventory.Station):
             channel_dict[channel.location_code].append(channel)
 
         for key in channel_dict.keys():
-            sensors.append(Sensor(self, channel_dict[key]))
+            sites.append(Sensor(self, channel_dict[key]))
 
-        return sensors
+        return sites
 
     def __str__(self):
         contents = self.get_contents()
@@ -372,11 +372,11 @@ class Station(inventory.Station):
         x = self.latitude
         y = self.longitude
         z = self.elevation
-        sensor_count = len(self.sensors)
+        site_count = len(self.sites)
         channel_count = len(self.channels)
         ret = (f"\tStation {self.historical_code}\n"
                f"\tStation Code: {self.code}\n"
-               f"\tSensor Count: {sensor_count}\n"
+               f"\tSensor Count: {site_count}\n"
                f"\tChannel Count: {channel_count}\n"
                f"\t{self.start_date} - {self.end_date}\n"
                f"\tx: {x:.0f}, y: {y:.0f}, z: {z:.0f} m\n")
@@ -416,12 +416,12 @@ class Station(inventory.Station):
         return ret
 
 
-class Sensor:
+class Site:
     """
     This class is a container for grouping the channels into coherent entity
-    that are sensors. From the uquake package perspective a station is
+    that are sites. From the uquake package perspective a station is
     the physical location where data acquisition instruments are grouped.
-    One or multiple sensors can be connected to a station.
+    One or multiple sites can be connected to a station.
     """
 
     def __init__(self, station, channels):
@@ -439,14 +439,14 @@ class Sensor:
         self.channels = channels
 
     def __repr__(self):
-        ret = f'\tSensor {self.sensor_code}\n' \
+        ret = f'\tSensor {self.site_code}\n' \
               f'\tx: {self.x:.0f} m, y: {self.y:.0f} m z: {self.z:0.0f} m\n' \
               f'\tChannel Count: {len(self.channels)}'
 
         return ret
 
     def __str__(self):
-        return self.sensor_code
+        return self.site_code
 
     def __eq__(self, other):
         return str(self) == str(other)
@@ -494,7 +494,7 @@ class Sensor:
         return self.channels[0].code[0:-1]
 
     @property
-    def sensor_code(self):
+    def site_code(self):
         return f'{self.station_code}.{self.location_code}.' \
                f'{self.sensor_type_code}'
 

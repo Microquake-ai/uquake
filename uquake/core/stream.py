@@ -136,6 +136,9 @@ class Stream(obsstream.Stream, ABC):
 
         return np.unique([tr.stats.station for tr in self])
 
+    def unique_sites(self):
+        return np.unique([tr.stats.site for tr in self])
+
     def zpad_names(self):
         for tr in self.traces:
             tr.stats.station = tr.stats.station.zfill(3)
