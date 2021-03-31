@@ -293,26 +293,26 @@ class Origin(obsevent.Origin):
         """
         return string
 
-    def get_incidence_baz_angles(self, sensor_code, phase):
+    def get_incidence_baz_angles(self, site_code, phase):
         baz = None
         inc = None
         for ray in self.rays:
-            if (ray.sensor_code == sensor_code) and (ray.phase == phase):
+            if (ray.site_code == site_code) and (ray.phase == phase):
                 baz = ray.back_azimuth
                 inc = ray.incidence_angle
                 break
         return baz, inc
 
-    def get_ray_station_phase(self, sensor_code, phase):
+    def get_ray_station_phase(self, site_code, phase):
         out_ray = None
         for ray in self.rays:
-            if (ray.sensor_code == sensor_code) and (ray.phase == phase):
+            if (ray.site_code == site_code) and (ray.phase == phase):
                 out_ray = ray
                 break
         return out_ray
 
-    def distance_station(self, sensor_code, phase='P'):
-        ray = self.get_ray_station_phase(self, sensor_code, phase)
+    def distance_station(self, site_code, phase='P'):
+        ray = self.get_ray_station_phase(self, site_code, phase)
         if ray is None:
             return None
 
@@ -450,11 +450,11 @@ class Pick(obsevent.Pick):
             return self.waveform_id.station_code
 
     @property
-    def sensor(self):
+    def site(self):
         if self.waveform_id is not None:
-            sensor = self.waveform_id.station_code + \
+            site = self.waveform_id.station_code + \
                      self.waveform_id.location_code
-            return sensor
+            return site
 
 
 class Arrival(obsevent.Arrival):
@@ -757,7 +757,7 @@ class RayCollection:
 
 class Ray:
 
-    def __init__(self, nodes: list = [], sensor_code: str = None,
+    def __init__(self, nodes: list = [], site_code: str = None,
                  arrival_id: ResourceIdentifier = None,
                  phase: str = None, azimuth: float = None,
                  takeoff_angle: float = None,
@@ -765,19 +765,19 @@ class Ray:
                  earth_model_id: ResourceIdentifier = None):
         """
         :param nodes: ray nodes
-        :param sensor_code: sensor code
+        :param site_code: site code
         :param arrival_id: the ResourceIdentifier of the arrival associated to
         the ray
         :param phase: seismic phase ("P" or "S")
         :param azimuth: Azimuth in degrees
         :param takeoff_angle: takeoff angle in degrees
-        :param travel_time: travel time between the source and the sensor in
+        :param travel_time: travel time between the source and the site in
         second
         :param earth_model_id: velocity model ResourceIdentifier
         """
 
         self.nodes = np.array(nodes)
-        self.sensor_code = sensor_code
+        self.site_code = site_code
         self.arrival_id = arrival_id
         self.phase = phase
         self.azimuth = azimuth
@@ -835,7 +835,7 @@ class Ray:
     def __str__(self):
         txt = \
             f"""
-       sensor code: {self.sensor_code}
+       site code: {self.site_code}
         arrival id: {self.arrival_id}
              phase: {self.phase}
         length (m): {self.length}
