@@ -2,16 +2,16 @@
 # ------------------------------------------------------------------
 # Filename: core.py
 #  Purpose: Expansion of the obspy.core.stream module
-#   Author: microquake development team
-#    Email: devs@microquake.org
+#   Author: uquake development team
+#    Email: devs@uquake.org
 #
-# Copyright (C) 2016 microquake development team
+# Copyright (C) 2016 uquake development team
 # --------------------------------------------------------------------
 """
 Expansion of the obspy.core.stream module
 
 :copyright:
-    microquake development team (devs@microquake.org)
+    uquake development team (devs@uquake.org)
 :license:
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
@@ -26,6 +26,7 @@ from pkg_resources import load_entry_point
 from .trace import Trace
 from .util import ENTRY_POINTS, tools
 from .logging import logger
+from pathlib import Path
 
 
 class Stream(obsstream.Stream, ABC):
@@ -49,8 +50,8 @@ class Stream(obsstream.Stream, ABC):
         the trace of all component and the phase of the trace (sign) is the
         sign of the first components of a given station.
         :param st: a stream object
-        :type st: ~microquake.core.stream.Stream
-        :rtype: ~microquake.core.stream.Stream
+        :type st: ~uquake.core.stream.Stream
+        :rtype: ~uquake.core.stream.Stream
 
         """
 
@@ -117,7 +118,7 @@ class Stream(obsstream.Stream, ABC):
         return obsstream.Stream.write(st_out, f, format, **kwargs)
 
     write.__doc__ = obsstream.Stream.write.__doc__.replace('obspy',
-                                                           'microquake')
+                                                           'uquake')
 
     def write_bytes(self):
         buf = BytesIO()
@@ -149,12 +150,18 @@ class Stream(obsstream.Stream, ABC):
 
         return ((np.array(sorted_list).astype(str)))
 
+    @property
     def unique_stations(self):
 
         return np.unique([tr.stats.station for tr in self])
 
-    def unique_sites(self):
-        return np.unique([tr.stats.site for tr in self])
+    @property
+    def stations(self):
+        return np.sort(np.unique([tr.stats.station for tr in self]))
+
+    @property
+    def sites(self):
+        return np.sort(np.unique([tr.stats.site for tr in self]))
 
     def zpad_names(self):
         for tr in self.traces:
@@ -164,15 +171,6 @@ class Stream(obsstream.Stream, ABC):
     def zstrip_names(self):
         for tr in self.traces:
             tr.stats.station = tr.stats.station.lstrip('0')
-
-    # def plot(self, *args, **kwargs):
-    #     """
-    #     see Obspy stream.plot()
-    #     """
-    #     from microquake.imaging.waveform import WaveformPlotting
-    #     waveform = WaveformPlotting(stream=self, *args, **kwargs)
-    #
-    #     return waveform.plotWaveform(*args, **kwargs)
 
     def distance_time_plot(self, event, site, scale=20, freq_min=100,
                            freq_max=1000):
@@ -274,8 +272,17 @@ class Stream(obsstream.Stream, ABC):
 
         return traces
 
+    def plot(self, *args, **kwargs):
+        """
+        see Obspy stream.plot()
+        """
+        from ..imaging.waveform import WaveformPlotting
+        waveform = WaveformPlotting(stream=self, *args, **kwargs)
 
-# from microquake.core import read, read_events
+        return waveform.plotWaveform(*args, **kwargs)
+
+
+# from uquake.core import read, read_events
 # from spp.utils import application
 # app = application.Application()
 # site = app.get_stations()
@@ -289,7 +296,7 @@ def is_valid(st_in, return_stream=False, STA=0.005, LTA=0.1, min_num_valid=5):
     """
         Determine if an event is valid or return valid traces in a  stream
         :param st_in: stream
-        :type st_in: microquake.core.stream.Stream
+        :type st_in: uquake.core.stream.Stream
         :param return_stream: return stream of valid traces if true else return
         true if the event is valid
         :type return_stream: bool
@@ -300,7 +307,7 @@ def is_valid(st_in, return_stream=False, STA=0.005, LTA=0.1, min_num_valid=5):
         :param min_num_valid: minimum number of valid traces to declare the
         event valid
         :type min_num_valid: int
-        :rtype: bool or microquake.core.stream.Stream
+        :rtype: bool or uquake.core.stream.Stream
     """
 
     from scipy.ndimage.filters import gaussian_filter1d
@@ -431,14 +438,17 @@ def composite_traces(st_in):
     return Stream(traces=trsout)
 
 
-def read(fname, format='MSEED', **kwargs):
+def read(filename, format='MSEED', **kwargs):
+    if isinstance(filename, Path):
+        filename = str(filename)
+
     if format in ENTRY_POINTS['waveform'].keys():
         format_ep = ENTRY_POINTS['waveform'][format]
         read_format = load_entry_point(format_ep.dist.key,
                                        'obspy.plugin.waveform.%s' %
                                        format_ep.name, 'readFormat')
 
-        st = Stream(stream=read_format(fname, **kwargs))
+        st = Stream(stream=read_format(filename, **kwargs))
 
         # making sure the channel names are upper case
         trs = []
@@ -450,7 +460,7 @@ def read(fname, format='MSEED', **kwargs):
 
         return st
     else:
-        return Stream(stream=obsstream.read(fname, format=format, **kwargs))
+        return Stream(stream=obsstream.read(filename, format=format, **kwargs))
 
 
-read.__doc__ = obsstream.read.__doc__.replace('obspy', 'microquake')
+read.__doc__ = obsstream.read.__doc__.replace('obspy', 'uquake')

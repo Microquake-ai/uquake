@@ -2,23 +2,23 @@
 # ------------------------------------------------------------------
 # Filename: core.py
 #  Purpose: Expansion of the obspy.core.trace module
-#   Author: microquake development team
-#    Email: devs@microquake.org
+#   Author: uquake development team
+#    Email: devs@uquake.org
 #
-# Copyright (C) 2016 microquake development team
+# Copyright (C) 2016 uquake development team
 # --------------------------------------------------------------------
 """
 Expansion of the obspy.core.trace module
 
 :copyright:
-    microquake development team (devs@microquake.org)
+    uquake development team (devs@uquake.org)
 :license:
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
 from abc import ABC
 import numpy as np
-import obspy.core.trace as obstrace
+from obspy.core.trace import Trace as ObspyTrace
 from obspy import UTCDateTime
 from obspy.core.event import WaveformStreamID
 from obspy.core.trace import AttribDict
@@ -27,8 +27,8 @@ from .event import Pick
 from .util import tools
 
 
-class Stats(obstrace.Stats, ABC):
-    __doc__ = obstrace.Stats.__doc__.replace('obspy', 'uquake')
+class Stats(ObspyTrace.Stats, ABC):
+    __doc__ = ObspyTrace.Stats.__doc__.replace('obspy', 'uquake')
 
     def __init__(self, stats=None, **kwargs):
         super(Stats, self).__init__(**kwargs)
@@ -81,8 +81,13 @@ class Trace(obstrace.Trace, ABC):
     def sr(self):
         return self.stats.sampling_rate
 
+    @property
     def ppv(self):
         return np.max(np.abs(self.data))
+
+    @property
+    def ppa(self):
+        return None
 
     def time_to_index(self, time):
         return int((time - self.stats.starttime) * self.sr)
@@ -133,20 +138,16 @@ class Trace(obstrace.Trace, ABC):
 
         return within
 
-    @staticmethod
-    def create_from_json(trace_json_object):
-        # trace_json_object['stats']['starttime'] =
-        # UTCDateTime(int(trace_json_object['stats']['starttime']) / 1e9)
-        # trace_json_object['stats']['endtime'] =
-        # UTCDateTime(int(trace_json_object['stats']['endtime']) / 1e9)
+    @classmethod
+    def create_from_json(cls, trace_json_object):
 
-        trace_json_object['stats']['starttime'] = \
-            UTCDateTime(trace_json_object['stats']['starttime'])
-        trace_json_object['stats']['endtime'] = \
-            UTCDateTime(trace_json_object['stats']['endtime'])
+        trace_json_object['stats']['starttime'] = UTCDateTime(
+            trace_json_object['stats']['starttime'])
+        trace_json_object['stats']['endtime'] = UTCDateTime(
+            trace_json_object['stats']['endtime'])
 
-        trc = Trace(header=trace_json_object['stats'],
-                    data=np.array(trace_json_object['data'], dtype='float32'))
+        trc = cls(header=trace_json_object['stats'], data=np.array(
+            trace_json_object['data'], dtype='float32'))
 
         return trc
 
@@ -156,8 +157,6 @@ class Trace(obstrace.Trace, ABC):
 
         for key in self.stats.keys():
             if isinstance(self.stats[key], UTCDateTime):
-                # trace_dict['stats'][key] =
-                # int(np.float64(self.stats[key].timestamp) * 1e9)
                 trace_dict['stats'][key] = self.stats[key].isoformat()
             elif isinstance(self.stats[key], AttribDict):
                 trace_dict['stats'][key] = self.stats[key].__dict__

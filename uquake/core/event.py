@@ -23,13 +23,15 @@ import warnings
 
 import numpy as np
 import obspy.core.event as obsevent
-from obspy.core.event import WaveformStreamID, ResourceIdentifier
+from obspy.core.event import *
 from obspy.core.util import AttribDict
 from copy import deepcopy
 from base64 import b64encode, b64decode
 from io import BytesIO
 import pickle
 from uquake.waveform.mag_utils import calc_static_stress_drop
+from .logging import logger
+from pathlib import Path
 
 debug = False
 
@@ -186,6 +188,10 @@ class Event(obsevent.Event):
     def plot_focal_mechanism(self):
         pass
 
+    def append_origin_as_preferred_origin(self, new_origin: Origin):
+        self.origins.append(new_origin)
+        self.preferred_origin_id = new_origin.resource_id
+
 
 class Origin(obsevent.Origin):
     __doc__ = obsevent.Origin.__doc__.replace('obspy', 'uquake')
@@ -274,44 +280,40 @@ class Origin(obsevent.Origin):
         return magnitudes
 
     def __str__(self, **kwargs):
-        string = """
-       resource_id: %s
-              time: %s
-                 x: %0.2f
-                 y: %0.2f
-                 z: %0.2f
-       uncertainty: %0.2f
-   evaluation_mode: %s
- evaluation_status: %s
+        string = f"""
+       resource_id: {self.resource_id}
+         time(UTC): {self.time}
+                 x: {self.x:>10.2f}
+                 y: {self.y:>10.2f}
+                 z: {self.z:>10.2f}
+       uncertainty: {self.uncertainty:>10.2f} (m)
+   evaluation_mode: {self.evaluation_mode}
+ evaluation_status: {self.evaluation_status}
                 ---------
-          arrivals: %d Elements
-        """ \
-            % (self.resource_id, self.time.strftime("%Y/%m/%d %H:%M:%S.%f"),
-               self.x, self.y, self.z, self.uncertainty, self.evaluation_mode,
-               self.evaluation_status,
-               len(self.arrivals))
+          arrivals: {len(self.arrivals):d}
+        """
         return string
 
-    def get_incidence_baz_angles(self, sensor_code, phase):
+    def get_incidence_baz_angles(self, site_code, phase):
         baz = None
         inc = None
         for ray in self.rays:
-            if (ray.sensor_code == sensor_code) and (ray.phase == phase):
+            if (ray.site_code == site_code) and (ray.phase == phase):
                 baz = ray.back_azimuth
                 inc = ray.incidence_angle
                 break
         return baz, inc
 
-    def get_ray_station_phase(self, sensor_code, phase):
+    def get_ray_station_phase(self, site_code, phase):
         out_ray = None
         for ray in self.rays:
-            if (ray.sensor_code == sensor_code) and (ray.phase == phase):
+            if (ray.site_code == site_code) and (ray.phase == phase):
                 out_ray = ray
                 break
         return out_ray
 
-    def distance_station(self, sensor_code, phase='P'):
-        ray = self.get_ray_station_phase(self, sensor_code, phase)
+    def distance_station(self, site_code, phase='P'):
+        ray = self.get_ray_station_phase(self, site_code, phase)
         if ray is None:
             return None
 
@@ -449,11 +451,11 @@ class Pick(obsevent.Pick):
             return self.waveform_id.station_code
 
     @property
-    def sensor(self):
+    def site(self):
         if self.waveform_id is not None:
-            sensor = self.waveform_id.station_code + \
+            site = self.waveform_id.station_code + \
                      self.waveform_id.location_code
-            return sensor
+            return site
 
 
 class Arrival(obsevent.Arrival):
@@ -482,6 +484,23 @@ class Arrival(obsevent.Arrival):
 
         else:
             _set_attr_handler(self, name, value)
+
+    def __repr__(self):
+        out_str = f"""
+       resource_id: {self.resource_id}
+           pick_id: {self.get_pick().resource_id}
+             phase: {self.phase}
+           azimuth: {self.azimuth:0.2f} (deg)
+          distance: {self.distance:0.2f} (m)
+     takeoff_angle: {self.takeoff_angle:0.2f} (deg)
+     time_residual: {self.time_residual*1000:0.2f} (ms)
+       time_weight: {self.time_weight:0.1f}
+        """
+        return out_str
+
+    @staticmethod
+    def calculate_time_residual(observed: float, predicted: float):
+        return observed - predicted
 
     @property
     def polarity(self):
@@ -526,10 +545,13 @@ def get_arrival_from_pick(arrivals, pick):
     return arrival
 
 
-def read_events(*args, **kwargs):
+def read_events(filename, **kwargs):
 
+    if isinstance(filename, Path):
+        filename = str(filename)
     # converting the obspy object into uquake objects
-    cat = obsevent.read_events(*args, **kwargs)
+
+    cat = obsevent.read_events(filename, **kwargs)
     mq_catalog = Catalog(obspy_obj=cat)
 
     if mq_catalog[0].preferred_origin():
@@ -738,17 +760,34 @@ class RayCollection:
 
 class Ray:
 
-    def __init__(self, nodes=[], sensor_code=None, arrival_id=None,
-                 phase=None, azimuth=None, takeoff_angle=None,
-                 travel_time=None):
+    def __init__(self, nodes: list = [], site_code: str = None,
+                 arrival_id: ResourceIdentifier = None,
+                 phase: str = None, azimuth: float = None,
+                 takeoff_angle: float = None,
+                 travel_time: float = None,
+                 earth_model_id: ResourceIdentifier = None):
+        """
+        :param nodes: ray nodes
+        :param site_code: site code
+        :param arrival_id: the ResourceIdentifier of the arrival associated to
+        the ray
+        :param phase: seismic phase ("P" or "S")
+        :param azimuth: Azimuth in degrees
+        :param takeoff_angle: takeoff angle in degrees
+        :param travel_time: travel time between the source and the site in
+        second
+        :param earth_model_id: velocity model ResourceIdentifier
+        """
+
         self.nodes = np.array(nodes)
-        self.sensor_code = sensor_code
+        self.site_code = site_code
         self.arrival_id = arrival_id
         self.phase = phase
         self.azimuth = azimuth
         self.takeoff_angle = takeoff_angle
         self.travel_time = travel_time
         self.resource_id = obsevent.ResourceIdentifier()
+        self.earth_model_id = earth_model_id
 
     def __setattr__(self, key, value):
         if key == 'phase':
@@ -777,7 +816,7 @@ class Ray:
         baz = None
         if len(self.nodes) > 2:
             v = self.nodes[-2] - self.nodes[-1]
-            baz = np.arctan2(v[0], v[1])
+            baz = np.arctan2(v[0], v[1]) * 180 / np.pi
         return baz
 
     @property
@@ -790,16 +829,16 @@ class Ray:
         if len(self.nodes) > 2:
             v = self.nodes[-2] - self.nodes[-1]
             h = np.sqrt(v[0] ** 2 + v[1] ** 2)
-            ia = np.arctan2(h, v[2])
+            ia = np.arctan2(h, v[2]) * 180 / np.pi
         return ia
 
     def __len__(self):
-        return self.length
+        return len(self.nodes)
 
     def __str__(self):
         txt = \
             f"""
-       sensor code: {self.sensor_code}
+       site code: {self.site_code}
         arrival id: {self.arrival_id}
              phase: {self.phase}
         length (m): {self.length}

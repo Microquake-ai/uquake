@@ -36,14 +36,14 @@ from matplotlib.path import Path
 from matplotlib.ticker import MaxNLocator, ScalarFormatter
 import scipy.signal as signal
 
-from microquake.core import Stream, Trace
+from ..core import Stream, Trace
 from obspy.core import UTCDateTime
 
 # from microquake.core.util import create_empty_data_chunk as createEmptyDataChunck
 #
 #                             kilometer2degrees, locations2degrees)
 from obspy.geodetics import (flinnengdahl, kilometer2degrees,
-                                  locations2degrees)
+                             locations2degrees)
 from obspy.imaging.util import (ObsPyAutoDateFormatter, _timestring)
 from obspy.imaging.util import _id_key as _ID_key
 
@@ -428,14 +428,21 @@ class WaveformPlotting(object):
 
             # plot picks
             if self.event:
-                for pk in self.event.picks:
-                    if (pk.waveform_id.station_code == tr[0].stats.station):
+                colors = {'P': 'b', 'S': 'r'}
+                for arrival in self.event.preferred_origin().arrivals:
+                    pk = arrival.get_pick()
+                    if (pk.waveform_id.station_code == tr[0].stats.station) \
+                            & (pk.waveform_id.location_code ==
+                               tr[0].stats.location):
                         time = date2num(pk.time.datetime)
 
-                        if pk.phase_hint.lower() == 'p':
-                            ax.axvline(time, ls='--', c='r')
-                        elif pk.phase_hint.lower() == 's':
-                            ax.axvline(time, ls=':', c='r')
+                        if arrival.time_residual is not None:
+                            predicted_time = time - arrival.time_residual
+                            ax.axvline(predicted_time,
+                                       ls='--',
+                                       c=colors[pk.phase_hint.upper()])
+                        ax.axvline(time, ls='-',
+                                   c=colors[pk.phase_hint.upper()])
 
         # Set ticks.
         self.__plotSetXTicks()

@@ -471,17 +471,17 @@ def envelope(data):
 
 def read_csv(filename, site_code='', **kwargs):
     """
-    read a csv file containing sensor information
+    read a csv file containing site information
     The first line of the csv file should contain the site name
     The expected file structure is as follows and should contain one header line
-    <network>, <sensor name>, <sensor type>, <no component>, x, y, z
-    where x, y and z represents the location of the sensors expressed in a local
-    coordinate system. Note that the <sensor name> is limited to four character
+    <network>, <site name>, <site type>, <no component>, x, y, z
+    where x, y and z represents the location of the sites expressed in a local
+    coordinate system. Note that the <site name> is limited to four character
     because of NonLinLoc limitations.
 
     example of file strucuture
 
-    1. <Network>, <sensor long name>, <sensor code>, <sensor type>, <gain>,
+    1. <Network>, <site long name>, <site code>, <site type>, <gain>,
     <sensitivity>, <sx>, <sy>, <sz>, <channel 1 code>, <azimuth>, <dip>,
     <channel 2 code>, <azimuth>, <dip>, <channel 3 code>, <azimuth>, <dip>
 
@@ -517,7 +517,7 @@ def read_csv(filename, site_code='', **kwargs):
             channel.orientation = xyz
             channels.append(channel)
 
-        station = Station(long_name=long_name, code=sc, sensor_type=st,
+        station = Station(long_name=long_name, code=sc, site_type=st,
                           motion_type=smt, gain=float(gain),
                           sensitivity=float(sensitivity), loc=staloc,
                           channels=channels)

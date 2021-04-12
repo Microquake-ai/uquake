@@ -1,8 +1,7 @@
 import matplotlib.pyplot as plt
-import mplstereonet
 import numpy as np
 
-from microquake.helpers.logging import logger
+from ..core.logging import logger
 from obspy.imaging.beachball import beachball
 
 

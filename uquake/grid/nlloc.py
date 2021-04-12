@@ -27,6 +27,8 @@ from multiprocessing import Pool, cpu_count
 from functools import partial
 from typing import Optional
 import h5py
+from .base import ray_tracer
+from tqdm import tqdm
 
 
 __cpu_count__ = cpu_count()
@@ -209,211 +211,21 @@ def read_grid(base_name, path='.', float_type=__default_float_type__):
                          grid_units=grid_unit)
 
 
-class GridManager(object):
-    """
-    Grid management in NLLOC context
-    """
-    def __init__(self, path, project_name, network_code):
-        """
-        Interface to manage grids using a standard directory structure that is
-        compatible with NonLinLoc
-
-        :param path: base path
-        :type path: str
-        :param project_name: project name or id
-        :type project_name: str
-        :param network_code: network name or id
-        :type network_code: str
-        :program use_srces: if True use the srces files instead of the the
-        inventory file should both files be present (default=False)
-        :Example:
-        >>> from uquake.grid.nlloc import GridManager
-        # initialize the project with the root path of the project,
-        the project and the network names
-        >>> project_name = 'test'
-        >>> network_code = 'test'
-        >>> root_path='.'
-        >>> gm = GridManager(root_path, project_name, network_code)
-        # this will initialize the project and create a specific directory
-        # structure if the directories do not exist.
-
-        # sensors or seeds information required to generate to travel-time
-        # grids from the velocity grids can be added to the
-        # using the srces object.
-        # Sensors can be added this way from a nlloc.nlloc.Srces object using
-        the .add_srces method.
-        ..note:: srces stands for sources and it is the nomenclature used in
-                 NonLinLoc. This might be a soure of confusion for the users.
-                 In addition, what NonLinLoc refers to as station is called a
-                 sensors in this context.
-
-        # add the velocity models to the project. P- and S-wave velocity models
-        can be added separately from a nlloc.grid.VelocityGrid3D
-        using the .add_velocity method or from a nlloc.grid.VelocityEnsemble
-        object using the .add_velocities method
-
-        >>> origin = [0, 0, 0]
-        >>> spacing = [25, 25, 25]
-        >>> dimensions = [100, 100, 100]
-
-        >>> from uquake.grid.nlloc import VelocityGrid3D, VelocityGridEnsemble
-
-        >>> vp = 5000  # P-wave velocity in m/s
-        >>> vs = 3500  # S-wave velocity in m/s
-        >>> p_velocity = VelocityGrid3D(network_code, dimensions,
-        >>>                                        origin, spacing, phase='P',
-        >>>                                        value=5000)
-        >>> s_velocity = VelocityGrid3D(network_code, dimensions,
-        >>>                                        origin, spacing, phase='S',
-        >>>                                        value=5000 )
-        >>> gm.add_velocity(p_velocity)
-        >>> gm.add_velocity(s_velocity)
-        # Alternatively
-        >>> velocities = VelocityGridEnsemble(p_velocity, s_velocity)
-        >>> gm.add_velocities(velocities)
-
-        # after having added the velocity grids, the travel time must be
-        # initialized. To initialize the travel time grids, seeds (location of
-        # sources/sensors) information is needed.
-
-        >>> seeds = Seeds.from_inventory(inventory)
-        # alternatively, each sensors can be added individually using the
-        .add_sensor method. As follows:
-        >>> seeds = Seeds()
-        >>> x = 250
-        >>> y = 250
-        >>> z = 250
-        >>> elevation = 0
-        >>> Seeds.add('sensor label', x, y, z, elev=elevation)
-
-        # Srces can be added to the project as follows:
-        >>> pm.add_srces(srces)
-
-        >>> gm.init_travel_time_grid(seeds)
-        """
-
-        self.project_name = project_name
-        self.network_code = network_code
-        self.root_directory = Path(path) / project_name / network_code
-        # create the directory if it does not exist
-        self.root_directory.mkdir(parents=True, exist_ok=True)
-
-        self.velocity_grid_location = self.root_directory / 'velocities'
-        self.velocity_grid_location.mkdir(parents=True, exist_ok=True)
-
-        self.travel_time_grid_location = self.root_directory / 'times'
-        self.travel_time_grid_location.mkdir(parents=True, exist_ok=True)
-
-        p_vel_base_name = VelocityGrid3D.get_base_name(network_code, 'P')
-        self.p_velocity_file = self.velocity_grid_location / p_vel_base_name
-        p_files = self.velocity_grid_location.glob(f'{p_vel_base_name}*')
-        if len(list(p_files)) == 0:
-            logger.warning('the project does not contain a p-wave velocity '
-                           'model. to add a p-wave velocity model to the '
-                           'project please use the add_velocity or '
-                           'add_velocities methods.')
-            self.p_velocity = None
-
-        else:
-            self.p_velocity = read_grid(p_vel_base_name,
-                                        path=str(self.velocity_grid_location))
-
-        s_vel_base_name = VelocityGrid3D.get_base_name(self.network_code, 'S')
-        self.s_velocity_file = self.velocity_grid_location / s_vel_base_name
-        s_files = self.velocity_grid_location.glob(f'{s_vel_base_name}*')
-        if len(list(s_files)) == 0:
-            logger.warning('the project does not contain a s-wave velocity '
-                           'model. to add a s-wave velocity model to the '
-                           'project please use the add_velocity or '
-                           'add_velocities methods.')
-            self.s_velocity = None
-        else:
-            self.s_velocity = read_grid(s_vel_base_name,
-                                        path=str(self.velocity_grid_location))
-
-        self.velocities = None
-        if (self.p_velocity is not None) and (self.s_velocity is not None):
-            self.velocities = VelocityGridEnsemble(self.p_velocity,
-                                                   self.s_velocity)
-
-        self.travel_time_grid_location = self.root_directory / 'times'
-        self.travel_time_grid_location.mkdir(parents=True, exist_ok=True)
-        file_list = list(self.travel_time_grid_location.glob('*time*'))
-        if len(file_list) == 0:
-            logger.warning('the project does not contain travel time grids. '
-                           'to initialize the travel-time grid use the '
-                           'init_travel_time_grid method. Note that '
-                           'this require the project to contain both '
-                           'an inventory and a velocities files.')
-
-            self.travel_times = None
-
-        else:
-            self.travel_times = TravelTimeEnsemble.from_files(
-                self.travel_time_grid_location)
-
-    def init_travel_time_grids(self, seeds):
-        """
-        initialize the travel time grids
-
-        :param seeds: list of seeds usually represents the location of the
-        sources/sensors
-        :type seeds: Seeds
-        """
-        logger.info('initializing the travel time grids')
-        seeds = seeds.locs
-        seed_labels = seeds.labels
-
-        if self.srces is None:
-            return
-
-        if self.p_velocity:
-            tt_gs_p = self.p_velocity.to_time_multi_threaded(seeds,
-                                                             seed_labels)
-
-        if self.s_velocity:
-            tt_gs_s = self.s_velocity.to_time_multi_threaded(seeds,
-                                                             seed_labels)
-
-        if self.p_velocity and self.s_velocity:
-            self.travel_times = tt_gs_p + tt_gs_s
-
-        elif self.p_velocity:
-            logger.warning('s-wave velocity model is not set, travel-times '
-                           'will'
-                           'will be generated for ')
-            self.travel_times = tt_gs_p
-
-        elif self.s_velocity:
-            self.travel_times = tt_gs_s
-
-        else:
-            return
-
-        # cleaning the directory before writing the new files
-
-        for fle in self.travel_time_grid_location.glob('*time*'):
-            fle.unlink(missing_ok=True)
-
-        self.travel_times.write(self.travel_time_grid_location)
-        logger.info(f'done initializing the travel time grids')
-
-
 class Seeds:
     __valid_measurement_units__ = ['METERS', 'KILOMETERS']
 
-    def __init__(self, sensors=[], units='METERS'):
+    def __init__(self, sites=[], units='METERS'):
         """
         specifies a series of source location from an inventory object
-        :param sensors: a list of sensors containing at least the location,
-        and sensor label
-        :type sensors: list of dictionary
+        :param sites: a list of sites containing at least the location,
+        and site label
+        :type sites: list of dictionary
 
         :Example:
 
-        >>> sensor = {'label': 'test', 'x': 1000, 'y': 1000, 'z': 1000,
+        >>> site = {'label': 'test', 'x': 1000, 'y': 1000, 'z': 1000,
                       'elev': 0.0}
-        >>> sensors = [sensor]
+        >>> sites = [site]
         >>> srces = Srces(srces)
 
         """
@@ -421,7 +233,7 @@ class Seeds:
         validate(units, self.__valid_measurement_units__)
         self.units = units
 
-        self.sensors = sensors
+        self.sites = sites
 
     @classmethod
     def from_inventory(cls, inventory):
@@ -432,11 +244,11 @@ class Seeds:
         """
 
         srces = []
-        for sensor in inventory.sensors:
-            srce = {'label': sensor.code,
-                    'x': sensor.x,
-                    'y': sensor.y,
-                    'z': sensor.z,
+        for site in inventory.sites:
+            srce = {'label': site.code,
+                    'x': site.x,
+                    'y': site.y,
+                    'z': site.z,
                     'elev': 0}
             srces.append(srce)
 
@@ -448,20 +260,20 @@ class Seeds:
 
     def add(self, label, x, y, z, elev=0, units='METERS'):
         """
-        Add a single sensor to the source list
-        :param label: sensor label
+        Add a single site to the source list
+        :param label: site label
         :type label: str
         :param x: x location relative to geographic origin expressed
-        in the units of measurements for sensor/source
+        in the units of measurements for site/source
         :type x: float
         :param y: y location relative to geographic origin expressed
-        in the units of measurements for sensor/source
+        in the units of measurements for site/source
         :type y: float
         :param z: z location relative to geographic origin expressed
-        in the units of measurements for sensor/source
+        in the units of measurements for site/source
         :type z: float
         :param elev: elevation above z grid position (positive UP) in
-        kilometers for sensor (Default = 0)
+        kilometers for site (Default = 0)
         :type elev: float
         :param units: units of measurement used to express x, y, and z
         ( 'METERS' or 'KILOMETERS')
@@ -470,7 +282,7 @@ class Seeds:
 
         validate(units.upper(), self.__valid_measurement_units__)
 
-        self.sensors.append({'label': label, 'x': x, 'y': y, 'z': z,
+        self.sites.append({'label': label, 'x': x, 'y': y, 'z': z,
                              elev:'elev'})
 
         self.units = units.upper()
@@ -478,14 +290,14 @@ class Seeds:
     def __repr__(self):
         line = ""
 
-        for sensor in self.sensors:
+        for site in self.sites:
 
-            # test if sensor name is shorter than 6 characters
+            # test if site name is shorter than 6 characters
 
-            line += f'GTSRCE {sensor["label"]} XYZ ' \
-                    f'{sensor["x"] / 1000:>15.6f} ' \
-                    f'{sensor["y"] / 1000:>15.6f} ' \
-                    f'{sensor["z"] / 1000:>15.6f} ' \
+            line += f'GTSRCE {site["label"]} XYZ ' \
+                    f'{site["x"] / 1000:>15.6f} ' \
+                    f'{site["y"] / 1000:>15.6f} ' \
+                    f'{site["z"] / 1000:>15.6f} ' \
                     f'0.00\n'
 
         return line
@@ -493,15 +305,15 @@ class Seeds:
     @property
     def locs(self):
         seeds = []
-        for sensor in self.sensors:
-            seeds.append([sensor['x'], sensor['y'], sensor['z']])
+        for site in self.sites:
+            seeds.append([site['x'], site['y'], site['z']])
         return np.array(seeds)
 
     @property
     def labels(self):
         seed_labels = []
-        for sensor in self.sensors:
-            seed_labels.append(sensor['label'])
+        for site in self.sites:
+            seed_labels.append(site['label'])
 
         return np.array(seed_labels)
 
@@ -521,7 +333,7 @@ class NLLocGrid(Grid):
         :type origin: list
         :param spacing: the spacing between grid nodes
         :type spacing: list
-        :param phase: the seismic phase (value 'P' or 'S')
+        :param phase: the useis phase (value 'P' or 'S')
         :type phase: str
         :param value:
         :type value: float
@@ -627,7 +439,7 @@ class NLLocGrid(Grid):
         return self.resource_id
 
     @property
-    def sensor(self):
+    def site(self):
         return self.seed_label
 
 
@@ -852,7 +664,7 @@ class VelocityGrid3D(NLLocGrid):
                 *args, **kwargs):
         """
         Eikonal solver based on scikit fast marching solver
-        :param seed: numpy array location of the seed or origin of seismic wave
+        :param seed: numpy array location of the seed or origin of useis wave
          in model coordinates
         (usually location of a station or an event)
         :type seed: numpy array
@@ -949,7 +761,7 @@ class VelocityGrid3D(NLLocGrid):
                              model_id=self.model_id,
                              grid_units=self.grid_units)
 
-        tt_out_grid.data -= tt_out_grid.interpolate(seed,
+        tt_out_grid.data -= tt_out_grid.interpolate(seed.T,
                                                     grid_coordinate=False,
                                                     order=3)
 
@@ -1148,7 +960,8 @@ class TTGrid(SeededGrid):
         gds_tmp = np.gradient(self.data)
         gds = [-gd for gd in gds_tmp]
 
-        azimuth = np.arctan2(gds[0], gds[1])  # azimuth is zero northwards
+        azimuth = np.arctan2(gds[0], gds[1]) * 180 / np.pi
+        # azimuth is zero northwards
 
         return AngleGrid(self.network_code, azimuth, self.origin, self.spacing,
                          self.seed, self.seed_label, 'AZIMUTH',
@@ -1160,7 +973,7 @@ class TTGrid(SeededGrid):
         gds = [-gd for gd in gds_tmp]
 
         hor = np.sqrt(gds[0] ** 2 + gds[1] ** 2)
-        takeoff = np.arctan2(hor, -gds[2])
+        takeoff = np.arctan2(hor, -gds[2]) * 180 / np.pi
         # takeoff is zero pointing down
         return AngleGrid(self.network_code, takeoff, self.origin, self.spacing,
                          self.seed, self.seed_label, 'TAKEOFF',
@@ -1220,7 +1033,8 @@ class TTGrid(SeededGrid):
         """
 
         return ray_tracer(self, start, grid_coordinate=grid_coordinate,
-                          max_iter=max_iter, arrival_id=arrival_id)
+                          max_iter=max_iter, arrival_id=arrival_id,
+                          earth_model_id=self.model_id)
 
     @classmethod
     def from_velocity(cls, seed, seed_label, velocity_grid):
@@ -1228,80 +1042,6 @@ class TTGrid(SeededGrid):
 
     def write(self, path='.'):
         return super().write(path=path)
-
-
-def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
-               arrival_id=None):
-    """
-    This function calculates the ray between a starting point (start) and an
-    end point, which should be the seed of the travel_time grid, using the
-    gradient descent method.
-    :param travel_time_grid: a travel time grid
-    :type travel_time_grid: TTGrid
-    :param start: the starting point (usually event location)
-    :type start: tuple, list or numpy.array
-    :param grid_coordinate: true if the coordinates are expressed in
-    grid space (indices can be fractional) as opposed to model space
-    (x, y, z)
-    :param max_iter: maximum number of iteration
-    :param arrival_id: id of the arrival associated to the ray if
-    applicable
-    :rtype: numpy.array
-    """
-
-    from uquake.core.event import Ray
-
-    if grid_coordinate:
-        start = np.array(start)
-        start = travel_time_grid.transform_from(start)
-
-    origin = travel_time_grid.origin
-    spacing = travel_time_grid.spacing
-    end = np.array(travel_time_grid.seed)
-    start = np.array(start)
-
-    # calculating the gradient in every dimension at every grid points
-    gds = [Grid(gd, origin=origin, spacing=spacing)
-           for gd in np.gradient(travel_time_grid.data)]
-
-    dist = np.linalg.norm(start - end)
-    cloc = start  # initializing cloc "current location" to start
-    gamma = spacing / 2  # gamma is set to half the grid spacing. This
-    # should be
-    # sufficient. Note that gamma is fixed to reduce
-    # processing time.
-    nodes = [start]
-
-    iter_number = 0
-    while np.all(dist > spacing / 2):
-        if iter_number > max_iter:
-            break
-
-        if np.all(dist < spacing * 4):
-            gamma = np.min(spacing) / 4
-
-        gvect = np.array([gd.interpolate(cloc, grid_coordinate=False,
-                                         order=1)[0] for gd in gds])
-
-        cloc = cloc - gamma * gvect / np.linalg.norm(gvect)
-        nodes.append(cloc)
-        dist = np.linalg.norm(cloc - end)
-
-        iter_number += 1
-
-    nodes.append(end)
-
-    tt = travel_time_grid.interpolate(start, grid_coordinate=False, order=1)
-    az = travel_time_grid.to_azimuth_point(start, grid_coordinate=False,
-                                           order=1)
-    toa = travel_time_grid.to_takeoff_point(start, grid_coordinate=False,
-                                            order=1)
-
-    ray = Ray(nodes=nodes, sensor_code=travel_time_grid.seed_label,
-              arrival_id=arrival_id, phase=travel_time_grid.phase,
-              azimuth=az, takeoff_angle=toa, travel_time=tt)
-
-    return ray
 
 
 class TravelTimeEnsemble:
@@ -1427,19 +1167,19 @@ class TravelTimeEnsemble:
     def travel_time(self, seed, grid_coordinate=False,
                     seed_labels=None, sort=True, ascending=True):
         """
-        calculate the travel time at a specific point for a series of sensor
+        calculate the travel time at a specific point for a series of site
         ids
         :param seed: travel time seed
         :param grid_coordinate: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
-        :param seed_labels: a list of sensors from which to calculate the
+        :param seed_labels: a list of sites from which to calculate the
         travel time.
         :param sort: sort list if true
         :type sort: bool
         :param ascending: sort in ascending order if true
         :type ascending: bool
-        :return: a list of dictionary containing the travel time and sensor id
+        :return: a list of dictionary containing the travel time and site id
         """
 
         if not self.travel_time_grids[0].in_grid(seed):
@@ -1454,7 +1194,7 @@ class TravelTimeEnsemble:
         labels = []
         for tt_grid in tt_grids:
             labels.append(tt_grid.seed_label)
-            tts.append(tt_grid.interpolate(seed, grid_coordinate=False))
+            tts.append(tt_grid.interpolate(seed.T, grid_coordinate=False))
 
         if sort:
             indices = np.argsort(tts, ascending=ascending)
@@ -1466,7 +1206,7 @@ class TravelTimeEnsemble:
 
         return tt_dicts
 
-    def ray_tracer(self, start, seed_labels=None, multithreading=True,
+    def ray_tracer(self, start, seed_labels=None, multithreading=False,
                    cpu_utilisation=0.9, grid_coordinate=False, max_iter=1000):
         """
 
