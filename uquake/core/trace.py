@@ -19,6 +19,7 @@ Expansion of the obspy.core.trace module
 from abc import ABC
 import numpy as np
 from obspy.core.trace import Trace as ObspyTrace
+from obspy.core.trace import Stats as ObspyStats
 from obspy import UTCDateTime
 from obspy.core.event import WaveformStreamID
 from obspy.core.trace import AttribDict
@@ -27,8 +28,8 @@ from .event import Pick
 from .util import tools
 
 
-class Stats(ObspyTrace.Stats, ABC):
-    __doc__ = ObspyTrace.Stats.__doc__.replace('obspy', 'uquake')
+class Stats(ObspyStats, ABC):
+    __doc__ = ObspyStats.__doc__.replace('obspy', 'uquake')
 
     def __init__(self, stats=None, **kwargs):
         super(Stats, self).__init__(**kwargs)
@@ -63,7 +64,7 @@ class Stats(ObspyTrace.Stats, ABC):
 #             self.stats = Stats(stats=kwargs['header'])
 
 
-class Trace(obstrace.Trace, ABC):
+class Trace(ObspyTrace, ABC):
     def __init__(self, trace=None, **kwargs):
         super(Trace, self).__init__(**kwargs)
 
