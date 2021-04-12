@@ -25,10 +25,11 @@ from pkg_resources import load_entry_point
 
 from .trace import Trace
 from .util import ENTRY_POINTS, tools
+from .logging import logger
 
 
 class Stream(obsstream.Stream, ABC):
-    __doc__ = obsstream.Stream.__doc__.replace('obspy', 'microquake')
+    __doc__ = obsstream.Stream.__doc__.replace('obspy', 'uquake')
 
     def __init__(self, stream=None, **kwargs):
         super(Stream, self).__init__(**kwargs)
@@ -54,6 +55,22 @@ class Stream(obsstream.Stream, ABC):
         """
 
         return composite_traces(self)
+
+    def select(self, **kwargs):
+        if 'site' in kwargs.keys():
+            trs = [tr for tr in self.traces if tr.stats.site == kwargs['site']]
+        else:
+            return super().select(**kwargs)
+
+        st_tmp = Stream(traces=trs)
+
+        kwargs_tmp = {}
+        for key in kwargs.keys():
+            if key == 'site':
+                continue
+            kwargs_tmp[key] = kwargs[key]
+
+        return st_tmp.select(**kwargs_tmp)
 
     def as_array(self, wlen_sec=None, taplen=0.05):
         t0 = np.min([tr.stats.starttime for tr in self])
@@ -135,6 +152,9 @@ class Stream(obsstream.Stream, ABC):
     def unique_stations(self):
 
         return np.unique([tr.stats.station for tr in self])
+
+    def unique_sites(self):
+        return np.unique([tr.stats.site for tr in self])
 
     def zpad_names(self):
         for tr in self.traces:
@@ -308,15 +328,14 @@ def is_valid(st_in, return_stream=False, STA=0.005, LTA=0.1, min_num_valid=5):
         try:
             mx = np.r_[True, cft[1:] > cft[:-1]] & \
                 np.r_[cft[:-1] > cft[1:], True]
-        except:
+        except Exception as e:
+            logger.error(e)
             continue
 
         i1 = np.nonzero(mx)[0]
         i2 = i1[cft[i1] > np.max(cft) / 2]
-        try:
-            tspan = (np.max(i2) - np.min(i2)) / sampling_rate
-        except:
-            raise Exception("tspan not defined")
+
+        tspan = (np.max(i2) - np.min(i2)) / sampling_rate
 
         ratio = np.max(np.abs(tr.data)) / np.std(tr.data)
 
@@ -360,7 +379,7 @@ def check_for_dead_trace(tr):
     mean = np.mean(data)
     max = np.max(data) - mean
     min = np.min(data) - mean
-    #print('%s: mean:%f max:%f min:%f' % (tr.get_id(), mean, max, min))
+    # print('%s: mean:%f max:%f min:%f' % (tr.get_id(), mean, max, min))
 
     if max < eps and np.abs(min) < eps:
         return 1
@@ -375,9 +394,9 @@ def composite_traces(st_in):
     The amplitude of the composite traces are the norm of the amplitude of
     the trace of all component and the phase of the trace (sign) is the sign
     of the first components of a given station.
-    :param st: a stream object
-    :type st: ~microquake.core.stream.Stream
-    :rtype: ~microquake.core.stream.Stream
+    :param st_in: a stream object
+    :type st_in: ~uquake.core.stream.Stream
+    :rtype: ~uquake.core.stream.Stream
 
     """
 
@@ -386,8 +405,8 @@ def composite_traces(st_in):
     st = st_in.copy()
     st.detrend('demean')
 
-    for station in st.unique_stations():
-        trs = st.select(station=station)
+    for site in st.unique_sites():
+        trs = st.select(site=site)
 
         if len(trs) == 1:
             trsout.append(trs[0].copy())
@@ -403,7 +422,10 @@ def composite_traces(st_in):
 
         buf = np.sign(trs[0].data) * np.sqrt(buf)
         stats = trs[0].stats.copy()
-        stats.channel = 'C'
+        ch = st_in.traces[0].stats.channel
+        if len(ch) > 1:
+            prefix = ch[:-1]
+        stats.channel = f'{prefix}C'
         trsout.append(Trace(data=buf.copy(), header=stats))
 
     return Stream(traces=trsout)

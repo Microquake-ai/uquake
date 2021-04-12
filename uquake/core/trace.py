@@ -16,7 +16,7 @@ Expansion of the obspy.core.trace module
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
-
+from abc import ABC
 import numpy as np
 import obspy.core.trace as obstrace
 from obspy import UTCDateTime
@@ -27,13 +27,55 @@ from .event import Pick
 from .util import tools
 
 
-class Trace(obstrace.Trace):
+class Stats(obstrace.Stats, ABC):
+    __doc__ = obstrace.Stats.__doc__.replace('obspy', 'uquake')
+
+    def __init__(self, stats=None, **kwargs):
+        super(Stats, self).__init__(**kwargs)
+
+        if stats:
+            for item in stats.__dict__.keys():
+                self.__dict__[item] = stats.__dict__[item]
+
+            self.site = f'{self.station}{self.location}'
+
+    def __str__(self):
+        """
+        Return better readable string representation of Stats object.
+        """
+        priorized_keys = ['network', 'station', 'site', 'location', 'channel',
+                          'starttime', 'endtime', 'sampling_rate', 'delta',
+                          'npts', 'calib']
+        return self._pretty_str(priorized_keys)
+
+
+# class Trace(obsstream.Trace, ABC):
+#     __doc__ = obsstream.Trace.__doc__.replace('obspy', 'uquake')
+#
+#     def __init__(self, trace=None, **kwargs):
+#         super(Trace, self).__init__(**kwargs)
+#
+#         if trace:
+#             self.stats = Stats(stats=trace.stats)
+#             self.data = trace.data
+#
+#         if 'header' in kwargs.keys():
+#             self.stats = Stats(stats=kwargs['header'])
+
+
+class Trace(obstrace.Trace, ABC):
     def __init__(self, trace=None, **kwargs):
         super(Trace, self).__init__(**kwargs)
 
         if trace:
-            self.stats = trace.stats
+            self.stats = Stats(stats=trace.stats)
             self.data = trace.data
+
+        if 'header' in kwargs.keys():
+            self.stats = Stats(stats=kwargs['header'])
+
+        if 'stats' in kwargs.keys():
+            self.stats = Stats(stats=kwargs['stats'])
 
     @property
     def sr(self):
@@ -54,7 +96,7 @@ class Trace(obstrace.Trace):
         return np.linspace(0, len(self.data) / sr, len(self.data))
 
     def plot(self, **kwargs):
-        from microquake.imaging.waveform import WaveformPlotting
+        from uquake.imaging.waveform import WaveformPlotting
         waveform = WaveformPlotting(stream=self, **kwargs)
 
         return waveform.plotWaveform()
@@ -68,13 +110,16 @@ class Trace(obstrace.Trace):
         snr_wlens_samp = (snr_wlens * sr).astype(int)
         wlen_search_samp = int(wlen_search * sr)
 
-        newpick, snr = tools.repick_using_snr(self.data, ipick, wlen_search_samp,
-                                              stepsize_samp, snr_wlens_samp)
+        new_pick, snr = tools.repick_using_snr(self.data, ipick,
+                                               wlen_search_samp, stepsize_samp,
+                                               snr_wlens_samp)
 
-        waveform_id = WaveformStreamID(channel_code=self.stats.channel, station_code=self.stats.station)
+        waveform_id = WaveformStreamID(channel_code=self.stats.channel,
+                                       station_code=self.stats.station)
 
-        pick = Pick(time=self.index_to_time(newpick), waveform_id=waveform_id, phase_hint=phase_hint,
-                    evaluation_mode='automatic', evaluation_status='preliminary', method='snr', snr=snr)
+        pick = Pick(time=self.index_to_time(newpick), waveform_id=waveform_id,
+                    phase_hint=phase_hint, evaluation_mode='automatic',
+                    evaluation_status='preliminary', method='snr', snr=snr)
 
         return pick
 
@@ -90,13 +135,18 @@ class Trace(obstrace.Trace):
 
     @staticmethod
     def create_from_json(trace_json_object):
-        # trace_json_object['stats']['starttime'] = UTCDateTime(int(trace_json_object['stats']['starttime']) / 1e9)
-        # trace_json_object['stats']['endtime'] = UTCDateTime(int(trace_json_object['stats']['endtime']) / 1e9)
+        # trace_json_object['stats']['starttime'] =
+        # UTCDateTime(int(trace_json_object['stats']['starttime']) / 1e9)
+        # trace_json_object['stats']['endtime'] =
+        # UTCDateTime(int(trace_json_object['stats']['endtime']) / 1e9)
 
-        trace_json_object['stats']['starttime'] = UTCDateTime(trace_json_object['stats']['starttime'])
-        trace_json_object['stats']['endtime'] = UTCDateTime(trace_json_object['stats']['endtime'])
+        trace_json_object['stats']['starttime'] = \
+            UTCDateTime(trace_json_object['stats']['starttime'])
+        trace_json_object['stats']['endtime'] = \
+            UTCDateTime(trace_json_object['stats']['endtime'])
 
-        trc = Trace(header=trace_json_object['stats'], data=np.array(trace_json_object['data'], dtype='float32'))
+        trc = Trace(header=trace_json_object['stats'],
+                    data=np.array(trace_json_object['data'], dtype='float32'))
 
         return trc
 
@@ -106,7 +156,8 @@ class Trace(obstrace.Trace):
 
         for key in self.stats.keys():
             if isinstance(self.stats[key], UTCDateTime):
-                # trace_dict['stats'][key] = int(np.float64(self.stats[key].timestamp) * 1e9)
+                # trace_dict['stats'][key] =
+                # int(np.float64(self.stats[key].timestamp) * 1e9)
                 trace_dict['stats'][key] = self.stats[key].isoformat()
             elif isinstance(self.stats[key], AttribDict):
                 trace_dict['stats'][key] = self.stats[key].__dict__
