@@ -1164,8 +1164,9 @@ class TravelTimeEnsemble:
 
         return TravelTimeEnsemble(sorted_tt_grids)
 
-    def travel_time(self, seed, grid_coordinate=False,
-                    seed_labels=None):
+    def travel_time(self, seed, grid_coordinate: bool=False,
+                    seed_labels:Optional[list]=None,
+                    phases: Optional[list]=None):
         """
         calculate the travel time at a specific point for a series of site
         ids
@@ -1191,13 +1192,18 @@ class TravelTimeEnsemble:
 
         tts = []
         labels = []
+        phases = []
         for tt_grid in tt_grids:
             labels.append(tt_grid.seed_label)
             tts.append(tt_grid.interpolate(seed.T, grid_coordinate=False)[0])
+            phases.append(tt_grid.phase)
 
         tts_dict = {}
-        for label, tt in zip(labels, tts):
-            tts_dict[label] = tt
+        for phase in np.unique(phases):
+            tts_dict[phase] = {}
+
+        for label, tt, phase in zip(labels, tts, phases):
+            tts_dict[phase][label] = tt
 
         return tts_dict
 
