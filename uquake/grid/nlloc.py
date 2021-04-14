@@ -1165,7 +1165,7 @@ class TravelTimeEnsemble:
         return TravelTimeEnsemble(sorted_tt_grids)
 
     def travel_time(self, seed, grid_coordinate=False,
-                    seed_labels=None, sort=True, ascending=True):
+                    seed_labels=None, sort=True):
         """
         calculate the travel time at a specific point for a series of site
         ids
@@ -1177,8 +1177,6 @@ class TravelTimeEnsemble:
         travel time.
         :param sort: sort list if true
         :type sort: bool
-        :param ascending: sort in ascending order if true
-        :type ascending: bool
         :return: a list of dictionary containing the travel time and site id
         """
 
@@ -1197,7 +1195,7 @@ class TravelTimeEnsemble:
             tts.append(tt_grid.interpolate(seed.T, grid_coordinate=False))
 
         if sort:
-            indices = np.argsort(tts, ascending=ascending)
+            indices = np.argsort(tts)
             tts = np.array(tts)[indices]
             labels = np.array(labels)[indices]
 
