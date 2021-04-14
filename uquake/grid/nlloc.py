@@ -1180,6 +1180,9 @@ class TravelTimeEnsemble:
         :return: a list of dictionary containing the travel time and site id
         """
 
+        if isinstance(seed, list):
+            seed = np.array(seed)
+
         if not self.travel_time_grids[0].in_grid(seed):
             raise ValueError('seed is outside the grid')
 
@@ -1193,6 +1196,8 @@ class TravelTimeEnsemble:
         for tt_grid in tt_grids:
             labels.append(tt_grid.seed_label)
             tts.append(tt_grid.interpolate(seed.T, grid_coordinate=False))
+
+        kaboum
 
         if sort:
             indices = np.argsort(tts)
