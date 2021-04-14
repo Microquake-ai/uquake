@@ -1195,9 +1195,7 @@ class TravelTimeEnsemble:
         labels = []
         for tt_grid in tt_grids:
             labels.append(tt_grid.seed_label)
-            tts.append(tt_grid.interpolate(seed.T, grid_coordinate=False))
-
-        kaboum
+            tts.append(tt_grid.interpolate(seed.T, grid_coordinate=False)[0])
 
         if sort:
             indices = np.argsort(tts)
