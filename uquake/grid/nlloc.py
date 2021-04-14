@@ -1166,7 +1166,7 @@ class TravelTimeEnsemble:
 
     def travel_time(self, seed, grid_coordinate: bool=False,
                     seed_labels: Optional[list]=None,
-                    phases: Optional[list]=None):
+                    phase: Optional[list]=None):
         """
         calculate the travel time at a specific point for a series of site
         ids
@@ -1176,7 +1176,7 @@ class TravelTimeEnsemble:
         (x, y, z)
         :param seed_labels: a list of sites from which to calculate the
         travel time.
-        :param phases: a list of phases for which the travel time need to be
+        :param phase: a list of phases for which the travel time need to be
         calculated
         :return: a list of dictionary containing the travel time and site id
         """
@@ -1190,7 +1190,7 @@ class TravelTimeEnsemble:
         if grid_coordinate:
             seed = self.travel_time_grids[0].transform_from(seed)
 
-        tt_grids = self.select(seed_labels=seed_labels, phases=phases)
+        tt_grids = self.select(seed_labels=seed_labels, phase=phase)
 
         tts = []
         labels = []
