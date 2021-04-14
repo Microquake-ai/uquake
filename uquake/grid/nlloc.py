@@ -1165,7 +1165,7 @@ class TravelTimeEnsemble:
         return TravelTimeEnsemble(sorted_tt_grids)
 
     def travel_time(self, seed, grid_coordinate=False,
-                    seed_labels=None, sort=True):
+                    seed_labels=None):
         """
         calculate the travel time at a specific point for a series of site
         ids
@@ -1175,8 +1175,6 @@ class TravelTimeEnsemble:
         (x, y, z)
         :param seed_labels: a list of sites from which to calculate the
         travel time.
-        :param sort: sort list if true
-        :type sort: bool
         :return: a list of dictionary containing the travel time and site id
         """
 
@@ -1197,15 +1195,11 @@ class TravelTimeEnsemble:
             labels.append(tt_grid.seed_label)
             tts.append(tt_grid.interpolate(seed.T, grid_coordinate=False)[0])
 
-        if sort:
-            indices = np.argsort(tts)
-            tts = np.array(tts)[indices]
-            labels = np.array(labels)[indices]
+        tts_dict = {}
+        for label, tt in zip(labels, tts):
+            tts_dict[label] = tt
 
-        tt_dicts = {'travel_times': tts,
-                    'labels': labels}
-
-        return tt_dicts
+        return tts_dict
 
     def ray_tracer(self, start, seed_labels=None, multithreading=False,
                    cpu_utilisation=0.9, grid_coordinate=False, max_iter=1000):
