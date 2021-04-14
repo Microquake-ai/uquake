@@ -462,6 +462,22 @@ class Pick(obsevent.Pick):
         return self.site
 
 
+class WaveformStreamID(obsevent.WaveformStreamID):
+    __doc__ = obsevent.WaveformStreamID.__doc__.replace('obspy', 'uquake')
+
+    def __init__(self, obspy_obj=None, **kwargs):
+        _init_handler(self, obspy_obj, **kwargs)
+
+    @property
+    def site_code(self):
+        site = self.station_code + self.location_code
+        return site
+
+    @property
+    def site(self):
+        return self.site_code
+
+
 class Arrival(obsevent.Arrival):
     __doc__ = obsevent.Arrival.__doc__.replace('obspy', 'uquake')
 
