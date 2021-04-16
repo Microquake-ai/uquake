@@ -8,7 +8,7 @@ from functools import wraps
 
 import numpy
 
-from microquake.helpers.logging import logger
+from ..logging import logger
 
 
 def compressFile(func):
