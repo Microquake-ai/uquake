@@ -18,20 +18,18 @@
 # along with microquake.  If not, see <http://www.gnu.org/licenses/>.
 
 import numpy as np
-from microquake.core import Stream, Trace
+from ..core import Stream, Trace
 from obspy.signal.trigger import recursive_sta_lta, pk_baer, \
     classic_sta_lta, coincidence_trigger
 from obspy.realtime.signal import kurtosis
 from scipy.signal import detrend
 from scipy.ndimage.filters import gaussian_filter1d
-from microquake.core import event
-from microquake.core.util.decorator import deprecated
-import microquake.core.nlloc as nll
-#from microquake.core.util.decorator import logger
-from microquake.helpers.logging import logger
+from ..core import event
+from ..core.util.decorator import deprecated
+from ..core.logging import logger
 
-from microquake.core.event import make_pick
-from microquake.core.util.tools import copy_picks_to_dict
+from ..core.event import make_pick
+from ..core.util.tools import copy_picks_to_dict
 
 
 def measure_polarity(st, catalog, site, average_time_window=1e-3,
@@ -1010,129 +1008,6 @@ def compute_picks(st2, trg, tolerance=20e-3, clip_stream=True, filter_stream=Tru
         picks.append(this_pick)
 
     return picks
-
-
-def automatic_picking(st_in, site, params):
-    """
-    Automatic picking algorithm
-    :param st_in: time series data
-    :type st_in: microquake.core.Stream
-    :param site: an object containing information on the station
-    :type site: microquake.core.station.Site
-    :param params: dictionnary containing the control parameters for the
-    automatic picker
-    :type params: AttribDict
-    :return: returns an event
-    :rtype: obspy.core.event.Event
-    """
-
-    st = st_in.copy()
-
-    if not ('picker' in params.keys()):
-        logger.error('params is not well formed... exiting')
-        return
-
-    #NLL_BASE = params.nll.NLL_BASE
-    nll_opts_auto = nll.init_nlloc_from_params(params)
-    #nll_opts_auto = nll.NLL(params.project_code, suffix=nll_suffix, base_folder=NLL_BASE)
-
-    pcks = []
-
-    try:
-        Polarity_kwargs = params.picker.polarity
-    except:
-        logger.warning('Probably no parameter for polarity measurements in '
-                       'the control file')
-        Polarity_kwargs = None
-
-
-    for stname in st.unique_stations():
-        for net in site.select(station=stname).networks:
-            if net:
-                curr_sta = net.stations[0]
-                stype = curr_sta.sensor_type
-
-                try:
-                    STALTA_picker_kwargs = params.picker.STALTA_picker[stype]
-                except:
-                    logger.warning('Probably no parameter for STALTA_picker '
-                                   'in the control file for %s...' %stype)
-                    STALTA_picker_kwargs = None
-
-                try:
-                    SNR_picker_kwargs = params.picker.SNR_picker[stype]
-                except:
-                    logger.warning('Probably no parameter for SNR_picker in '
-                                   'the control file for %s...' %stype)
-                    SNR_picker_kwargs = None
-
-
-        st_station = st.select(station=stname)
-        cat_STALTA1, cfs, snrs = STALTA_picker(st_station,
-                                               **STALTA_picker_kwargs)
-
-        try:
-            cat_SNR1, snrs = SNR_picker(st_station, cat_STALTA1,
-                                        **SNR_picker_kwargs)
-        except:
-            return
-
-        snr_th = params.picker[stype].SNR_threshold
-
-        for (pk, snr) in zip(cat_SNR1.events[0].picks, snrs):
-            if snr > snr_th:
-                pcks.append(pk)
-
-    if (len(pcks) < params.picker.min_picks):
-        logger.info('too few picks ... exiting')
-        return
-
-    cat_auto1 = event.Catalog(cat_SNR1)
-    cat_auto1.events[0].picks = pcks
-
-    cat_filt1 = event.Catalog(cat_auto1)
-    # cat_filt2.events[0].picks = picks
-
-    # we remove bad picks only from uniaxials
-    while True:
-        # creating an Origin and associating pick to arrivals
-        origin = event.Origin()
-        cat_filt1[0].preferred_origin_id = origin.resource_id.id
-        for k, pick in enumerate(cat_filt1[0].picks):
-            arrival = event.Arrival()
-            arrival.pick_id = pick.resource_id.id
-            arrival.phase = pick.phase_hint
-            origin.arrivals.append(arrival)
-
-        cat_filt1[0].origins.append(origin)
-        cat_filt1[0].preferred_origin_id = origin.resource_id.id
-        cat_auto = nll_opts_auto.run_event(cat_filt1[0], status='preliminary')
-        if not cat_auto:
-            logger.error('unable to locate the event')
-            return
-        res = np.abs([arr.time_residual for arr in cat_auto.events[0].origins[0].arrivals])
-
-        if (np.max(res) < params.picker.rms_residual_threshold) or (len(res) \
-            < params.picker.min_picks):
-            break
-        del cat_filt1.events[0].picks[np.argmax(res)]
-
-    if (len(res) < params.picker.min_picks):
-        return
-
-    res = np.abs([arr.time_residual for arr in cat_auto.events[0].origins[0].arrivals])
-
-    g = lambda x: x ** 2
-    rms_residual = np.sqrt(np.mean(g(res)))
-
-    uncertainty = cat_auto.events[0].origins[0].origin_uncertainty.confidence_ellipsoid.semi_major_axis_length
-    if (rms_residual > params.picker.rms_residual_threshold) \
-        or (uncertainty > params.picker.uncertainty_threshold):
-        cat_auto.events[0].origins[0].evaluation_status = 'rejected'
-    else:
-        cat_auto.events[0].origins[0].evaluation_status = 'preliminary'
-
-    return cat_auto[0]
 
 
 def eventCategorization_polarity(catalog, site):
