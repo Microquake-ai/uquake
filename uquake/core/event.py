@@ -457,6 +457,26 @@ class Pick(obsevent.Pick):
                      self.waveform_id.location_code
             return site
 
+    @property
+    def site_code(self):
+        return self.site
+
+
+class WaveformStreamID(obsevent.WaveformStreamID):
+    __doc__ = obsevent.WaveformStreamID.__doc__.replace('obspy', 'uquake')
+
+    def __init__(self, obspy_obj=None, **kwargs):
+        _init_handler(self, obspy_obj, **kwargs)
+
+    @property
+    def site_code(self):
+        site = self.station_code + self.location_code
+        return site
+
+    @property
+    def site(self):
+        return self.site_code
+
 
 class Arrival(obsevent.Arrival):
     __doc__ = obsevent.Arrival.__doc__.replace('obspy', 'uquake')
@@ -493,7 +513,7 @@ class Arrival(obsevent.Arrival):
            azimuth: {self.azimuth:0.2f} (deg)
           distance: {self.distance:0.2f} (m)
      takeoff_angle: {self.takeoff_angle:0.2f} (deg)
-     time_residual: {self.time_residual*1000:0.2f} (ms)
+     time_residual: {self.time_residual * 1000:0.2f} (ms)
        time_weight: {self.time_weight:0.1f}
         """
         return out_str
@@ -510,6 +530,18 @@ class Arrival(obsevent.Arrival):
             return -1.0
         else:
             return None
+
+    @property
+    def pick(self):
+        return self.get_pick()
+
+    @property
+    def site_code(self):
+        return self.pick.site
+
+    @property
+    def site(self):
+        return self.pick.site
 
     def get_pick(self):
         if self.pick_id is not None:

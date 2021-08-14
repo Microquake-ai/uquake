@@ -1164,8 +1164,9 @@ class TravelTimeEnsemble:
 
         return TravelTimeEnsemble(sorted_tt_grids)
 
-    def travel_time(self, seed, grid_coordinate=False,
-                    seed_labels=None, sort=True, ascending=True):
+    def travel_time(self, seed, grid_coordinate: bool=False,
+                    seed_labels: Optional[list]=None,
+                    phase: Optional[list]=None):
         """
         calculate the travel time at a specific point for a series of site
         ids
@@ -1175,12 +1176,13 @@ class TravelTimeEnsemble:
         (x, y, z)
         :param seed_labels: a list of sites from which to calculate the
         travel time.
-        :param sort: sort list if true
-        :type sort: bool
-        :param ascending: sort in ascending order if true
-        :type ascending: bool
+        :param phase: a list of phases for which the travel time need to be
+        calculated
         :return: a list of dictionary containing the travel time and site id
         """
+
+        if isinstance(seed, list):
+            seed = np.array(seed)
 
         if not self.travel_time_grids[0].in_grid(seed):
             raise ValueError('seed is outside the grid')
@@ -1188,23 +1190,24 @@ class TravelTimeEnsemble:
         if grid_coordinate:
             seed = self.travel_time_grids[0].transform_from(seed)
 
-        tt_grids = self.select(seed_labels=seed_labels)
+        tt_grids = self.select(seed_labels=seed_labels, phase=phase)
 
         tts = []
         labels = []
+        phases = []
         for tt_grid in tt_grids:
             labels.append(tt_grid.seed_label)
-            tts.append(tt_grid.interpolate(seed.T, grid_coordinate=False))
+            tts.append(tt_grid.interpolate(seed.T, grid_coordinate=False)[0])
+            phases.append(tt_grid.phase)
 
-        if sort:
-            indices = np.argsort(tts, ascending=ascending)
-            tts = np.array(tts)[indices]
-            labels = np.array(labels)[indices]
+        tts_dict = {}
+        for phase in np.unique(phases):
+            tts_dict[phase] = {}
 
-        tt_dicts = {'travel_times': tts,
-                    'labels': labels}
+        for label, tt, phase in zip(labels, tts, phases):
+            tts_dict[phase][label] = tt
 
-        return tt_dicts
+        return tts_dict
 
     def ray_tracer(self, start, seed_labels=None, multithreading=False,
                    cpu_utilisation=0.9, grid_coordinate=False, max_iter=1000):
