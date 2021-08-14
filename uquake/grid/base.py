@@ -98,6 +98,17 @@ class Grid:
                 logger.error(f'spacing shape should be {len(self.data.shape)}')
                 raise ValueError
 
+    def __hash__(self):
+        return hash((self.data.ravel(), self.spacing, self.shape, self.origin))
+
+    def __eq__(self, other):
+        self.hash == other.hash
+
+    @property
+    def hash(self):
+        return self.__hash__()
+
+
     @classmethod
     def from_ods(cls, origin, dimensions, spacing, val=0):
         """
