@@ -99,7 +99,8 @@ class Grid:
                 raise ValueError
 
     def __hash__(self):
-        return hash((self.data.ravel(), self.spacing, self.shape, self.origin))
+        return hash((tuple(self.data.ravel()), tuple(self.spacing),
+                     tuple(self.shape), tuple(self.origin)))
 
     def __eq__(self, other):
         self.hash == other.hash
@@ -107,7 +108,6 @@ class Grid:
     @property
     def hash(self):
         return self.__hash__()
-
 
     @classmethod
     def from_ods(cls, origin, dimensions, spacing, val=0):
