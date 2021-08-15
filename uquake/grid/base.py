@@ -297,7 +297,7 @@ class Grid:
         points = np.random.rand(nb_points, len(self.data.shape))
 
         for i in range(nb_points):
-            points = points * self.dimension
+            points = points * self.dimensions
 
         if not grid_coordinates:
             return self.transform_from_grid(points)
