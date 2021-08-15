@@ -282,7 +282,7 @@ class Seeds:
         validate(units.upper(), self.__valid_measurement_units__)
 
         self.sites.append({'label': label, 'x': x, 'y': y, 'z': z,
-                             elev:'elev'})
+                           'elev': elev})
 
         self.units = units.upper()
 
@@ -305,7 +305,7 @@ class Seeds:
         >>> seeds = Seeds.generate_random_seeds_in_grid(grid, nb_seeds=10)
         """
 
-        seeds = []
+        seeds = Seeds()
         label_root = 'seed'
         for i, point in enumerate(grid.generate_random_points_in_grid(
                 nb_points=nb_seeds)):
@@ -313,7 +313,8 @@ class Seeds:
             seed = {'label': label,
                     'x': point[0], 'y': point[1], 'z': point[2],
                     'elev': 0}
-            seeds.append(seed)
+
+            seeds.add(seed)
 
         return seeds
 
@@ -346,6 +347,11 @@ class Seeds:
             seed_labels.append(site['label'])
 
         return np.array(seed_labels)
+
+
+class Srces(Seeds):
+    def __init__(self, sites=[], units='METERS'):
+        super().__init__(sites=sites, units=units)
 
 
 class NLLocGrid(Grid):
