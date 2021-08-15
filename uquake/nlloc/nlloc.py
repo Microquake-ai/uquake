@@ -874,6 +874,34 @@ class Srces:
 
         self.units = units.upper()
 
+    @staticmethod
+    def generate_random_srces_in_grid(grid, nb_seeds=1):
+        """
+        generate nb_seeds random seeds inside the grid provided. This function
+        is mainly used for testing purposes
+        :param grid: a grid
+        :type grid: uquake.grid.base.Grid or an object inheriting from Grid
+        :param nb_seeds: number of Srces to generate
+        :return: a list of srces
+
+        >>> from uquake.grid.base import Grid
+        >>> from uquake.nlloc.nlloc import Srces
+        >>> grid_dimensions = [10, 10, 10]
+        >>> grid_spacing = [1, 1, 1]
+        >>> grid_origin = [0, 0, 0]
+        >>> grid = Grid(grid_dimensions, grid_spacing, grid_origin, value=1)
+        >>> srces = Srces.generate_random_seeds_in_grid(grid, nb_seeds=10)
+        """
+
+        srces = Srces()
+        label_root = 'seed'
+        for i, point in enumerate(grid.generate_random_points_in_grid(
+                nb_points=nb_seeds)):
+            label = f'{label_root}_{i}'
+            srces.add(label, point[0], point[1], point[2])
+
+        return srces
+
     def __repr__(self):
         line = ""
 
