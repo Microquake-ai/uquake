@@ -285,8 +285,8 @@ class Grid:
         Ze = Ze.reshape(np.prod(Ze.shape))
         return Xe, Ye, Ze
 
-    def generate_random_point_in_grid(self, nb_points=1,
-                                      grid_coordinates=False):
+    def generate_random_points_in_grid(self, nb_points=1,
+                                       grid_coordinates=False):
         """
         Generate a random set of points within the grid
         :param nb_points: number of points to generate (default=1)
