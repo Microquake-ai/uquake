@@ -190,6 +190,16 @@ class Grid:
 
         return coords
 
+    def transform_to_grid(self, values):
+        """
+        transform model space coordinates into grid space coordinates
+        :param values: tuple of model space coordinates
+        :type values: tuple
+        :rtype: tuple
+        """
+
+        return self.transform_to(values)
+
     def transform_from(self, values):
         """
         transform grid space coordinates into model space coordinates
@@ -198,6 +208,16 @@ class Grid:
         :rtype: tuple
         """
         return values * self.spacing + self.origin
+
+    def transform_from_grid(self, values):
+        """
+        transform grid space coordinates into model space coordinates
+        :param values: tuple of grid space coordinates
+        :type values: tuple
+        :rtype: tuple
+        """
+
+        return self.transform_from(values)
 
     def check_compatibility(self, other):
         """
@@ -247,6 +267,7 @@ class Grid:
 
     def generate_points(self, pt_spacing=None):
         """
+        Generate points within the grid
         """
         # if pt_spacing is None:
         ev_spacing = self.spacing
@@ -263,6 +284,25 @@ class Grid:
         Ye = Ye.reshape(np.prod(Ye.shape))
         Ze = Ze.reshape(np.prod(Ze.shape))
         return Xe, Ye, Ze
+
+    def generate_random_point_in_grid(self, nb_points=1,
+                                      grid_coordinates=False):
+        """
+        Generate a random set of points within the grid
+        :param nb_points: number of points to generate (default=1)
+        :type nb_points: int
+        :return: an array of triplet
+        """
+
+        points = np.random.rand(nb_points, len(self.data.shape))
+
+        for i in range(nb_points):
+            points = points * self.dimension
+
+        if not grid_coordinates:
+            return self.transform_from_grid(points)
+
+        return points
 
     def write(self, filename, format='PICKLE', **kwargs):
         """
