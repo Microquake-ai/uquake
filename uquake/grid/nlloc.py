@@ -287,7 +287,7 @@ class Seeds:
         self.units = units.upper()
 
     @staticmethod
-    def generate_random_seeds_in_grid(self, grid, nb_seeds=1):
+    def generate_random_seeds_in_grid(grid, nb_seeds=1):
         """
         generate nb_seeds random seeds inside the grid provided. This function
         is mainly used for testing purposes
