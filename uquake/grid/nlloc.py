@@ -28,7 +28,6 @@ from functools import partial
 from typing import Optional
 import h5py
 from .base import ray_tracer
-from tqdm import tqdm
 
 
 __cpu_count__ = cpu_count()
@@ -226,7 +225,7 @@ class Seeds:
         >>> site = {'label': 'test', 'x': 1000, 'y': 1000, 'z': 1000,
                       'elev': 0.0}
         >>> sites = [site]
-        >>> srces = Srces(srces)
+        >>> seeds = Seeds(sites)
 
         """
 
@@ -286,6 +285,37 @@ class Seeds:
                              elev:'elev'})
 
         self.units = units.upper()
+
+    @staticmethod
+    def generate_random_seeds_in_grid(self, grid, nb_seeds=1):
+        """
+        generate nb_seeds random seeds inside the grid provided. This function
+        is mainly used for testing purposes
+        :param grid: a grid
+        :type grid: uquake.grid.base.Grid or an object inheriting from Grid
+        :param nb_seeds: number of seeds to generate
+        :return: a list of seeds
+
+        >>> from uquake.grid.base import Grid
+        >>> from uquake.grid.nlloc import Seeds
+        >>> grid_dimensions = [10, 10, 10]
+        >>> grid_spacing = [1, 1, 1]
+        >>> grid_origin = [0, 0, 0]
+        >>> grid = Grid(grid_dimensions, grid_spacing, grid_origin, value=1)
+        >>> seeds = Seeds.generate_random_seeds_in_grid(grid, nb_seeds=10)
+        """
+
+        seeds = []
+        label_root = 'seed'
+        for i, point in enumerate(grid.generate_random_points_in_grid(
+                nb_points=nb_seeds)):
+            label = f'{label_root}_{i}'
+            seed = {'label': label,
+                    'x': point[0], 'y': point[1], 'z': point[2],
+                    'elev': 0}
+            seeds.append(seed)
+
+        return seeds
 
     def __repr__(self):
         line = ""
