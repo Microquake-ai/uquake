@@ -28,7 +28,7 @@ from functools import partial
 from typing import Optional
 import h5py
 from .base import ray_tracer
-from tqdm import tqdm
+import shutil
 
 
 __cpu_count__ = cpu_count()
@@ -333,7 +333,7 @@ class NLLocGrid(Grid):
         :type origin: list
         :param spacing: the spacing between grid nodes
         :type spacing: list
-        :param phase: the useis phase (value 'P' or 'S')
+        :param phase: the uquake phase (value 'P' or 'S')
         :type phase: str
         :param value:
         :type value: float
@@ -356,16 +356,7 @@ class NLLocGrid(Grid):
         if validate_grid_type(grid_type):
             self.grid_type = grid_type.upper()
 
-        # if grid_type.upper() in ['TIME', 'TIME2D', 'ANGLE', 'ANGLE2D']:
-        #     if not seed:
-        #         raise ValueError('the seeds value must be set for TIME and '
-        #                          'ANGLE grids')
-        #     if not seed_label:
-        #         raise ValueError('the seed_label must be set for TIME '
-        #                          'and ANGLE grids')
-
-        # self.seed = seed
-        # self.seed_label = seed_label
+        self.extensions = ['.buf', '.mid', '.hdr']
 
         if validate_grid_units(grid_units):
             self.grid_units = grid_units.upper()
@@ -434,13 +425,30 @@ class NLLocGrid(Grid):
 
         return True
 
+    @staticmethod
+    def mv(NLLocGridObject, base_name, origin, destination):
+        """
+        move a NLLoc grid with a certain base_name from an origin to a
+        destination
+        :param NLLocGridObject:
+        :type NLLocGridObject: uquake.grid.nlloc.NLLocGrid
+        :param base_name:
+        :type base_name: str
+        :param origin:
+        :type origin: str
+        :param destination:
+        :type destination: str
+        :return:
+        """
+
+        NLLocGridObject.write(base_name, destination)
+        for ext in NLLocGridObject.extensions:
+            shutil.move(f'{origin}/{base_name}.{ext}',
+                        f'{destination}/{base_name}.{ext}')
+
     @property
     def model_id(self):
         return self.resource_id
-
-    @property
-    def site(self):
-        return self.seed_label
 
 
 class ModelLayer:
@@ -812,6 +820,20 @@ class VelocityGrid3D(NLLocGrid):
         base_name = self.base_name
         super().write(base_name, path=path)
 
+    @staticmethod
+    def mv(velocity_grid, origin, destination):
+        """
+        move a the velocity grid files from {origin} to {destination}
+        :param velocity_grid:
+        :type velocity_grid: uquake.grid.nlloc.VelocityGrid3D
+        :param origin: origin
+        :param destination:
+        :return:
+        """
+
+        super().mv(velocity_grid, velocity_grid.base_name,
+                   origin, destination)
+
     @property
     def base_name(self):
         return self.get_base_name(self.network_code, self.phase)
@@ -1042,6 +1064,10 @@ class TTGrid(SeededGrid):
 
     def write(self, path='.'):
         return super().write(path=path)
+
+    @property
+    def site(self):
+        return self.seed_label
 
 
 class TravelTimeEnsemble:
