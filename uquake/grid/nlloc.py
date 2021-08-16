@@ -458,8 +458,7 @@ class NLLocGrid(Grid):
 
         return True
 
-    @staticmethod
-    def mv(NLLocGridObject, base_name, origin, destination):
+    def mv(self, base_name, origin, destination):
         """
         move a NLLoc grid with a certain base_name from an origin to a
         destination
@@ -474,8 +473,8 @@ class NLLocGrid(Grid):
         :return:
         """
 
-        NLLocGridObject.write(base_name, destination)
-        for ext in NLLocGridObject.extensions:
+        self.write(base_name, destination)
+        for ext in self.extensions:
             shutil.move(f'{origin}/{base_name}.{ext}',
                         f'{destination}/{base_name}.{ext}')
 
@@ -853,18 +852,15 @@ class VelocityGrid3D(NLLocGrid):
         base_name = self.base_name
         super().write(base_name, path=path)
 
-    @staticmethod
-    def mv(velocity_grid, origin, destination):
+    def mv(self, origin, destination):
         """
         move a the velocity grid files from {origin} to {destination}
-        :param velocity_grid:
-        :type velocity_grid: uquake.grid.nlloc.VelocityGrid3D
         :param origin: origin
         :param destination:
         :return:
         """
 
-        super().mv(velocity_grid, velocity_grid.base_name,
+        super().mv(self, self.base_name,
                    origin, destination)
 
     @property
