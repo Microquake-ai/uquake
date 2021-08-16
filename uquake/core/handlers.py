@@ -61,7 +61,7 @@ def _init_from_obspy_object(mquake_obj, obspy_obj):
 
 def _set_attr_handler(self, name, value, namespace='MICROQUAKE'):
     """
-    Generic handler to set attributes for microquake objects
+    Generic handler to set attributes for uquake objects
     which inherit from ObsPy objects. If 'name' is not in
     default keys then it will be set in self['extra'] dict. If
     'name' is not in default keys but in the self.extra_keys

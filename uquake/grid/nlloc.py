@@ -226,7 +226,7 @@ class Seeds:
         >>> site = {'label': 'test', 'x': 1000, 'y': 1000, 'z': 1000,
                       'elev': 0.0}
         >>> sites = [site]
-        >>> srces = Srces(srces)
+        >>> seeds = Seeds(sites)
 
         """
 
@@ -283,9 +283,37 @@ class Seeds:
         validate(units.upper(), self.__valid_measurement_units__)
 
         self.sites.append({'label': label, 'x': x, 'y': y, 'z': z,
-                             elev:'elev'})
+                           'elev': elev})
 
         self.units = units.upper()
+
+    @staticmethod
+    def generate_random_seeds_in_grid(grid, nb_seeds=1):
+        """
+        generate nb_seeds random seeds inside the grid provided. This function
+        is mainly used for testing purposes
+        :param grid: a grid
+        :type grid: uquake.grid.base.Grid or an object inheriting from Grid
+        :param nb_seeds: number of seeds to generate
+        :return: a list of seeds
+
+        >>> from uquake.grid.base import Grid
+        >>> from uquake.grid.nlloc import Seeds
+        >>> grid_dimensions = [10, 10, 10]
+        >>> grid_spacing = [1, 1, 1]
+        >>> grid_origin = [0, 0, 0]
+        >>> grid = Grid(grid_dimensions, grid_spacing, grid_origin, value=1)
+        >>> seeds = Seeds.generate_random_seeds_in_grid(grid, nb_seeds=10)
+        """
+
+        seeds = Seeds()
+        label_root = 'seed'
+        for i, point in enumerate(grid.generate_random_points_in_grid(
+                nb_points=nb_seeds)):
+            label = f'{label_root}_{i}'
+            seeds.add(label, point[0], point[1], point[2])
+
+        return seeds
 
     def __repr__(self):
         line = ""
@@ -316,6 +344,11 @@ class Seeds:
             seed_labels.append(site['label'])
 
         return np.array(seed_labels)
+
+
+class Srces(Seeds):
+    def __init__(self, sites=[], units='METERS'):
+        super().__init__(sites=sites, units=units)
 
 
 class NLLocGrid(Grid):
