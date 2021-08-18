@@ -544,8 +544,8 @@ class Channel(inventory.Channel):
               f'Easting [x]: {self.x:0.0f} m, Northing [y]: ' \
               f'{self.y:0.0f} m, Elevation [z]: {self.z:0.0f} m\n' \
               f'Dip (degrees): {self.dip:0.0f}, Azimuth (degrees): ' \
-              f'{self.azimuth:0.0f}\n' \
- \
+              f'{self.azimuth:0.0f}\n'
+        
         if self.response:
             ret += "Response information available"
         else:
