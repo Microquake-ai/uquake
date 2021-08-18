@@ -6,16 +6,16 @@
 import warnings
 
 import numpy as np
-from microquake.helpers.logging import logger
+from uquake.helpers.logging import logger
 from obspy.core.event import Comment, ResourceIdentifier, WaveformStreamID
-from microquake.core.event import Magnitude
+from uquake.core.event import Magnitude
 from obspy.core.event.magnitude import (StationMagnitude,
                                         StationMagnitudeContribution)
 
-from microquake.core.event import Pick
-from microquake.waveform.amp_measures import measure_pick_amps
-from microquake.waveform.mag_utils import double_couple_rad_pat, free_surface_displacement_amplification
-from microquake.waveform.smom_measure_legacy import measure_pick_smom
+from uquake.core.event import Pick
+from uquake.waveform.amp_measures import measure_pick_amps
+from uquake.waveform.mag_utils import double_couple_rad_pat, free_surface_displacement_amplification
+from uquake.waveform.smom_measure_legacy import measure_pick_smom
 
 warnings.simplefilter("ignore", UserWarning)
 warnings.simplefilter("ignore")
@@ -214,7 +214,7 @@ def calc_magnitudes_from_lambda(cat,
             # R  = np.linalg.norm(sta_dict['station'].loc -ev_loc) #Dist in meters
 
         # MTH: obspy arrival.distance = *epicentral* distance in degrees
-        #   >> Add attribute hypo_dist_in_m to microquake arrival class
+        #   >> Add attribute hypo_dist_in_m to uquake arrival class
         #         to make it clear
             if arr.distance:
                 R = arr.distance

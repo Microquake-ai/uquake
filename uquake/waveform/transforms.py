@@ -1,5 +1,5 @@
 import numpy as np
-from microquake.helpers.logging import logger
+from uquake.helpers.logging import logger
 
 """
     Place to keep trace transforms - mainly rotations to ENZ, PSVSH, etc.

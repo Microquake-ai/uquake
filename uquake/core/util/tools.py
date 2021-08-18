@@ -492,10 +492,10 @@ def read_csv(filename, site_code='', **kwargs):
     :param has_header: whether or not the input file has an header
     :type has_header: bool
     :rparam: site object
-    :rtype: ~microquake.core.station.Site
+    :rtype: ~uquake.core.station.Site
     """
 
-    from microquake.core.data.station import Site, Network, Station, Channel
+    from uquake.core.data.station import Site, Network, Station, Channel
     from numpy import loadtxt
 
     data = loadtxt(filename, delimiter=',', skiprows=1, dtype=object)

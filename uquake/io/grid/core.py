@@ -63,7 +63,7 @@ def read_hdf5(filename, **kwargs):
 
 def write_csv(grid, filename, **kwargs):
     """
-    Write a GridData object to disk in Microquake csv format
+    Write a GridData object to disk in uquake csv format
     :param grid: grid to be saved
     :param filename: full path to file with extension
     :return:

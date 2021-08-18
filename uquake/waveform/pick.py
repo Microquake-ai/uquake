@@ -1,21 +1,21 @@
 # -*- coding: utf-8; -*-
 #
-# (c) 2016 microquake development team
+# (c) 2016 uquake development team
 #
-# This file is part of the microquake library
+# This file is part of the uquake library
 #
-# microquake is free software; you can redistribute it and/or modify
+# uquake is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; either version 3 of the License, or
 # (at your option) any later version.
 #
-# microquake is distributed in the hope that it will be useful,
+# uquake is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with microquake.  If not, see <http://www.gnu.org/licenses/>.
+# along with uquake.  If not, see <http://www.gnu.org/licenses/>.
 
 import numpy as np
 from ..core import Stream, Trace
@@ -37,15 +37,15 @@ def measure_polarity(st, catalog, site, average_time_window=1e-3,
     """
     Measure the P- and S-wave polarities
     :param st: seismograms
-    :type st: either obspy.core.Stream or microquake.core.Stream
+    :type st: either obspy.core.Stream or uquake.core.Stream
     :param catalog: catalog object
-    :type catalog: microquake.core.Catalog
+    :type catalog: uquake.core.Catalog
     :param site: sensor information
-    :type site: microquake.core.station.Site
+    :type site: uquake.core.station.Site
     :param average_time_window: time window over which the polarity is measured (s)
     :type average_time_window: float
     :rparam: returns a copy of the input catalog
-    :rtype: microquake.core.Stream
+    :rtype: uquake.core.Stream
     """
     cat_out = catalog.copy()
 
@@ -440,14 +440,14 @@ def snr_picker(st, picks, snr_dt=None, snr_window=(1e-3, 20e-3), filter=None):
     Function to improve the picks based on the SNR.
     :param st: seismogram containing a seismic event
     :type st: :py:class:`obspy.core.stream.Stream`
-    :param picks: list of microquake.core.event.Pick object
+    :param picks: list of uquake.core.event.Pick object
     picks
-    :type picks: microquake.core.event.Catalog
+    :type picks: uquake.core.event.Catalog
     :param snr_dt: Window in which the picks will be improved.
     :param snr_window: Length of window in seconds in which the SNR is calculated
     before and after the pick
     :type snr_window: (tuple)
-    :returns:  Tuple comprising 1) a :py:class:`microquake.core.event.Catalog`
+    :returns:  Tuple comprising 1) a :py:class:`uquake.core.event.Catalog`
     a new catalog containing a single event with a list of picks and 2) the SNR
     """
 
@@ -1017,11 +1017,11 @@ def eventCategorization_polarity(catalog, site):
     will generate mixte first motion
 
     :param st: seismograms
-    :type st: obspy.core.Stream or microquake.core.Stream
+    :type st: obspy.core.Stream or uquake.core.Stream
     :param catalog: events catalog
-    :type catalog: obspy.core.event.Catalog or microquake.core.event.Catalog
+    :type catalog: obspy.core.event.Catalog or uquake.core.event.Catalog
     :param site: information on network
-    :type site: microquake.core.data.station.Site
+    :type site: uquake.core.data.station.Site
     """
 
     catalog = event.Catalog(cat=catalog)

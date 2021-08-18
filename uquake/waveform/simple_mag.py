@@ -2,13 +2,13 @@ import numpy as np
 from numpy.fft import fft
 from scipy.optimize import curve_fit
 from scipy.ndimage.interpolation import map_coordinates
-from microquake.helpers.logging import logger
+from uquake.helpers.logging import logger
 from obspy.core.trace import Stats
-from microquake.core.stream import Trace, Stream
-from microquake.core.data import GridData
-from microquake.core import event
-from microquake.waveform.mag_utils import calc_static_stress_drop
-from microquake.core.util.cli import ProgressBar
+from uquake.core.stream import Trace, Stream
+from uquake.core.data import GridData
+from uquake.core import event
+from uquake.waveform.mag_utils import calc_static_stress_drop
+from uquake.core.util.cli import ProgressBar
 
 
 ########################################################################################
@@ -38,13 +38,13 @@ def anelastic_scattering_attenuation(raypath_or_distance, velocity, quality,
     :param raypath_or_distance: raypath or distance
     :type raypath_or_distance: a list of point along the raypath or a float
     :param velocity: velocity along the raypath
-    :type: microquake.core.data.grid.GridData or float
+    :type: uquake.core.data.grid.GridData or float
     :param quality: Seismic quality factor
-    :type quality: microquake.core.data.grid.GridData or float
+    :type quality: uquake.core.data.grid.GridData or float
     :param seismogram: displacement waveform
-    :type seismogram: microquake.core.Trace
+    :type seismogram: uquake.core.Trace
     :return: attenuated seismogram
-    :rtype: microquake.core.Trace
+    :rtype: uquake.core.Trace
     """
 
     freq_coeff, _ = interpolate_Fc_Mw()
@@ -96,9 +96,9 @@ def geometrical_spreading_attenuation(raypath, velocity=None, quality=None,
     :param raypath: Raypath between source and receiver
     :type raypath: nympy array
     :param velocity: velocity grid (default None)
-    :type velocity: microquake ImageData
+    :type velocity: uquake ImageData
     :param quality: quality factor (default None)
-    :type quality: microquake ImageData
+    :type quality: uquake ImageData
     :return: the a tuple containing the geometrical spreading attenuation
     and the attenuation related to anelastic absorbtion and scattering
     """
@@ -144,13 +144,13 @@ def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
     :param seed: seed (often receiver) location
     :type seed: tuple with same dimension as the grid
     :param velocity: velocity grid
-    :type velocity: microquake.core.data.GridData
+    :type velocity: uquake.core.data.GridData
     :param locations: 2-D grid containing the coordinates at which the
     attenuation is calculated
     for instance [[x1,y1,z1],[x2,y2,z2],...,[xn,yn,zn]].
     :type location: 2D numpy array.
     :param quality: quality factor grid
-    :type quality: microquake ImageData
+    :type quality: uquake ImageData
     :param triaxial: true if triaxial sensor is used
     :type triaxial: bool
     :param orientation: sensor orientation taken into account only for
@@ -161,7 +161,7 @@ def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
     :param progress: show progress bar if true
     :type progress: bool
     :param traveltime: precalculated traveltime grid (for MapReduce)
-    :type traveltime: microquake.core.data.GridData
+    :type traveltime: uquake.core.data.GridData
     :param eventSeed: True if seed is an event
     :type eventSeed: bool
     :param Mw: Moment magnitude
@@ -173,7 +173,7 @@ def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
     are accounted for
     :type homogeneous: bool
     :rparam: Attenuation on a grid
-    :rtype: microquake ImageData and
+    :rtype: uquake ImageData and
 
     .. note::
 
@@ -190,7 +190,7 @@ def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
 
     """
 
-    from microquake.simul import eik
+    from uquake.simul import eik
 
     A = []
 
@@ -429,7 +429,7 @@ def synthetic_seismogram(Mw, duration=0.1, sampling_rate=10000, vp=5000.0,
     stats.sampling_rate = sampling_rate
     stats.npts = 2 * npts - 1
 
-    from microquake.core.util.cepstrum import minimum_phase
+    from uquake.core.util.cepstrum import minimum_phase
     minphase_data = np.roll(minimum_phase(data, len(data)), len(data) / 2)
 
     return Trace(data=data, header=stats)
@@ -446,11 +446,11 @@ def detection_level_sta_lta_grid(attenuationGrid, VpGrid, VsGrid,
     with the same dimensions as the attenuation grid.
 
     :param attenuationGrid: Attenuation grid
-    :type attenuationGrid: microquake.core.data.GridData
+    :type attenuationGrid: uquake.core.data.GridData
     :param VpGrid: P-wave velocity grid
-    :type VpGrid: microquake.core.data.GridData
+    :type VpGrid: uquake.core.data.GridData
     :param VsGrid: S-wave velocity grid
-    :type VsGrid: microquake.core.data.GridData
+    :type VsGrid: uquake.core.data.GridData
     :param noise_level: Level of noise to add to the seismogram
     :type noise_level: float
     :param acceleration: if True use acceleration if false use velocity
@@ -469,7 +469,7 @@ def detection_level_sta_lta_grid(attenuationGrid, VpGrid, VsGrid,
     :type magResolution: float
     :param pwave: True if it is a P-wave
     :type pwave: bool
-    :rtype: microquake.core.data.GridData
+    :rtype: uquake.core.data.GridData
     """
 
     Sensitivity = attenuationGrid.copy()
@@ -545,7 +545,7 @@ def triggered_sensor_sta_lta_grid(stloc, Rho, Vp, Vs, Qp, Qs, Mw=-1,
 
     >>> from numpy.random import randn
     >>> from scipy.ndimage.filters import gaussian_filter
-    >>> from microquake.data import ImageData
+    >>> from uquake.data import ImageData
     >>> GridSpc = 10
     >>> Rho = ImageData(gaussian_filter(randn(100,100) * 100 + 2400.0, 5),
     spacing=GridSpc)
@@ -1050,15 +1050,15 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
     WARNING
     Calculate the moment magnitude for an event.
     :param stream: seismogram
-    :type stream: microquake.Stream # does not exist yet
+    :type stream: uquake.Stream # does not exist yet
     :param cat: catalog object
-    :type cat: microquake.core.event.Catalog
+    :type cat: uquake.core.event.Catalog
     :param inventory: network information (contains stations information)
-    :type inventory: microquake.station.Site
+    :type inventory: uquake.station.Site
     :param vp: P-wave velocity
-    :type vp: float or microquake.core.data.GridData
+    :type vp: float or uquake.core.data.GridData
     :param vs: S-wave velocity
-    :type vs: float or microquake.core.data.GridData
+    :type vs: float or uquake.core.data.GridData
     :param only_triaxial: whether only triaxial sensor are used in the
     magnitude calculation (optional) (not yet implemented)
     :type only_triaxial: bool
@@ -1078,7 +1078,7 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
     frequency.
     :param preferred_origin_only: calculates the magnitude for the
     preferred_origin only
-    :rtype: microquake.core.event.Catalog
+    :rtype: uquake.core.event.Catalog
     """
 
     # rigidity in Pa (shear-wave modulus)

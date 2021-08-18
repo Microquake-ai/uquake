@@ -8,18 +8,18 @@
 """
 
 # default logger
-from microquake.helpers.logging import logger
+from uquake.helpers.logging import logger
 
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.fftpack import rfft
 
-from microquake.core.data.inventory import get_sensor_type_from_trace
-from microquake.core.event import Pick
-from microquake.core.stream import Stream
-from microquake.core.util.tools import copy_picks_to_dict
-from microquake.waveform.parseval_utils import npow2, unpack_rfft
-from microquake.waveform.pick import calculate_snr
+from uquake.core.data.inventory import get_sensor_type_from_trace
+from uquake.core.event import Pick
+from uquake.core.stream import Stream
+from uquake.core.util.tools import copy_picks_to_dict
+from uquake.waveform.parseval_utils import npow2, unpack_rfft
+from uquake.waveform.pick import calculate_snr
 
 
 def measure_pick_amps(st_in, cat, phase_list=None,
@@ -35,9 +35,9 @@ def measure_pick_amps(st_in, cat, phase_list=None,
       and added to the *arrival* extras dict
 
     :param st_in: velocity traces
-    :type st_in: obspy.core.Stream or microquake.core.Stream
+    :type st_in: obspy.core.Stream or uquake.core.Stream
     :param cat: obspy.core.event.Catalog
-    :type cat: list of obspy.core.event.Events or microquake.core.event.Events
+    :type cat: list of obspy.core.event.Events or uquake.core.event.Events
     :param phase_list: ['P'], ['S'], or ['P', 'S'] - list of arrival phases
     to process
     :type phase_list: list
@@ -141,9 +141,9 @@ def measure_velocity_pulse(st,
     All measurements are added to the *arrival* extras dict
 
     :param st: velocity traces
-    :type st: obspy.core.Stream or microquake.core.Stream
+    :type st: obspy.core.Stream or uquake.core.Stream
     :param cat: obspy.core.event.Catalog
-    :type cat: list of obspy.core.event.Events or microquake.core.event.Events
+    :type cat: list of obspy.core.event.Events or uquake.core.event.Events
     :param phase_list: ['P'], ['S'], or ['P', 'S'] - list of arrival phases
     to process
     :type phase_list: list
@@ -314,9 +314,9 @@ def measure_displacement_pulse(st,
     All measurements are added to the *arrival* extras dict
 
     :param st: velocity traces
-    :type st: obspy.core.Stream or microquake.core.Stream
+    :type st: obspy.core.Stream or uquake.core.Stream
     :param cat: obspy.core.event.Catalog
-    :type list: list of obspy.core.event.Events or microquake.core.event.Events
+    :type list: list of obspy.core.event.Events or uquake.core.event.Events
     """
 
     fname = 'measure_displacement_pulse'
@@ -484,7 +484,7 @@ def _find_signal_zeros(tr, istart, max_pulse_duration=.1, nzeros_to_find=3,
     All measurements are added to the *arrival* extras dict
 
     :param tr: Individual velocity trace
-    :type tr: obspy.core.Trace or microquake.core.Trace
+    :type tr: obspy.core.Trace or uquake.core.Trace
     :param istart: index in trace.data to start searching from (eg =pick index)
     :type istart: int
     :param max_pulse_duration: maximum search window (in seconds) for end
@@ -649,7 +649,7 @@ def _get_peak_amp(tr, istart, istop):
     """
     Measure peak (signed) amplitude between istart and istop on trace
     :param tr: velocity trace
-    :type tr: obspy.core.trace.Trace or microquake.core.Trace
+    :type tr: obspy.core.trace.Trace or uquake.core.Trace
     :param istart: pick index in trace
     :type istart: int
     :param istop: max index in trace to search
@@ -679,7 +679,7 @@ def _get_pulse_width_and_area(tr, ipick, icross, max_pulse_duration=.08):
             crossing of velocity)
 
     :param tr: displacement trace
-    :type tr: obspy.core.trace.Trace or microquake.core.Trace
+    :type tr: obspy.core.trace.Trace or uquake.core.Trace
     :param ipick: index of pick in trace
     :type ipick: int
     :param icross: index of first zero crossing in corresponding velocity trace
@@ -735,9 +735,9 @@ def set_pick_snrs(st, picks, pre_wl=.03, post_wl=.03):
     where key = {'P_arrival', 'S_arrival'}
 
     :param st: traces
-    :type st: either obspy.core.Stream or microquake.core.Stream
+    :type st: either obspy.core.Stream or uquake.core.Stream
     :param picks: P & S picks
-    :type list: list of either obspy or microquake picks
+    :type list: list of either obspy or uquake picks
     :param pre_wl: pre pick window for noise calc
     :type float:
     :param post_wl: post pick window for signal calc
@@ -789,9 +789,9 @@ def calc_velocity_flux(st_in,
         be used in the calculation of radiated seismic energy
 
     :param st_in: velocity traces
-    :type st_in: obspy.core.Stream or microquake.core.Stream
+    :type st_in: obspy.core.Stream or uquake.core.Stream
     :param cat: obspy.core.event.Catalog
-    :type cat: list of obspy.core.event.Events or microquake.core.event.Events
+    :type cat: list of obspy.core.event.Events or uquake.core.event.Events
     :param phase_list: ['P'], ['S'], or ['P', 'S'] - list of arrival phases
     to process
     :type phase_list: list

@@ -2,17 +2,17 @@
 # ------------------------------------------------------------------
 # Filename: event.py
 #  Purpose: plugin for reading and writing GridData object into various format
-#   Author: microquake development team
-#    Email: devs@microquake.org
+#   Author: uquake development team
+#    Email: devs@uquake.org
 #
-# Copyright (C) 2016 microquake development team
+# Copyright (C) 2016 uquake development team
 # --------------------------------------------------------------------
 """
 plugin for reading and writing event (catalog) object from and into various
 format
 
 :copyright:
-    microquake development team (devs@microquake.org)
+    uquake development team (devs@uquake.org)
 :license:
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
@@ -22,7 +22,7 @@ format
 def write_simple_sqlite(catalog, filename, **kwargs):
     """
     :param catalog: catalogue object
-    :type catalog: microquake.core.catalog
+    :type catalog: uquake.core.catalog
     :param filename: output filename
     :type filename: str
     :return: None
@@ -68,7 +68,7 @@ def write_simple_sqlite(catalog, filename, **kwargs):
                 mag = event.magnitudes[0].mag
                 mag_type = event.magnitudes[0].magnitude_type
             else:
-                from microquake.core.event import Magnitude
+                from uquake.core.event import Magnitude
                 mag = -33
                 mag_type = "NC"
 

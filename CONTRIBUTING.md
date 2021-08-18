@@ -1,10 +1,10 @@
 # How to contribute (wip)
 
 Currently this document is based on CONTRIBUTING.md of the ObsPy project. This
-document certainly contains stuff unrelated to the microquake project. The
+document certainly contains stuff unrelated to the uquake project. The
 document will be fixed in the future.
 
-This document aims to give an overview of how to contribute to microquake. It tries to answer commonly asked questions, and provide some insight into how the community process works in practice.
+This document aims to give an overview of how to contribute to uquake. It tries to answer commonly asked questions, and provide some insight into how the community process works in practice.
 
 ## Getting Started
 

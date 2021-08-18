@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 # ------------------------------------------------------------------
 # Filename: waveform.py
-#  Purpose: Waveform plotting for microquake.Stream objects
+#  Purpose: Waveform plotting for uquake.Stream objects
 #   Author: Lion Krischer
 #    Email: krischer@geophysik.uni-muenchen.de
-#  Adapted: microquake development team
+#  Adapted: uquake development team
 #
 # Copyright (C) 2008-2012 Lion Krischer
 # --------------------------------------------------------------------
@@ -39,7 +39,7 @@ import scipy.signal as signal
 from ..core import Stream, Trace
 from obspy.core import UTCDateTime
 
-# from microquake.core.util import create_empty_data_chunk as createEmptyDataChunck
+# from uquake.core.util import create_empty_data_chunk as createEmptyDataChunck
 #
 #                             kilometer2degrees, locations2degrees)
 from obspy.geodetics import (flinnengdahl, kilometer2degrees,

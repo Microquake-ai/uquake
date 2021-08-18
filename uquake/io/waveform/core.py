@@ -3,17 +3,17 @@
 # Filename: core.py
 # Purpose: plugin for reading and writing various waveform format expending
 # the number of format readable.
-#   Author: microquake development team
-#    Email: devs@microquake.org
+#   Author: uquake development team
+#    Email: devs@uquake.org
 #
-# Copyright (C) 2016 microquake development team
+# Copyright (C) 2016 uquake development team
 # --------------------------------------------------------------------
 """
 plugin for reading and writing various waveform format expending
 # the number of format readable.
 
 :copyright:
-    microquake development team (devs@microquake.org)
+    uquake development team (devs@uquake.org)
 :license:
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
@@ -86,7 +86,7 @@ def read_IMS_ASCII(path, net='', **kwargs):
     """
     read a IMS_ASCII seismogram from a single station
     :param path: path to file
-    :return: microquake.core.Stream
+    :return: uquake.core.Stream
     """
 
     data = np.loadtxt(path, delimiter=',', skiprows=1)
@@ -125,8 +125,8 @@ def read_ESG_SEGY(fname, site=None, **kwargs):
     station and component information properly filled
     :param fname: the filename
     :param site: a site object containing site information
-    :type site: ~microquake.core.station.Site
-    :return: ~microquake.core.stream.Stream
+    :type site: ~uquake.core.station.Site
+    :return: ~uquake.core.stream.Stream
     """
 
     if not site:
@@ -196,15 +196,15 @@ def read_ESG_SEGY(fname, site=None, **kwargs):
 @uncompress
 def read_TEXCEL_CSV(filename, **kwargs):
     """
-    Reads a texcel csv file and returns a microquake Stream object.
+    Reads a texcel csv file and returns a uquake Stream object.
 
     .. warning::
         This function should NOT be called directly, it registers via the
-        microquake :func:`~microquake.core.stream.read` function, call this
+        uquake :func:`~uquake.core.stream.read` function, call this
         instead.
     :param filename: the path to the file
     :param kwargs:
-    :return: ~microquake.core.stream.Stream
+    :return: ~uquake.core.stream.Stream
     """
 
     with open(filename) as fle:

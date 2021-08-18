@@ -1,12 +1,12 @@
 # README #
 
-Microquake is an open source package licensed under the [GNU general Public License, version 3 (GPLv3)](http://www.gnu.org/licenses/gpl-3.0.html). Microquake is an extension of Obspy for the processing of microseismic data
+uquake is an open source package licensed under the [GNU general Public License, version 3 (GPLv3)](http://www.gnu.org/licenses/gpl-3.0.html). uquake is an extension of Obspy for the processing of microseismic data
 
 ### Development
 
 ```
 pip install poetry
-poetry config http-basic.microquake {user} {password}
+poetry config http-basic.uquake {user} {password}
 poetry install
 ```
 

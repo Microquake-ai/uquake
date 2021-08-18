@@ -3,13 +3,13 @@ import copy
 import matplotlib.pyplot as plt
 # import numba
 import numpy as np
-from microquake.helpers.logging import logger
+from uquake.helpers.logging import logger
 from scipy import optimize
 from scipy.fftpack import rfft
 from scipy.signal import savgol_filter
 
-from microquake.core.data.inventory import get_corner_freq_from_pole, get_sensor_type_from_trace
-from microquake.core.util.tools import copy_picks_to_dict
+from uquake.core.data.inventory import get_corner_freq_from_pole, get_sensor_type_from_trace
+from uquake.core.util.tools import copy_picks_to_dict
 
 
 """
@@ -197,10 +197,10 @@ def get_spectra(st, event, inventory, synthetic_picks,
     """ Calculate the fft at each channel in the stream that has an arrival
     in event.arrivals
 
-        :param st: microquake.core.stream.Stream
-        :type  st: microquake.core.stream.Stream
-        :param event: microquake.core.event.Event
-        :type  event: microquake.core.event.Event
+        :param st: uquake.core.stream.Stream
+        :type  st: uquake.core.stream.Stream
+        :param event: uquake.core.event.Event
+        :type  event: uquake.core.event.Event
         :param stations: list of station metadata
         :type  stations: obspy.core.inventory.network.Network
         :param calc_displacement: If true calculate displacement spectra (

@@ -320,7 +320,7 @@ class Grid:
 
         format_ep = ENTRY_POINTS['grid'][format]
         write_format = load_entry_point(format_ep.dist.key,
-                                        'microquake.plugin.grid.%s'
+                                        'uquake.plugin.grid.%s'
                                         % format_ep.name, 'writeFormat')
 
         write_format(self, filename, **kwargs)

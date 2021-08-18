@@ -2,16 +2,16 @@
 # ------------------------------------------------------------------
 # Filename: inventory.py
 #  Purpose: Expansion of the obspy.core.inventory.inventory module
-#   Author: microquake development team
-#    Email: devs@microquake.org
+#   Author: uquake development team
+#    Email: devs@uquake.org
 #
-# Copyright (C) 2016 microquake development team
+# Copyright (C) 2016 uquake development team
 # --------------------------------------------------------------------
 """
 Expansion of the obspy.core.event module
 
 :copyright:
-    microquake development team (devs@microquake.org)
+    uquake development team (devs@uquake.org)
 :license:
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
@@ -648,12 +648,12 @@ def load_from_excel(file_name) -> Inventory:
     Read in a multi-sheet excel file with network metadata sheets:
         Sites, Networks, Hubs, Stations, Components, Sites, Cables,
         Boreholes
-    Organize these into a microquake Inventory object
+    Organize these into a uquake Inventory object
 
     :param xls_file: path to excel file
     :type: xls_file: str
     :return: inventory
-    :rtype: microquake.core.data.inventory.Inventory
+    :rtype: uquake.core.data.inventory.Inventory
 
     """
 

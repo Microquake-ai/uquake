@@ -2,9 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.text import Text
 from matplotlib.transforms import offset_copy
-from microquake.core import event
+from uquake.core import event
 
-from microquake.helpers.logging import logger
+from uquake.helpers.logging import logger
 
 
 def guttenberg_richter(magnitudes, dates, bin_size=0.05, b_range=[-2.0, -0.5],
@@ -14,8 +14,8 @@ def guttenberg_richter(magnitudes, dates, bin_size=0.05, b_range=[-2.0, -0.5],
 
 	:param magnitudes: List of magnitudes
 	:type magnitudes: list of float
-	:param times: list of event time associated with the magnitude
-	:type time: list of microquake.core.UTCDateTime
+	:param dates: list of event time associated with the magnitude
+	:type dates: list of uquake.core.UTCDateTime
 	:param bin_size: the width of bins
 	:type bin_size: float
 	:param b_range: range over which the b value is calculated an fit ([min, max])
