@@ -27,7 +27,6 @@ from scipy.ndimage.interpolation import map_coordinates
 
 
 def read_grid(filename, format='PICKLE', **kwargs):
-
     format = format.upper()
 
     if format not in ENTRY_POINTS['grid'].keys():
@@ -161,8 +160,8 @@ class Grid:
 
     def __eq__(self, other):
         return np.all((self.shape == other.shape) &
-               (self.spacing == other.spacing) &
-               np.all(self.origin == other.origin))
+                      (self.spacing == other.spacing) &
+                      np.all(self.origin == other.origin))
 
     def __mul__(self, other):
         if isinstance(other, Grid):

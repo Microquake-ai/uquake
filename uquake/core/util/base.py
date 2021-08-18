@@ -28,7 +28,6 @@ for key in evt_entry_points.keys():
 
 
 def proc(cmd, cwd='.', silent=True):
-
     from ..logging import logger
 
     try:

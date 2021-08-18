@@ -73,17 +73,19 @@ def measure_polarity(st, catalog, site, average_time_window=1e-3,
             else:
                 logger.warning("MeasurePolarity: motion_type not set for "
                                "sensor %s... Displacement will be assumed"
-                               %stname)
+                               % stname)
 
             trs.filter('highpass', freq=hp_filter_freq)
             if len(trs) > 1:
                 logger.warning("number of trace for station %s and channel %s"
-                 "is greater than 1. Only the first trace will be used" % (
+                               "is greater than 1. Only the first trace will be used" % (
                                    sta_code, ch_code))
             tr = trs.traces[0]
 
-            sp_s = int((pick.time - tr.stats.starttime) * tr.stats.sampling_rate)
-            sp_e = int((sp_s + average_time_window * tr.stats.sampling_rate)) + 1
+            sp_s = int(
+                (pick.time - tr.stats.starttime) * tr.stats.sampling_rate)
+            sp_e = int(
+                (sp_s + average_time_window * tr.stats.sampling_rate)) + 1
             pol = np.sign(np.mean(tr.data[sp_s:sp_e]) - tr.data[sp_s])
 
             if pol > 0:
@@ -96,7 +98,8 @@ def measure_polarity(st, catalog, site, average_time_window=1e-3,
     return cat_out
 
 
-def _measure_pick_polarity_tr(tr, pick_time, signal_type='Acceleration', nsamp_avg=10):
+def _measure_pick_polarity_tr(tr, pick_time, signal_type='Acceleration',
+                              nsamp_avg=10):
     """Mesure pick polarity
     The pick polarity is measured on the displacement trace looking at the difference
     between the amplitude at the pick time and the sign of the average amplitude
@@ -155,9 +158,10 @@ def pick_uncertainty(tr, pick_time, snr_window=10):
     snr = calculate_snr(st, pick_time, snr_window)
     return 1 / (fm * np.log(1 + snr ** 2) / np.log(2))
 
+
 # noinspection PyProtectedMember
 def STALTA_picker_refraction(st, nsta=1e-3, nlta=4e-2, fc=50, nc=2,
-    noise_mag=1e-25, SNR_window=5e-3):
+                             noise_mag=1e-25, SNR_window=5e-3):
     """The STA/LTA picker provides a first order good estimate of the arrival
     times for both the P- and S- wave. The STA/LTA picker uses
     :py:class:`obspy.signal.trigger.recursive_sta_lta`.
@@ -208,13 +212,14 @@ def STALTA_picker_refraction(st, nsta=1e-3, nlta=4e-2, fc=50, nc=2,
         trstmp = [Trace(
             data=np.hstack(
                 (tr.data[::-1].reshape(len(tr)) + rd[::-1].reshape(len(rd)),
-                tr.data.reshape(len(tr)) + rd.reshape(len(rd)))),
+                 tr.data.reshape(len(tr)) + rd.reshape(len(rd)))),
             header=tr.stats) for tr in trs]
         sttmp = Stream(traces=trstmp)
 
         # tr.data = tr.data + np.random.randn(len(tr.data)) * 1e-10
 
-        StaLta = np.sum([classic_sta_lta(tr, sta, lta) for tr in sttmp], axis=0)
+        StaLta = np.sum([classic_sta_lta(tr, sta, lta) for tr in sttmp],
+                        axis=0)
         StaLta = StaLta[len(StaLta) / 2::]
 
         sfreq = trs.traces[0].stats['sampling_rate']
@@ -242,7 +247,7 @@ def STALTA_picker_refraction(st, nsta=1e-3, nlta=4e-2, fc=50, nc=2,
 
 
 def STALTA_picker(st, nphase=2, nsta=1e-3, nlta=4e-2, fc=50, nc=2,
-    noise_mag=1e-25, SNR_window=5e-3):
+                  noise_mag=1e-25, SNR_window=5e-3):
     """The STA/LTA picker provides a first order good estimate of the arrival
     times for both the P- and S- wave. The STA/LTA picker uses
     :py:class:`obspy.signal.trigger.recursive_sta_lta `.
@@ -293,7 +298,7 @@ def STALTA_picker(st, nphase=2, nsta=1e-3, nlta=4e-2, fc=50, nc=2,
         trstmp = [Trace(
             data=np.hstack(
                 (tr.data[::-1].reshape(len(tr)) + rd[::-1].reshape(len(rd)),
-                tr.data.reshape(len(tr)) + rd.reshape(len(rd)))),
+                 tr.data.reshape(len(tr)) + rd.reshape(len(rd)))),
             header=tr.stats) for tr in trs]
         sttmp = Stream(traces=trstmp)
 
@@ -330,7 +335,7 @@ def STALTA_picker(st, nphase=2, nsta=1e-3, nlta=4e-2, fc=50, nc=2,
 
 
 def kurtosis_picker(st, picks, freqmin=100, freqmax=1000, pick_freqs=None,
-    kurtosis_window=None, CF3_tol=10e-3, SNR_window=5e-3):
+                    kurtosis_window=None, CF3_tol=10e-3, SNR_window=5e-3):
     """Kurtosis picker adapted for microseismic event processing
     from ``Baillard et al. 2014``.
 
@@ -394,15 +399,15 @@ def kurtosis_picker(st, picks, freqmin=100, freqmax=1000, pick_freqs=None,
     for station in stations:
         # find the existing P and S picks for the current station
         trs = st.select(station=station)
-        #print('kurtosis: sta:%s ntr=%d' % (station, len(trs)))
-        #if len(trs) < 3:
-            #continue
+        # print('kurtosis: sta:%s ntr=%d' % (station, len(trs)))
+        # if len(trs) < 3:
+        # continue
         CF3 = np.zeros(len(trs.traces[0].data))
 
         for ws in kurtosis_window:
             for tr in trs:
                 cf1, cf2, cf3 = _CalculateCF1_3(tr, WS=ws,
-                                         BW=[freqmin, freqmax])
+                                                BW=[freqmin, freqmax])
                 CF3 += cf3
 
         cfs.append(CF3)
@@ -417,21 +422,23 @@ def kurtosis_picker(st, picks, freqmin=100, freqmax=1000, pick_freqs=None,
         for phase in prevPicks[station]:
             oldPick = prevPicks[station][phase]
 
-        #for oldPick in prevPicks:
-            #if oldPick['waveform_id'].station_code != station:
-                #continue
+            # for oldPick in prevPicks:
+            # if oldPick['waveform_id'].station_code != station:
+            # continue
 
             pick = _Pick_CF3(trs, CF3, oldPick['time'], pick_freqs, CF3_tol)
             SNR = calculate_snr(trs, pick, SNR_window)
             snrs.append(SNR)
-            opicks.append(make_pick(pick, oldPick['phase_hint'], trs.traces[0], SNR))
+            opicks.append(
+                make_pick(pick, oldPick['phase_hint'], trs.traces[0], SNR))
 
-            print('kurtosis: sta:%s pha:%s old_pick:%s new:%s' % (station,phase,oldPick.time,opicks[-1].time))
+            print('kurtosis: sta:%s pha:%s old_pick:%s new:%s' % (
+            station, phase, oldPick.time, opicks[-1].time))
 
-    #catalog = event.Catalog()
-    #catalog.events.append(event.Event(picks=opicks))
+    # catalog = event.Catalog()
+    # catalog.events.append(event.Event(picks=opicks))
 
-    #return catalog, cfs, snrs
+    # return catalog, cfs, snrs
     return opicks
 
 
@@ -540,11 +547,11 @@ def snr_picker(st, picks, snr_dt=None, snr_window=(1e-3, 20e-3), filter=None):
             tau = np.array(tau)
             indices = (tau - tr.stats.starttime) * tr.stats.sampling_rate
             tmp = np.array([(taut, index, calculate_snr(tr, taut,
-                                                 pre_wl=pre_window_length,
-                                                 post_wl=post_window_length))
+                                                        pre_wl=pre_window_length,
+                                                        post_wl=post_window_length))
                             for taut, index in zip(tau, indices)])
 
-        # MTH: this is a hack to try to force the solution close to the oldPick
+            # MTH: this is a hack to try to force the solution close to the oldPick
             alpha = 0
             """
             alpha = 10.
@@ -633,7 +640,8 @@ def calculate_energy(stream, pick, Wl=5e-3):
     Ps = int((pick - st) * sr)
     Nb = int(Wl * sr)
 
-    EnergyS = np.sum([np.var(tr.data[Ps-Nb/4:Ps+3*Nb/2]) for tr in stream])
+    EnergyS = np.sum(
+        [np.var(tr.data[Ps - Nb / 4:Ps + 3 * Nb / 2]) for tr in stream])
 
     return EnergyS
 
@@ -665,7 +673,6 @@ def _CalculateCF1_3(tr1, BW=None, WS=1e-3):
 
 
 def _Pick_STALTA(st, stalta, nphase):
-
     # Finding the two largest maximum of the smoothed STALTA
     # function. The two largest maximum are used as starting pick
     # values.
@@ -674,9 +681,11 @@ def _Pick_STALTA(st, stalta, nphase):
     starttime = st.traces[0].stats['starttime']
     endtime = st.traces[0].stats['endtime']
 
-    buf = (endtime - starttime) * 0.0001  # picks cannot be in the first and last 1% of the stream
+    buf = (
+                      endtime - starttime) * 0.0001  # picks cannot be in the first and last 1% of the stream
 
-    mx = np.r_[True, stalta[1:] > stalta[:-1]] & np.r_[stalta[:-1] > stalta[1:], True]
+    mx = np.r_[True, stalta[1:] > stalta[:-1]] & np.r_[
+        stalta[:-1] > stalta[1:], True]
 
     i1 = np.nonzero(mx)[0]
 
@@ -702,13 +711,13 @@ def _Pick_STALTA(st, stalta, nphase):
     #   logger.warning("_Pick_STALTA: Not all phases were picked")
 
     picks = np.sort([starttime + p / sr for p in picks])
-    picks = np.array([p for p in picks if ((starttime + buf) < p < (endtime - buf))])
+    picks = np.array(
+        [p for p in picks if ((starttime + buf) < p < (endtime - buf))])
 
     return picks
 
 
 def _Pick_STALTA_refraction(st, stalta):
-
     # Finding the two largest maximum of the smoothed STALTA
     # function. The two largest maximum are used as starting pick
     # values.
@@ -717,7 +726,8 @@ def _Pick_STALTA_refraction(st, stalta):
     starttime = st.traces[0].stats['starttime']
     # endtime = st.traces[0].stats['endtime']
 
-    mx = np.r_[True, stalta[1:] > stalta[:-1]] & np.r_[stalta[:-1] > stalta[1:], True]
+    mx = np.r_[True, stalta[1:] > stalta[:-1]] & np.r_[
+        stalta[:-1] > stalta[1:], True]
 
     i1 = np.nonzero(mx)[0]
 
@@ -762,9 +772,10 @@ def _Pick_CF3(st, cf3, iniPick, f=np.linspace(50, 1000, 20), tol=10e-3):
         CF3_2TR_F.filter('lowpass', freq=freq)
         # CF3_f = gaussian_filter1d(CF3,sigma=sigma,mode='reflect')
         CF3_f = CF3_2TR_F.data
-        #CF3_f = CF3_f[:len(CF3_f) / 2]
+        # CF3_f = CF3_f[:len(CF3_f) / 2]
         CF3_f = CF3_f[:int(len(CF3_f) / 2)]
-        s = np.r_[True, CF3_f[1:] < CF3_f[:-1]] & np.r_[CF3_f[:-1] < CF3_f[1:], True]
+        s = np.r_[True, CF3_f[1:] < CF3_f[:-1]] & np.r_[
+            CF3_f[:-1] < CF3_f[1:], True]
         indices = np.nonzero(s)[0]
         CF4 = np.zeros(CF3_f.shape)
         for i in indices[0:-1]:
@@ -773,12 +784,13 @@ def _Pick_CF3(st, cf3, iniPick, f=np.linspace(50, 1000, 20), tol=10e-3):
         indices = np.nonzero(CF4)[0]
 
         try:
-            pick_tmp = indices[np.argmin(np.abs(Pick - indices[indices <= Pick_stalta]))]
+            pick_tmp = indices[
+                np.argmin(np.abs(Pick - indices[indices <= Pick_stalta]))]
         except:
             pick_tmp = Pick
 
         if np.abs(pick_tmp - Pick_stalta) <= (tol * sr):
-                Pick = pick_tmp
+            Pick = pick_tmp
 
     # Return pick time in samples
     pick = ST + Pick / sr
@@ -786,9 +798,9 @@ def _Pick_CF3(st, cf3, iniPick, f=np.linspace(50, 1000, 20), tol=10e-3):
 
 
 @deprecated
-def triggersByGroup(st, trigger_type="recstalta", group="station", thr_on=3, thr_off=2,
-    thr_coincidence_sum=1, sta=0.01, lta=1):
-
+def triggersByGroup(st, trigger_type="recstalta", group="station", thr_on=3,
+                    thr_off=2,
+                    thr_coincidence_sum=1, sta=0.01, lta=1):
     # Accentuate peaks - bug below, skip for now
     # for i,tr in enumerate(st):
     #   st2.traces[0].data = tr.data**2*np.sign(tr.data)
@@ -798,7 +810,8 @@ def triggersByGroup(st, trigger_type="recstalta", group="station", thr_on=3, thr
     if group == "all":
         # one trigger for all stations
         trig = coincidence_trigger(trigger_type, thr_on, thr_off, st,
-                                   thr_coincidence_sum, sta=sta, lta=lta, details=True)
+                                   thr_coincidence_sum, sta=sta, lta=lta,
+                                   details=True)
 
     elif group == "station":
         # one trigger per station
@@ -813,7 +826,8 @@ def triggersByGroup(st, trigger_type="recstalta", group="station", thr_on=3, thr
             st2 = st.select(station=S)
             try:
                 trigtmp = coincidence_trigger(trigger_type, thr_on, thr_off,
-                st2, thr_coincidence_sum, sta=sta, lta=lta, details=True)
+                                              st2, thr_coincidence_sum,
+                                              sta=sta, lta=lta, details=True)
             except:
                 trigtmp = []
 
@@ -840,7 +854,6 @@ def triggersByGroup(st, trigger_type="recstalta", group="station", thr_on=3, thr
 
 @deprecated
 def associateTriggers(trig, gp, tolerance=25e-3):
-
     tme = np.sort([trg['time'] for trg in trig])
 
     trigger = []
@@ -853,7 +866,8 @@ def associateTriggers(trig, gp, tolerance=25e-3):
 
     k = 0
     while k < len(tme):
-        indices = np.nonzero((tme - tme[k] > 0) & (tme - tme[k] < tolerance))[0]
+        indices = np.nonzero((tme - tme[k] > 0) & (tme - tme[k] < tolerance))[
+            0]
         if len(indices) > 0:
             k = indices[-1]
             gp2 = gp[indices]
@@ -867,14 +881,14 @@ def associateTriggers(trig, gp, tolerance=25e-3):
 
                 trigger.append(data)
         else:
-                k += 1
+            k += 1
 
     return trigger
 
 
 @deprecated
-def picksFromTriggers(st, trg, method="by_triggers", tolerance=20e-3, clip_stream=True, filter_stream=True):
-
+def picksFromTriggers(st, trg, method="by_triggers", tolerance=20e-3,
+                      clip_stream=True, filter_stream=True):
     picks = []
 
     if method == "all":
@@ -886,7 +900,8 @@ def picksFromTriggers(st, trg, method="by_triggers", tolerance=20e-3, clip_strea
         for S in SensorList:
             st2 = st.select(station=S)
 
-            picks2 = compute_picks(st2, trg, tolerance, clip_stream, filter_stream)
+            picks2 = compute_picks(st2, trg, tolerance, clip_stream,
+                                   filter_stream)
             if picks2 is not None:
                 picks = np.hstack((picks, picks2))
 
@@ -896,7 +911,8 @@ def picksFromTriggers(st, trg, method="by_triggers", tolerance=20e-3, clip_strea
             for S in SensorList:
                 st2 = st.select(station=S)
 
-                picks2 = compute_picks(st2, tg, tolerance, clip_stream, filter_stream)
+                picks2 = compute_picks(st2, tg, tolerance, clip_stream,
+                                       filter_stream)
                 if picks2 is not None:
                     picks = np.hstack((picks, picks2))
 
@@ -904,8 +920,8 @@ def picksFromTriggers(st, trg, method="by_triggers", tolerance=20e-3, clip_strea
 
 
 @deprecated
-def compute_picks(st2, trg, tolerance=20e-3, clip_stream=True, filter_stream=True):
-
+def compute_picks(st2, trg, tolerance=20e-3, clip_stream=True,
+                  filter_stream=True):
     picks = []
 
     tg_time = trg['time']
@@ -931,7 +947,7 @@ def compute_picks(st2, trg, tolerance=20e-3, clip_stream=True, filter_stream=Tru
             data = (st.traces[0].data ** 2 +
                     st.traces[1].data ** 2 +
                     st.traces[2].data ** 2) * \
-                    np.sign(st.traces[0].data)
+                   np.sign(st.traces[0].data)
         i = np.argmax(np.abs(data))
         data = data / data[i]
 
@@ -940,11 +956,13 @@ def compute_picks(st2, trg, tolerance=20e-3, clip_stream=True, filter_stream=Tru
 
     if 'A' in station_type:
         # Parameters originally estimated for Northparkes TBM project (which had a sampling rate of around 5000) -> Correction x2
-        pickBaer = pk_baer(reltrc=data, samp_int=1, tdownmax=2, tupevent=40, thr1=10, thr2=20, preset_len=10, p_dur=10)
+        pickBaer = pk_baer(reltrc=data, samp_int=1, tdownmax=2, tupevent=40,
+                           thr1=10, thr2=20, preset_len=10, p_dur=10)
         # pickBaer = pk_baer(reltrc=data, samp_int=1, tdownmax=16, tupevent=60, thr1=10, thr2=20, preset_len=20, p_dur=20)
     else:
         # Parameters originally estimated for Northparkes TBM project (which had a sampling rate of around 2500) -> Correction x4
-        pickBaer = pk_baer(reltrc=data, samp_int=1, tdownmax=4, tupevent=10, thr1=10, thr2=20, preset_len=10, p_dur=10)
+        pickBaer = pk_baer(reltrc=data, samp_int=1, tdownmax=4, tupevent=10,
+                           thr1=10, thr2=20, preset_len=10, p_dur=10)
         # pickBaer = pk_baer(reltrc=data, samp_int=1, tdownmax=32, tupevent=40, thr1=10, thr2=20, preset_len=10, p_dur=10)
 
     # plot - debug
@@ -1048,7 +1066,8 @@ def eventCategorization_polarity(catalog, site):
                     if not np.any(channel.orientation):
                         continue
 
-                    polarity.append(np.sign(np.dot(channel.orientation, ev_st_vect)))
+                    polarity.append(
+                        np.sign(np.dot(channel.orientation, ev_st_vect)))
 
         polarity = np.array(polarity)
         if len(polarity[polarity == 1]) >= 0.85 * len(polarity):
@@ -1059,6 +1078,3 @@ def eventCategorization_polarity(catalog, site):
         catalog.events[evi].event_type_certainty = "suspected"
 
     return catalog
-
-
-

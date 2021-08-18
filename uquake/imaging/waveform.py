@@ -541,7 +541,7 @@ class WaveformPlotting(object):
             except Exception as e:
                 events = None
                 msg = "Could not download the events because of '%s: %s'." % \
-                    (e.__class__.__name__, e.message)
+                      (e.__class__.__name__, e.message)
                 warnings.warn(msg)
         if events:
             for event in events:
@@ -586,6 +586,7 @@ class WaveformPlotting(object):
         # Nothing to do if the event is not on the plot.
         if time < self.starttime or time > self.endtime:
             return
+
         # Now find the position of the event in plot coordinates.
 
         def time2xy(time):
@@ -595,6 +596,7 @@ class WaveformPlotting(object):
             y_pos = self.extreme_values.shape[0] - int(event_frac) - 0.5
             x_pos = (event_frac - int(event_frac)) * self.width
             return x_pos, y_pos
+
         x_pos, y_pos = time2xy(time)
 
         if text:
@@ -656,7 +658,7 @@ class WaveformPlotting(object):
         for pick in getattr(event, 'picks', []):
             # check that network/station/location matches
             if pick.waveform_id.getSEEDString().split(".")[:-1] != \
-               seed_id.split(".")[:-1]:
+                    seed_id.split(".")[:-1]:
                 continue
             x_pos, y_pos = time2xy(pick.time)
             ax.plot(x_pos, y_pos, "|", color="red",
@@ -735,13 +737,13 @@ class WaveformPlotting(object):
                 trace.data = data
                 # The times are not supposed to change.
                 trace.stats.delta = (
-                    old_time_range / float(trace.stats.npts - 1))
+                        old_time_range / float(trace.stats.npts - 1))
             trace.data = np.require(trace.data, np.float64) * trace.stats.calib
             if self.type == 'relative':
                 # use seconds of relative sample times and shift by trace's
                 # start time, which was set relative to `reftime`.
                 x_values = (
-                    trace.times() + (trace.stats.starttime - self.reftime))
+                        trace.times() + (trace.stats.starttime - self.reftime))
             else:
                 # convert seconds of relative sample times to days and add
                 # start time of trace.
@@ -965,7 +967,7 @@ class WaveformPlotting(object):
         """
         # Convert to native floats.
         self.extreme_values = self.extreme_values.astype(np.float) * \
-            self.stream[0].stats.calib
+                              self.stream[0].stats.calib
         # Make sure that the mean value is at 0
         self.extreme_values -= self.extreme_values.mean()
 
@@ -1197,7 +1199,7 @@ class WaveformPlotting(object):
                         self.ev_coord[0], self.ev_coord[1])
             except:
                 msg = 'Define latitude/longitude in trace.stats.' + \
-                    'coordinates and ev_coord. See documentation.'
+                      'coordinates and ev_coord. See documentation.'
                 raise ValueError(msg)
         # Define minimum and maximum offsets
         if self.sect_offset_min is None:
@@ -1237,8 +1239,9 @@ class WaveformPlotting(object):
             self._tr_max_count[_i] = tmp_data.max()
             self._tr_npts[_i] = tmp_data.size
             self._tr_delta[_i] = (
-                tr.stats.endtime -
-                tr.stats.starttime) / self._tr_npts[_i]
+                                         tr.stats.endtime -
+                                         tr.stats.starttime) / self._tr_npts[
+                                     _i]
         # Init time vectors
         self.__sectInitTime()
 
@@ -1313,7 +1316,7 @@ class WaveformPlotting(object):
             self._tr_normfac.fill(tr_max_count_glob)
         else:
             msg = 'Define a normalisation method. Valid normalisations' + \
-                'are \'trace\', \'stream\'. See documentation.'
+                  'are \'trace\', \'stream\'. See documentation.'
             raise ValueError(msg)
 
     def __setupFigure(self):
@@ -1340,8 +1343,9 @@ class WaveformPlotting(object):
                                   self.starttime.strftime('%Y-%m-%d'))
         elif self.type == 'section':
             suptitle = 'Network: %s [%s] - (%i traces / %s)' % \
-                (self.stream[-1].stats.network, self.stream[-1].stats.channel,
-                 len(self.stream), _timestring(self.starttime))
+                       (self.stream[-1].stats.network,
+                        self.stream[-1].stats.channel,
+                        len(self.stream), _timestring(self.starttime))
         else:
             suptitle = '%s  -  %s' % (_timestring(self.starttime),
                                       _timestring(self.endtime))
@@ -1394,12 +1398,13 @@ class WaveformPlotting(object):
                 loc="lower right", prop=dict(size="small"))
 
     def _time_to_xvalue(self, t):
-            if self.type == 'relative':
-                return t - self.reftime
-            else:
-                return date2num(t.datetime)
+        if self.type == 'relative':
+            return t - self.reftime
+        else:
+            return date2num(t.datetime)
 
 
 if __name__ == '__main__':
     import doctest
+
     doctest.testmod(exclude_empty=True)

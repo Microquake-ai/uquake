@@ -15,6 +15,7 @@ def compressFile(func):
     """
     Decorator used to write compressed file to disk using gz or bz2 protocols
     """
+
     def wrapped_func(filename, *args, **kwargs):
         if not isinstance(filename):
             return func(filename, *args, **kwargs)
@@ -47,11 +48,14 @@ class buggy(object):
     def __call__(self, fct):
         @wraps(fct)
         def wrapper(*args, **kwargs):
-            logger.warning("%s is buggy, use at your own risk. Expected fix : %s" % (fct.__name__, self.date))
+            logger.warning(
+                "%s is buggy, use at your own risk. Expected fix : %s" % (
+                fct.__name__, self.date))
             try:
                 return_value = fct(*args, **kwargs)
             except Exception:
-                print("%s Crashed : Didn't i told you it was buggy ?" % fct.__name__)
+                print(
+                    "%s Crashed : Didn't i told you it was buggy ?" % fct.__name__)
                 raise
 
             return return_value
@@ -72,7 +76,8 @@ class unimplemented(object):
     def __call__(self, fct):
         @wraps(fct)
         def wrapper(*args, **kwargs):
-            logger.warning("%s is not_implemented ... now. Expected : %s " % (fct.__name__, self.date))
+            logger.warning("%s is not_implemented ... now. Expected : %s " % (
+            fct.__name__, self.date))
 
         return wrapper
 
@@ -90,7 +95,9 @@ class broken(object):
     def __call__(self, fct):
         @wraps(fct)
         def wrapper(*args, **kwargs):
-            logger.critical("%s is broken -- DON'T USE IT. Expected fix : %s" % (fct.__name__, self.date))
+            logger.critical(
+                "%s is broken -- DON'T USE IT. Expected fix : %s" % (
+                fct.__name__, self.date))
 
         return wrapper
 
@@ -118,8 +125,9 @@ def loggedcall(fct):
 
     @wraps(fct)
     def wrapper(*args, **kwargs):
-        logger.info("Function -- %s--  called with arguments -- %s -- and keywords -- %s --" %
-                    (fct.__name__, str(args), str(kwargs)))
+        logger.info(
+            "Function -- %s--  called with arguments -- %s -- and keywords -- %s --" %
+            (fct.__name__, str(args), str(kwargs)))
         return_value = fct(*args, **kwargs)
         logger.info("Function -- %s -- returned -- %s --" %
                     (fct.__name__, return_value))
@@ -170,16 +178,19 @@ class memoizehd(object):
         print(self.basepath)
 
     def __call__(self, fct):
-        cachebase = os.path.join(self.basepath, str(hash(fct)) + "_" + str(os.getpid()))
+        cachebase = os.path.join(self.basepath,
+                                 str(hash(fct)) + "_" + str(os.getpid()))
 
         @wraps(fct)
         def wrapper(*args, **kwargs):
             cachefile = cachebase + ''.join([str(i) for i in map(hash, args)])
-            cachefile += '_'.join([str(hash(kwargs[i])) for i in kwargs]) + ".npy"
+            cachefile += '_'.join(
+                [str(hash(kwargs[i])) for i in kwargs]) + ".npy"
             try:
                 os.stat(cachefile)
-                logger.info("Parameters hash matched calling -- %s --, reading cached return from file " %
-                            fct.__name__)
+                logger.info(
+                    "Parameters hash matched calling -- %s --, reading cached return from file " %
+                    fct.__name__)
                 return_value = numpy.load(cachefile)
             except:
                 return_value = fct(*args, **kwargs)

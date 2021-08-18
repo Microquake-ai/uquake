@@ -227,7 +227,7 @@ class Stream(obsstream.Stream, ABC):
             data = (tr.data / np.max(np.abs(tr.data))) * scale
             time_delta = tr.stats.starttime - start_time
             time = np.arange(0, len(data)) / tr.stats.sampling_rate + \
-                time_delta
+                   time_delta
 
             for arrival in origin.arrivals:
                 if arrival.get_pick().waveform_id.station_code == station_code:
@@ -332,7 +332,7 @@ def is_valid(st_in, return_stream=False, STA=0.005, LTA=0.1, min_num_valid=5):
         cft = gaussian_filter1d(cft, sigma=sigma, mode='reflect')
         try:
             mx = np.r_[True, cft[1:] > cft[:-1]] & \
-                np.r_[cft[:-1] > cft[1:], True]
+                 np.r_[cft[:-1] > cft[1:], True]
         except Exception as e:
             logger.error(e)
             continue

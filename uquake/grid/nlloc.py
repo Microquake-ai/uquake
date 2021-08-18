@@ -30,9 +30,7 @@ import h5py
 from .base import ray_tracer
 import shutil
 
-
 __cpu_count__ = cpu_count()
-
 
 valid_phases = ('P', 'S')
 
@@ -319,7 +317,6 @@ class Seeds:
         line = ""
 
         for site in self.sites:
-
             # test if site name is shorter than 6 characters
 
             line += f'GTSRCE {site["label"]} XYZ ' \
@@ -355,6 +352,7 @@ class NLLocGrid(Grid):
     """
     base 3D rectilinear grid object
     """
+
     def __init__(self, data_or_dims, origin, spacing, phase,
                  value=0, grid_type='VELOCITY_METERS',
                  grid_units=__default_grid_units__,
@@ -537,7 +535,7 @@ class LayeredVelocityModel(object):
     def __repr__(self):
         output = ''
         for i, layer in enumerate(self.velocity_model_layers):
-            output += f'layer {i+1:4d} | {layer}'
+            output += f'layer {i + 1:4d} | {layer}'
 
         return output
 
@@ -959,7 +957,7 @@ class SeededGrid(NLLocGrid):
     def __repr__(self):
         line = f'Travel Time Grid\n' \
                f'    origin        : {self.origin}\n' \
-               f'    spacing       : {self.spacing}\n'  \
+               f'    spacing       : {self.spacing}\n' \
                f'    dimensions    : {self.shape}\n' \
                f'    seed label    : {self.seed_label}\n' \
                f'    seed location : {self.seed}'
@@ -994,7 +992,6 @@ class TTGrid(SeededGrid):
     def __init__(self, network_code, data_or_dims, origin, spacing, seed,
                  seed_label, phase='P', value=0, float_type="FLOAT",
                  model_id=None, grid_units=__default_grid_units__):
-
         super().__init__(network_code, data_or_dims, origin, spacing, seed,
                          seed_label, phase=phase, value=value,
                          grid_type='TIME', float_type=float_type,
@@ -1219,9 +1216,9 @@ class TravelTimeEnsemble:
 
         return TravelTimeEnsemble(sorted_tt_grids)
 
-    def travel_time(self, seed, grid_coordinate: bool=False,
-                    seed_labels: Optional[list]=None,
-                    phase: Optional[list]=None):
+    def travel_time(self, seed, grid_coordinate: bool = False,
+                    seed_labels: Optional[list] = None,
+                    phase: Optional[list] = None):
         """
         calculate the travel time at a specific point for a series of site
         ids
@@ -1384,7 +1381,6 @@ class AngleGrid(SeededGrid):
                  seed_label, angle_type, phase='P', value=0,
                  float_type="FLOAT", model_id=None,
                  grid_units=__default_grid_units__):
-
         self.angle_type = angle_type
         super().__init__(network_code, data_or_dims, origin, spacing, seed,
                          seed_label, phase=phase, value=value,
@@ -1410,4 +1406,3 @@ def gdef_to_points(shape, origin, spacing):
                 ix += 1
 
     return points
-

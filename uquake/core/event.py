@@ -37,7 +37,6 @@ debug = False
 
 
 class Catalog(obsevent.Catalog):
-
     extra_keys = []
 
     __doc__ = obsevent.Catalog.__doc__.replace('obspy', 'uquake')
@@ -133,9 +132,9 @@ class Catalog(obsevent.Catalog):
 
 
 class Event(obsevent.Event):
-
     # _format keyword is actualy a missing obspy default
-    extra_keys = ['_format', 'ACCEPTED', 'ASSOC_SEISMOGRAM_NAMES', 'AUTO_PROCESSED',
+    extra_keys = ['_format', 'ACCEPTED', 'ASSOC_SEISMOGRAM_NAMES',
+                  'AUTO_PROCESSED',
                   'BLAST', 'CORNER_FREQUENCY', 'DYNAMIC_STRESS_DROP',
                   'ENERGY', 'ENERGY_P', 'ENERGY_S', 'EVENT_MODIFICATION_TIME',
                   'EVENT_NAME', 'EVENT_TIME_FORMATTED', 'EVENT_TIME_NANOS',
@@ -170,7 +169,7 @@ class Event(obsevent.Event):
         if self.magnitudes:
             magnitude = self.preferred_magnitude() or self.magnitudes[-1]
             out += ' | %0.2f %-2s' % (magnitude.mag,
-                                   magnitude.magnitude_type)
+                                      magnitude.magnitude_type)
 
         return out
 
@@ -262,7 +261,7 @@ class Origin(obsevent.Origin):
         if self.origin_uncertainty is None:
             return None
         else:
-            return self.origin_uncertainty.confidence_ellipsoid\
+            return self.origin_uncertainty.confidence_ellipsoid \
                 .semi_major_axis_length
 
     def get_origin(self):
@@ -407,7 +406,8 @@ Static stress drop (MPa): {}
          evaluation_mode: {}
         """.format(self.resource_id.id, self.mag,
                    self.magnitude_type, self.corner_frequency_hz,
-                   self.energy_joule, es_ep, self.seismic_moment, self.potency_m3,
+                   self.energy_joule, es_ep, self.seismic_moment,
+                   self.potency_m3,
                    self.static_stress_drop_mpa, self.apparent_stress,
                    self.evaluation_mode)
 
@@ -441,9 +441,10 @@ class Pick(obsevent.Pick):
  evaluation_status: %s
        resource_id: %s
         """ \
-            % (self.trace_id, self.time.strftime("%Y/%m/%d %H:%M:%S.%f"),
-               self.phase_hint, self.method, self.snr, self.evaluation_mode,
-               self.evaluation_status, self.resource_id)
+                 % (self.trace_id, self.time.strftime("%Y/%m/%d %H:%M:%S.%f"),
+                    self.phase_hint, self.method, self.snr,
+                    self.evaluation_mode,
+                    self.evaluation_status, self.resource_id)
         return string
 
     def get_sta(self):
@@ -454,7 +455,7 @@ class Pick(obsevent.Pick):
     def site(self):
         if self.waveform_id is not None:
             site = self.waveform_id.station_code + \
-                     self.waveform_id.location_code
+                   self.waveform_id.location_code
             return site
 
     @property
@@ -578,7 +579,6 @@ def get_arrival_from_pick(arrivals, pick):
 
 
 def read_events(filename, **kwargs):
-
     if isinstance(filename, Path):
         filename = str(filename)
     # converting the obspy object into uquake objects
@@ -898,7 +898,6 @@ def break_down(event):
 # MTH: this could(should?) be moved to waveforms/pick.py ??
 def make_pick(time, phase='P', wave_data=None, snr=None, mode='automatic',
               status='preliminary', method_string=None, resource_id=None):
-
     this_pick = Pick()
     this_pick.time = time
     this_pick.phase_hint = phase

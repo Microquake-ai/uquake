@@ -20,7 +20,6 @@ def make_picks(stcomp, pick_times_utc, phase, pick_params):
     for tr, ptime in zip(stcomp, pick_times_utc):
 
         if tr.time_within(ptime, edge_time) is True:
-
             picks.append(tr.make_pick(ptime, wlen_search,
                                       stepsize, snr_wlens, phase_hint=phase))
 
@@ -58,7 +57,8 @@ def picks_to_dict(picks):
 
 
 def repick_using_snr(sig, ipick, wlen_search, stepsize, snr_wlens):
-    origin_inds, snrs = sliding_snr(sig, ipick, wlen_search, stepsize, snr_wlens)
+    origin_inds, snrs = sliding_snr(sig, ipick, wlen_search, stepsize,
+                                    snr_wlens)
     newpick = origin_inds[np.argmax(snrs)]
     snr = np.max(snrs)
 
@@ -66,7 +66,6 @@ def repick_using_snr(sig, ipick, wlen_search, stepsize, snr_wlens):
 
 
 def sliding_snr(sig, ipick, wlen_search, stepsize, snr_wlens, plot=False):
-
     wl_noise, wl_sig = snr_wlens.astype(int)
     hl = int(wlen_search // 2)
     i0 = max(wl_noise, ipick - hl)
@@ -105,7 +104,8 @@ def create_composite(sigs, groups):
     out = np.zeros((nsig, npts), dtype=sigs.dtype)
 
     for i, group in enumerate(groups):
-        out[i] = np.sign(sigs[group[0]]) * np.sqrt(np.sum(sigs[group] ** 2, axis=0))
+        out[i] = np.sign(sigs[group[0]]) * np.sqrt(
+            np.sum(sigs[group] ** 2, axis=0))
 
     return out
 
@@ -157,7 +157,6 @@ def integrate(sig):
 
 
 def attenuate(sig, sr, dist, Q, vel, gspread=True):
-
     npts = len(sig)
     fsig = fft(sig)
     freqs = fftfreq(npts, d=1. / sr)
@@ -182,7 +181,6 @@ def roll_data(data, tts):
 
 
 def velstack(data, dists2src, sr, vels):
-
     dnorm = norm2d(data)
     dstack = np.zeros((len(vels), dnorm.shape[1]), dtype=np.float32)
 
@@ -200,7 +198,6 @@ def chan_groups(chanmap):
 
 
 def comb_channels(data, cmap):
-
     groups = [np.where(sk == cmap)[0] for sk in np.unique(cmap)]
     dstack = np.zeros((len(groups), data.shape[1]))
 
@@ -211,7 +208,6 @@ def comb_channels(data, cmap):
 
 
 def bandpass(data, band, sr, corners=4, zerophase=True):
-
     freqmin, freqmax = band
     fe = 0.5 * sr
     low = freqmin / fe
@@ -340,7 +336,7 @@ def whiten(sig, win):
     npts = len(sig)
     nfreq = int(npts // 2 + 1)
 
-    assert(len(win) == nfreq)
+    assert (len(win) == nfreq)
     # fsr = npts / sr
 
     fsig = fft(sig)
@@ -358,7 +354,7 @@ def whiten_freq(fsig, win):
     # npts = len(fsig)
     # nfreq = int(npts // 2 + 1)
     nfreq = int(len(fsig) // 2 + 1)
-    assert(len(win) == nfreq)
+    assert (len(win) == nfreq)
     fsig[: nfreq] = win * phase(fsig[: nfreq])
     fsig[-nfreq + 1:] = fsig[1: nfreq].conjugate()[::-1]
 

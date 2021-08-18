@@ -24,23 +24,24 @@ def parsevals(data, dt, nfft):
        Parseval's: [freq]  nfft=65536 df=2.54313e-09 sum=0.0001237450441 [1-sided]
     """
 
-    tsum = np.sum(np.square(data))*dt
+    tsum = np.sum(np.square(data)) * dt
 
-    print("Parseval's: [time] ndata=%7d dt=%12.6f sum=%12.10g [time]" % (data.size, dt, tsum))
+    print("Parseval's: [time] ndata=%7d dt=%12.6f sum=%12.10g [time]" % (
+    data.size, dt, tsum))
 
-# 2-sided (+ve & -ve freqs) FFT:
-    X=fft(data,nfft)*dt
+    # 2-sided (+ve & -ve freqs) FFT:
+    X = fft(data, nfft) * dt
 
-    df = 1./(dt * float(X.size))  # X.size = nfft
-    #fsum = np.sum(X*np.conj(X))*df
+    df = 1. / (dt * float(X.size))  # X.size = nfft
+    # fsum = np.sum(X*np.conj(X))*df
     # Do it this way so it doesn't spit a ComplexWarning about throwing away imag part
-    fsum = np.sum(np.abs(X)*np.abs(X))*df
-    print("Parseval's: [freq]  nfft=%7d df=%12.6g sum=%12.10g [2-sided]" % (X.size, df, fsum))
+    fsum = np.sum(np.abs(X) * np.abs(X)) * df
+    print("Parseval's: [freq]  nfft=%7d df=%12.6g sum=%12.10g [2-sided]" % (
+    X.size, df, fsum))
 
-
-# 1-sided: N/2 -1 +ve freqs + [DC + Nyq] = N/2 + 1 values:
-    df = 1./(dt * float(nfft))    # df is same as for 2-sided case
-    Y,freqs = unpack_rfft(rfft(data, n=nfft), df)
+    # 1-sided: N/2 -1 +ve freqs + [DC + Nyq] = N/2 + 1 values:
+    df = 1. / (dt * float(nfft))  # df is same as for 2-sided case
+    Y, freqs = unpack_rfft(rfft(data, n=nfft), df)
     Y *= dt
     '''
         Note: We only have the +ve freq half, so we need to double all the power
@@ -49,8 +50,9 @@ def parsevals(data, dt, nfft):
               So either scale the fsum by 2, or scale Y (minus DC/Nyq) by sqrt(2) here
     '''
     Y[1:-1] *= np.sqrt(2.)
-    fsum = np.sum(np.abs(Y)*np.abs(Y))*df
-    print("Parseval's: [freq]  nfft=%7d df=%12.6g sum=%12.10g [1-sided]" % (nfft, df, fsum))
+    fsum = np.sum(np.abs(Y) * np.abs(Y)) * df
+    print("Parseval's: [freq]  nfft=%7d df=%12.6g sum=%12.10g [1-sided]" % (
+    nfft, df, fsum))
 
     return
 
@@ -58,26 +60,25 @@ def parsevals(data, dt, nfft):
 def unpack_rfft(rfft, df):
     n = rfft.size
     if n % 2 == 0:
-        n2 = int(n/2)
+        n2 = int(n / 2)
     else:
         print("n is odd!!")
         exit()
-    #print("n2=%d" % n2)
+    # print("n2=%d" % n2)
 
-    c_arr = np.array( np.zeros(n2+1,), dtype=np.complex_)
-    freqs = np.array( np.zeros(n2+1,), dtype=np.float_)
+    c_arr = np.array(np.zeros(n2 + 1, ), dtype=np.complex_)
+    freqs = np.array(np.zeros(n2 + 1, ), dtype=np.float_)
 
-    c_arr[0]  = rfft[0]
-    c_arr[n2] = rfft[n-1]
-    freqs[0]  = 0.
-    freqs[n2] = float(n2)*df
+    c_arr[0] = rfft[0]
+    c_arr[n2] = rfft[n - 1]
+    freqs[0] = 0.
+    freqs[n2] = float(n2) * df
 
     for i in range(1, n2):
-        freqs[i] = float(i)*df
-        c_arr[i] = np.complex(rfft[2*i - 1], rfft[2*i])
+        freqs[i] = float(i) * df
+        c_arr[i] = np.complex(rfft[2 * i - 1], rfft[2 * i])
 
     return c_arr, freqs
-
 
 
 def npow2(n: int) -> int:
@@ -91,6 +92,6 @@ def npow2(n: int) -> int:
         nfft = (nfft << 1)
     return nfft
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':
     main()

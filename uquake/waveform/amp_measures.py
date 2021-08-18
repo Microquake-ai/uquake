@@ -1,4 +1,3 @@
-
 """ Waveform amplitude measurements
 
     This module contains a collection of functions for making
@@ -58,7 +57,7 @@ def measure_pick_amps(st_in, cat, phase_list=None,
         debug = kwargs['debug']
 
     cat = measure_displacement_pulse(st, cat, phase_list=phase_list,
-                                             debug=debug)
+                                     debug=debug)
 
     # Combine individual trace measurements (peak_vel, dis_pulse_area, etc)
     #    into one measurement per arrival:
@@ -97,17 +96,17 @@ def measure_pick_amps(st_in, cat, phase_list=None,
                             arr.tpeak_dis = v['tpeak_dis']
                             arr.tmax_dis = v['tmax_dis']
 
-            # But average vector quantities distributed over components:
+                        # But average vector quantities distributed over components:
                         if v['dis_pulse_area'] is not None:
                             dis_area.append(v['dis_pulse_area'])
 
                         if v['dis_pulse_width'] is not None:
                             dis_width.append(v['dis_pulse_width'])
 
-            # Here is where you could impose triaxial_only requirement
-            #  but this will filter out not only 1-chan stations, but
-            #  any stations where peak finder did not locate peak on
-            #  *all* 3 channels
+                    # Here is where you could impose triaxial_only requirement
+                    #  but this will filter out not only 1-chan stations, but
+                    #  any stations where peak finder did not locate peak on
+                    #  *all* 3 channels
                     # if triaxial_only and len(dis_area) == 3:
 
                     if triaxial_only and len(dis_area) == 3:
@@ -166,7 +165,7 @@ def measure_velocity_pulse(st,
         phase_list = ['P']
 
     # Average of P,S min snr used for finding zeros
-    min_pulse_snr = int((pulse_min_snr_P + pulse_min_snr_S)/2)
+    min_pulse_snr = int((pulse_min_snr_P + pulse_min_snr_S) / 2)
 
     for event in cat:
         origin = event.preferred_origin() if event.preferred_origin() else \
@@ -254,8 +253,8 @@ def measure_velocity_pulse(st,
                     noise3 = np.abs(np.std(noise))
                     noise_level = np.max([noise1, noise2, noise3])
 
-                    pulse_snr = np.abs(peak_vel/noise_level)
-                    pulse_width = float((i2-i1)*tr.stats.delta)
+                    pulse_snr = np.abs(peak_vel / noise_level)
+                    pulse_width = float((i2 - i1) * tr.stats.delta)
 
                     pulse_thresh = pulse_min_snr_P
 
@@ -466,7 +465,6 @@ def measure_displacement_pulse(st,
                 dd['origin_id'] = origin.resource_id
                 traces_info.append(dd)
 
-
             # Process next tr in trs
 
         # Process next arr in arrivals
@@ -532,10 +530,10 @@ def _find_signal_zeros(tr, istart, max_pulse_duration=.1, nzeros_to_find=3,
     nmax_look = int(max_pulse_duration * tr.stats.sampling_rate)
 
     # Just used for debug
-    pick_time = tr.stats.starttime + float(istart*tr.stats.delta)
+    pick_time = tr.stats.starttime + float(istart * tr.stats.delta)
 
-# Stage 0: Take polarity sign (s0) from first data point after
-#          after istart (=ipick) with SNR >= thresh * noise_level
+    # Stage 0: Take polarity sign (s0) from first data point after
+    #          after istart (=ipick) with SNR >= thresh * noise_level
 
     s0 = 0
     i0 = 0
@@ -552,15 +550,15 @@ def _find_signal_zeros(tr, istart, max_pulse_duration=.1, nzeros_to_find=3,
 
             break
 
-# Stage 1: Back up from this first high SNR point to find the earliest point
-#          with the *same* polarity.  Take this as i1 = pulse start
+    # Stage 1: Back up from this first high SNR point to find the earliest point
+    #          with the *same* polarity.  Take this as i1 = pulse start
     i1 = i0
     s1 = s0
     snr_scale = 1.4
 
     if s0 and i0:
         for i in range(i0, istart - 3, -1):
-            snr = np.abs(data[i]/noise_level)
+            snr = np.abs(data[i] / noise_level)
 
             if sign[i] == s0 and snr >= snr_scale:
                 # print("  sign matches --> set i1=i=%d" % i)
@@ -579,19 +577,17 @@ def _find_signal_zeros(tr, istart, max_pulse_duration=.1, nzeros_to_find=3,
 
     first_sign = s1
 
+    # Stage 2: Find the first zero crossing after this
+    #          And iterate for total of nzeros_to_find subsequent zeros
 
-# Stage 2: Find the first zero crossing after this
-#          And iterate for total of nzeros_to_find subsequent zeros
-
-    zeros = np.array(np.zeros(nzeros_to_find,), dtype=int)
+    zeros = np.array(np.zeros(nzeros_to_find, ), dtype=int)
     zeros[0] = i1
 
-    t1 = tr.stats.starttime + float(i1)*tr.stats.delta
+    t1 = tr.stats.starttime + float(i1) * tr.stats.delta
     # print("i1=%d --> t=%s" % (i1, t1))
 
-
-# TODO: Need to catch flag edge cases where we reach end of range with
-#       no zero set!
+    # TODO: Need to catch flag edge cases where we reach end of range with
+    #       no zero set!
     for j in range(1, nzeros_to_find):
         # for i in range(i1, i1 + 200):
 
@@ -609,13 +605,13 @@ def _find_signal_zeros(tr, istart, max_pulse_duration=.1, nzeros_to_find=3,
                 zeros[j] = i
 
                 break
-    t1 = tr.stats.starttime + float(zeros[0])*tr.stats.delta
-    t2 = tr.stats.starttime + float(zeros[1])*tr.stats.delta
+    t1 = tr.stats.starttime + float(zeros[0]) * tr.stats.delta
+    t2 = tr.stats.starttime + float(zeros[1]) * tr.stats.delta
 
-# At this point, first (vel) pulse is located between zeros[0] and zeros[1]
-    pulse_width = float(zeros[1]-zeros[0]) * tr.stats.delta
+    # At this point, first (vel) pulse is located between zeros[0] and zeros[1]
+    pulse_width = float(zeros[1] - zeros[0]) * tr.stats.delta
     ipeak, peak_vel = _get_peak_amp(tr, zeros[0], zeros[1])
-# noise_level defined this way is just for snr comparison
+    # noise_level defined this way is just for snr comparison
     noise_level = np.max([noise1, noise2, noise3])
     pulse_snr = np.abs(peak_vel / noise_level)
 
@@ -624,14 +620,13 @@ def _find_signal_zeros(tr, istart, max_pulse_duration=.1, nzeros_to_find=3,
                  (tr.stats.station, tr.stats.channel, t1, t2, first_sign,
                   pulse_width, peak_vel, pulse_snr))
 
-# Final gate = try to catch case of early pick on small bump preceding main
-#              arrival move istart to end of precursor bump and retry
+    # Final gate = try to catch case of early pick on small bump preceding main
+    #              arrival move istart to end of precursor bump and retry
     if ((pulse_width < min_pulse_width or pulse_snr < min_pulse_snr)
             and not second_try):
-
         logger.debug("Let's RUN THIS ONE AGAIN ============== tr_id:%s" %
                      tr.get_id())
-    # if pulse_width < min_pulse_width and not second_try:
+        # if pulse_width < min_pulse_width and not second_try:
         istart = zeros[1]
 
         return _find_signal_zeros(tr, istart,
@@ -640,7 +635,7 @@ def _find_signal_zeros(tr, istart, max_pulse_duration=.1, nzeros_to_find=3,
                                   second_try=True)
 
     # if debug:
-        # tr.plot()
+    # tr.plot()
 
     return first_sign, zeros
 
@@ -705,7 +700,7 @@ def _get_pulse_width_and_area(tr, ipick, icross, max_pulse_duration=.08):
     epsilon = 1e-10
 
     if icross >= iend:
-       i = iend - 1
+        i = iend - 1
 
     for i in range(icross, iend):
         diff = np.abs(data[i] - data[ipick])
@@ -896,44 +891,44 @@ def calc_velocity_flux(st_in,
             tsum = 0
 
             for tr in tr3:
-                tsum += np.sum(tr.data**2)*dt
+                tsum += np.sum(tr.data ** 2) * dt
 
             if not correct_attenuation:
                 flux = tsum
                 fsum = None
 
-        # The only reason to do this in the freq domain is if we
-        #    want to apply attenuation correction
+            # The only reason to do this in the freq domain is if we
+            #    want to apply attenuation correction
             else:
                 travel_time = pick.time - origin.time
 
                 fsum = 0.
 
-        # exp(pi * f * (R/v) * 1/Q) grows so fast with freq that it's out of
+                # exp(pi * f * (R/v) * 1/Q) grows so fast with freq that it's out of
                 # control above f ~ 1e3 Hz
-        # We could design Q = Q(f) - e.g., make Q grow fast with f to
+                # We could design Q = Q(f) - e.g., make Q grow fast with f to
                 # counteract this.
-        # Alternatively, we limit the freq range of the (
+                # Alternatively, we limit the freq range of the (
                 # attenuation-corrected) energy calc:
-        #   To compare the t/f calcs using Parseval's:
-        #   1. Set Q to something like 1e12 in the settings
-        #   2. Set fmin=0 so that the low freqs are included in the summationi
+                #   To compare the t/f calcs using Parseval's:
+                #   1. Set Q to something like 1e12 in the settings
+                #   2. Set fmin=0 so that the low freqs are included in the summationi
                 sensor_response = inventory.select(arr.get_sta())
                 poles = np.abs(sensor_response[0].response.get_paz().poles)
                 fmin = np.min(poles) / (2 * np.pi)
-                fmax = 500. # looking at the response in the frequency
+                fmax = 500.  # looking at the response in the frequency
                 # domain, beyond 500 Hz, the response is dominated by the
                 # brown environmental noise.
-        # In addition, it's necessary to locate fmin/fmax for each arrival
-        # based on the min/max freqs where the velocity spec exceeds the
+                # In addition, it's necessary to locate fmin/fmax for each arrival
+                # based on the min/max freqs where the velocity spec exceeds the
                 # noise spec.
-        # Thus, we can't actually include all the radiated energy, just the
+                # Thus, we can't actually include all the radiated energy, just the
                 # energy above the noise level
-        #   so these estimates will likely be low
+                #   so these estimates will likely be low
                 fmin = arr.fmin
                 fmax = arr.fmax
 
-                if fmax/fmin < 3:
+                if fmax / fmin < 3:
                     logger.info("%s: sta:%s fmin:%.1f fmax:%.1f too "
                                 "narrowband --> Skip"
                                 % (fname, sta, fmin, fmax))
@@ -943,7 +938,7 @@ def calc_velocity_flux(st_in,
                 for tr in tr3:
                     data = tr.data
                     nfft = 2 * npow2(data.size)
-                    df = 1./(dt * float(nfft))    # df is same as for
+                    df = 1. / (dt * float(nfft))  # df is same as for
                     y, freqs = unpack_rfft(rfft(data, n=nfft), df)
                     y *= dt
                     y[1:-1] *= np.sqrt(2.)
@@ -975,11 +970,10 @@ def calc_velocity_flux(st_in,
 
 
 def plot_spec(freqs, spec, tstar, title=None):
+    corrected_spec = spec * np.exp(2. * np.pi * freqs * tstar)
 
-    corrected_spec = spec*np.exp(2.*np.pi*freqs*tstar)
-
-    plt.loglog(freqs, spec,  color='blue')
-    plt.loglog(freqs, corrected_spec,  color='green')
+    plt.loglog(freqs, spec, color='blue')
+    plt.loglog(freqs, corrected_spec, color='green')
 
     if title:
         plt.title(title)

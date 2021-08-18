@@ -44,37 +44,35 @@ def geophone_response(resonance_frequency, gain, damping=0.707,
                       output_resistance=np.inf,
                       cable_length=np.inf, cable_capacitance=np.inf,
                       sensitivity=1, stage_sequence_number=1):
+    paz = corn_freq_2_paz(resonance_frequency,
+                          damp=damping)
 
-        paz = corn_freq_2_paz(resonance_frequency,
-                              damp=damping)
+    l = cable_length
+    R = output_resistance
+    C = cable_capacitance
 
-        l = cable_length
-        R = output_resistance
-        C = cable_capacitance
+    if ((R * l * C) != np.inf) and ((R * l * C) != 0):
+        pole_cable = -1 / (R * l * C)
+        paz['poles'].append(pole_cable)
 
-        if ((R * l * C) != np.inf) and ((R * l * C) != 0):
-            pole_cable = -1 / (R * l * C)
-            paz['poles'].append(pole_cable)
+    i_s = InstrumentSensitivity(sensitivity, resonance_frequency,
+                                input_units='M/S',
+                                output_units='M/S',
+                                input_units_description='velocity',
+                                output_units_description='velocity')
 
-        i_s = InstrumentSensitivity(sensitivity, resonance_frequency,
-                                    input_units='M/S',
-                                    output_units='M/S',
-                                    input_units_description='velocity',
-                                    output_units_description='velocity')
+    pzr = PolesZerosResponseStage(stage_sequence_number, gain,
+                                  resonance_frequency, 'M/S', 'M/S',
+                                  'LAPLACE (RADIANT/SECOND)',
+                                  resonance_frequency, paz['zeros'],
+                                  paz['poles'])
 
-        pzr = PolesZerosResponseStage(stage_sequence_number, gain,
-                                      resonance_frequency, 'M/S', 'M/S',
-                                      'LAPLACE (RADIANT/SECOND)',
-                                      resonance_frequency, paz['zeros'],
-                                      paz['poles'])
-
-        return Response(instrument_sensitivity=i_s,
-                        response_stages=[pzr])
+    return Response(instrument_sensitivity=i_s,
+                    response_stages=[pzr])
 
 
 def accelerometer_response(resonance_frequency, gain, sensitivity=1,
                            stage_sequence_number=1, damping=0.707):
-
     i_s = InstrumentSensitivity(sensitivity, resonance_frequency,
                                 input_units='M/S/S', output_units='M/S/S',
                                 input_units_description='acceleration',
@@ -112,7 +110,7 @@ class Inventory(inventory.Inventory):
     @classmethod
     def from_obspy_inventory_object(cls, obspy_inventory):
 
-        source = ns         # Network ID of the institution sending
+        source = ns  # Network ID of the institution sending
         # the message.
 
         for network in obspy_inventory.networks:
@@ -188,7 +186,6 @@ class Inventory(inventory.Inventory):
 
 
 class Station(inventory.Station):
-
     __doc__ = inventory.Station.__doc__.replace('obspy', ns)
 
     extra_keys = ['x', 'y', 'z']
@@ -270,7 +267,7 @@ class Station(inventory.Station):
                 exit()
 
             channel_code = f'{stn["channel_base_code"].upper()}' \
-                f'{cha["cmp"].upper()}'
+                           f'{cha["cmp"].upper()}'
 
             channel = Channel(code=channel_code,  # required
                               location_code=f'{stn["location_code"]:02d}',
@@ -310,7 +307,7 @@ class Station(inventory.Station):
             if self.extra.get('x', None):
                 return float(
                     self.extra.x.value)  # obspy inv_read converts everything
-                                         # in extra to str
+                # in extra to str
             else:
                 raise AttributeError
         else:
@@ -341,7 +338,7 @@ class Station(inventory.Station):
         if self.extra:
             if self.extra.get('x', None) and self.extra.get(
                     'y', None) and self.extra.get(
-                    'z', None):
+                'z', None):
                 return np.array([self.x, self.y, self.z])
             else:
                 raise AttributeError
@@ -358,7 +355,6 @@ class Station(inventory.Station):
             channel_dict[channel.location_code] = []
 
         for channel in self.channels:
-
             channel_dict[channel.location_code].append(channel)
 
         for key in channel_dict.keys():
@@ -382,7 +378,8 @@ class Station(inventory.Station):
                f"\tx: {x:.0f}, y: {y:.0f}, z: {z:.0f} m\n")
 
         if getattr(self, 'extra', None):
-            if getattr(self.extra, 'x', None) and getattr(self.extra, 'y', None):
+            if getattr(self.extra, 'x', None) and getattr(self.extra, 'y',
+                                                          None):
                 x = self.x
                 y = self.y
                 z = self.z
@@ -500,7 +497,6 @@ class Site:
 
 
 class Channel(inventory.Channel):
-
     defaults = {}
     extra_keys = ['x', 'y', 'z', 'alternative_code']
 
@@ -549,7 +545,7 @@ class Channel(inventory.Channel):
               f'{self.y:0.0f} m, Elevation [z]: {self.z:0.0f} m\n' \
               f'Dip (degrees): {self.dip:0.0f}, Azimuth (degrees): ' \
               f'{self.azimuth:0.0f}\n' \
-
+ \
         if self.response:
             ret += "Response information available"
         else:
@@ -557,11 +553,11 @@ class Channel(inventory.Channel):
 
         return ret
 
-# Time range: 2015-12-31T12:23:34.500000Z - 2599-12-31T12:23:34.500000Z
-# Latitude: 0.00, Longitude: 0.00, Elevation: 0.0 m, Local Depth: 0.0 m
-# Azimuth: 0.00 degrees from north, clockwise
-# Dip: 0.00 degrees down from horizontal
-# Response information available'
+    # Time range: 2015-12-31T12:23:34.500000Z - 2599-12-31T12:23:34.500000Z
+    # Latitude: 0.00, Longitude: 0.00, Elevation: 0.0 m, Local Depth: 0.0 m
+    # Azimuth: 0.00 degrees from north, clockwise
+    # Dip: 0.00 degrees down from horizontal
+    # Response information available'
 
     def set_orientation(self, orientation_vector):
         """
@@ -812,9 +808,8 @@ def load_from_excel(file_name) -> Inventory:
     return inventory
 
 
-def read_inventory(path_or_file_object, format='STATIONXML', *args, **kwargs)\
+def read_inventory(path_or_file_object, format='STATIONXML', *args, **kwargs) \
         -> Inventory:
-
     if type(path_or_file_object) is Path:
         path_or_file_object = str(path_or_file_object)
 
@@ -827,6 +822,3 @@ def read_inventory(path_or_file_object, format='STATIONXML', *args, **kwargs)\
 
 read_inventory.__doc__ = inventory.read_inventory.__doc__.replace(
     'obspy', ns)
-
-
-

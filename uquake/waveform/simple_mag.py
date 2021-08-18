@@ -330,9 +330,9 @@ def corner_frequency(Mw, vp=5000.0, vs=3500.0, SSD=1):
     """
 
     f0_p = 10 ** (
-                1.32 + 0.33 * np.log10(SSD) + np.log10(vp / 1000.0) - 0.5 * Mw)
+            1.32 + 0.33 * np.log10(SSD) + np.log10(vp / 1000.0) - 0.5 * Mw)
     f0_s = 10 ** (
-                1.32 + 0.33 * np.log10(SSD) + np.log10(vs / 1000.0) - 0.5 * Mw)
+            1.32 + 0.33 * np.log10(SSD) + np.log10(vs / 1000.0) - 0.5 * Mw)
 
     return (f0_p, f0_s)
 
@@ -662,7 +662,7 @@ def spectral_function(f, log_omega0, fc, q):
     # outside of this function.
     scat_att = np.exp(-np.pi * f / q)
 
-    return log_omega0 + np.log10(scat_att) -np.log10((1.0 + (f / fc) ** 2))
+    return log_omega0 + np.log10(scat_att) - np.log10((1.0 + (f / fc) ** 2))
 
 
 def MwFc(fn, m, b):
@@ -916,7 +916,7 @@ class Sensitivity():
         if np.any(np.abs(signal_energy / (
                 self.noise_level ** 2)) > self.STALTA_threshold):
             return self.Mw[np.abs(signal_energy / (
-                        self.noise_level ** 2)) > self.STALTA_threshold][0]
+                    self.noise_level ** 2)) > self.STALTA_threshold][0]
         else:
             return self.Mw_max
 
@@ -1037,7 +1037,8 @@ def measure_sensitivity(raypath, Mw_min=-3., Mw_max=2., Mw_spacing=0.1,
 
     if np.any(np.abs(signal_energy / (noise_level ** 2)) > STALTA_threshold):
         return \
-        Mw[np.abs(signal_energy / (noise_level ** 2)) > STALTA_threshold][0]
+            Mw[np.abs(signal_energy / (noise_level ** 2)) > STALTA_threshold][
+                0]
     else:
         return None
 
@@ -1150,7 +1151,6 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
                       len(data[data == np.min(data)])
 
             if len_max / len(data) > clipped_fraction:
-
                 logger.info('Clipped waveform detected: station %s '
                             'will not be used for magnitude calculation' %
                             sensor_response.code)
@@ -1187,13 +1187,13 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
             tr_one.stats = pulse[0].stats
             st_one = Stream(traces=[tr_one])
 
-            dp = dp.trim(starttime=at-0.01, endtime=at+2*win_length)
+            dp = dp.trim(starttime=at - 0.01, endtime=at + 2 * win_length)
             dp = dp.taper(type='cosine', max_percentage=0.5, max_length=0.08,
                           side='left')
 
             # applying the same operation to the one signal
-            st_one_trimmed = st_one.trim(starttime=at-0.01,
-                                         endtime=at+2*win_length)
+            st_one_trimmed = st_one.trim(starttime=at - 0.01,
+                                         endtime=at + 2 * win_length)
             st_one_taper = st_one_trimmed.taper(type='cosine',
                                                 max_percentage=0.5,
                                                 max_length=0.08,
@@ -1270,4 +1270,3 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
             cat[0].preferred_magnitude_id = mag.resource_id.id
 
     return cat
-

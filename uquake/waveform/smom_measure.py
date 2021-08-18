@@ -8,9 +8,9 @@ from scipy import optimize
 from scipy.fftpack import rfft
 from scipy.signal import savgol_filter
 
-from uquake.core.data.inventory import get_corner_freq_from_pole, get_sensor_type_from_trace
+from uquake.core.data.inventory import get_corner_freq_from_pole, \
+    get_sensor_type_from_trace
 from uquake.core.util.tools import copy_picks_to_dict
-
 
 """
     smom_measures - A collection of functions used in the calculation of
@@ -29,15 +29,15 @@ def measure_pick_smom(st, inventory, event, synthetic_picks,
         to fit for long_period plateau (smom)
     """
 
-# Get P(S) spectra at all stations/channels that have a P(S) arrival:
+    # Get P(S) spectra at all stations/channels that have a P(S) arrival:
     sta_dict = get_spectra(st, event, inventory, synthetic_picks,
                            calc_displacement=False, S_win_len=.1,
                            P_or_S=P_or_S)
 
     vel_dict = copy.deepcopy(sta_dict)
 
-# Stack vel spectra to get fc ~ peak_f
-# Note that fc_S is predicted to be < fc_P
+    # Stack vel spectra to get fc ~ peak_f
+    # Note that fc_S is predicted to be < fc_P
     stacked_spec, freqs = stack_spectra(sta_dict)
     peak_f = peak_freq(stacked_spec, freqs, fmin=25.)
 
@@ -53,7 +53,7 @@ def measure_pick_smom(st, inventory, event, synthetic_picks,
         plot_spec(stacked_spec, freqs, title='Stack [%s] Vel spec '
                                              'peak_f=%.1f' % (P_or_S, peak_f))
 
-# Now recalculate the spectra as Displacment spectra:
+    # Now recalculate the spectra as Displacment spectra:
 
     sta_dict = get_spectra(st, event, inventory, synthetic_picks,
                            calc_displacement=True,
@@ -103,8 +103,8 @@ def measure_pick_smom(st, inventory, event, synthetic_picks,
             fmin.append(cha_dict['fmin'])
             fmax.append(cha_dict['fmax'])
 
-        smom = np.sqrt(np.sum(np.array(smoms)**2))
-        fit = np.sum(np.array(fits))/float(len(fits))
+        smom = np.sqrt(np.sum(np.array(smoms) ** 2))
+        fit = np.sum(np.array(fits)) / float(len(fits))
         fit = np.mean(fits)
         tstar = np.median(ts)
         min_f = np.max(fmin)
@@ -127,7 +127,6 @@ def measure_pick_smom(st, inventory, event, synthetic_picks,
 
 
 def plot_spec(spec, freqs, title='Stacked spec'):
-
     plt.loglog(freqs, spec, color='blue')
     plt.xlim(1e0, 3e3)
 
@@ -184,11 +183,11 @@ def stack_spectra(sta_dict):
                 freqs = cha['freqs']
 
                 # Normalize each fft individually and add to stack
-                stack += np.abs(signal_fft)/np.amax(np.abs(signal_fft))
+                stack += np.abs(signal_fft) / np.amax(np.abs(signal_fft))
 
                 n += 1
 
-    return stack/np.amax(stack), np.array(freqs)
+    return stack / np.amax(stack), np.array(freqs)
 
 
 def get_spectra(st, event, inventory, synthetic_picks,
@@ -246,7 +245,7 @@ def get_spectra(st, event, inventory, synthetic_picks,
 
     for arr in arrivals:
         arr_stations.add(arr.pick_id.get_referred_object(
-            ).waveform_id.station_code)
+        ).waveform_id.station_code)
 
     st_stations = set()
 
@@ -265,9 +264,9 @@ def get_spectra(st, event, inventory, synthetic_picks,
     #   NFFT
     dt = st[0].stats.delta  # For now, let's assume ALL traces are sampled
     # at this rate
-    npts = int(max_S_P_time/dt)
+    npts = int(max_S_P_time / dt)
     nfft = npow2(npts) * 2  # Fix nfft for all calcs
-    df = 1/(float(nfft)*dt)
+    df = 1 / (float(nfft) * dt)
     # print("%s: Set nfft=%d --> df=%.3f" % (fname, nfft, df))
 
     # 1. Create a dict of keys=sta_code for all 'P' arrivals with the
@@ -307,8 +306,7 @@ def get_spectra(st, event, inventory, synthetic_picks,
         d['R'] = dist
         sta_dict[sta_code] = d
 
-
-# 2. Calc/save signal/noise fft spectra at all channels that have P(S)
+    # 2. Calc/save signal/noise fft spectra at all channels that have P(S)
     # arrivals:
     st.detrend('demean').detrend('linear').taper(type='cosine',
                                                  max_percentage=0.05,
@@ -352,7 +350,7 @@ def get_spectra(st, event, inventory, synthetic_picks,
                 signal.taper(type='cosine', max_percentage=0.05, side='both')
 
                 noise = tr.copy()
-            # if noise_start < trace.stats.starttime - then what ?
+                # if noise_start < trace.stats.starttime - then what ?
                 noise.trim(starttime=noise_start, endtime=noise_end)
                 noise.detrend('demean').detrend('linear')
                 noise.taper(type='cosine', max_percentage=0.05, side='both')
@@ -386,7 +384,8 @@ def get_spectra(st, event, inventory, synthetic_picks,
                 # check(signal)
                 # parsevals(signal.data, dt, nfft)
 
-                (signal_fft, freqs) = unpack_rfft(rfft(signal.data, n=nfft), df)
+                (signal_fft, freqs) = unpack_rfft(rfft(signal.data, n=nfft),
+                                                  df)
                 (noise_fft, freqs) = unpack_rfft(rfft(noise.data, n=nfft), df)
 
                 # MTH: Determine the valid freq range: fmin - fmax
@@ -457,7 +456,7 @@ def get_spectra(st, event, inventory, synthetic_picks,
 
 
 def brune_omega3(fc: float, mom: float, ts: float, f: float) -> float:
-    return mom * 1. / (1 + np.power(f/fc, 3.)) * np.exp(-np.pi * ts * f)
+    return mom * 1. / (1 + np.power(f / fc, 3.)) * np.exp(-np.pi * ts * f)
 
 
 # @numba.jit(nopython=True)
@@ -475,7 +474,6 @@ def brune_acc_spec(fc: float, mom: float, ts: float, f: float) -> float:
 
 def getresidfit(data_spec, model_func, fc: float, freqs: list, Lnorm='L1',
                 weight_fr=False, fmin=1., fmax=3000.) -> float:
-
     # Give it a starting vector:
     #     smom    tstar
     # MTH: this should be wert origin time anyway ...
@@ -483,7 +481,7 @@ def getresidfit(data_spec, model_func, fc: float, freqs: list, Lnorm='L1',
     # pp = [1e-5, tt_s/500.]
     # pp = [1e-5, tt_s/200.]
     tt_s = .02
-    start = np.array([1e-10, tt_s/200.])
+    start = np.array([1e-10, tt_s / 200.])
 
     # @numba.jit(nopython=True)
     def inner(p):
@@ -526,7 +524,6 @@ def getresidfit(data_spec, model_func, fc: float, freqs: list, Lnorm='L1',
 
 def getresidfit2(data_spec, model_func, freqs: list, Lnorm='L1',
                  weight_fr=False, fmin=1., fmax=3000.) -> float:
-
     def inner(p):
         smom = p[0]
         fc = p[1]
@@ -557,7 +554,6 @@ def getresidfit2(data_spec, model_func, freqs: list, Lnorm='L1',
 
 def getresidfit3(data_spec, model_func, freqs: list, Lnorm='L1',
                  weight_fr=False, fmin=1., fmax=3000.) -> float:
-
     def inner(p):
         smom = p[0]
         ts = p[1]
@@ -578,7 +574,7 @@ def getresidfit3(data_spec, model_func, freqs: list, Lnorm='L1',
 
             if res < 0.:
                 logger.info("** OOPS: f=%f smom=%g ts=%g model_func=%g" % (
-                    f,  smom, ts, res))
+                    f, smom, ts, res))
                 pass
             diff = np.log10(data_spec[i]) - np.log10(res)
 
@@ -609,8 +605,8 @@ def calc_fit1(spec, freqs, fmin=1., fmax=1000., Lnorm='L2', weight_fr=False,
     # Give it a starting vector:
     #    smom  t* fc
     pp = [1., .001, 100]
-    (sol, fit, *rest) = optimize.fmin(residfit, np.array(pp), xtol=10**-12,
-                                      ftol=10**-6, disp=False, full_output=1)
+    (sol, fit, *rest) = optimize.fmin(residfit, np.array(pp), xtol=10 ** -12,
+                                      ftol=10 ** -6, disp=False, full_output=1)
     mom, ts, fc = sol[0], sol[1], sol[2]
     # print(fc)
 
@@ -635,7 +631,6 @@ def calc_fit(sta_dict, fc, fmin=20., fmax=1000.,
              Lnorm='L2', weight_fr=False,
              plot_fit=False,
              use_fixed_fmin_fmax=False):
-
     # frequencies = []
     fit = 0.
     smom_dict = {}
@@ -717,7 +712,7 @@ def calc_fit(sta_dict, fc, fmin=20., fmax=1000.,
                 corrected_vel_spec = np.array(np.zeros(freqs.size),
                                               dtype=np.float_)
                 Q = 100
-                tstar = sta['R']/(5.3e3 * Q)
+                tstar = sta['R'] / (5.3e3 * Q)
                 logger.debug("tstar=", tstar)
 
                 for i, f in enumerate(freqs):
@@ -728,20 +723,21 @@ def calc_fit(sta_dict, fc, fmin=20., fmax=1000.,
                     # brune_vel[i] = brune_vel_spec(fc, sol[0], sol[1], f)
                     brune_vel[i] = brune_vel_spec(fc, sol[0], 0, f)
                     corrected_vel_spec[i] = signal_fft[i] * np.exp(
-                        np.pi*f*tstar)
+                        np.pi * f * tstar)
 
                 # plot_spec5(freqs, vel_spec,  np.abs(noise_fft), model_spec,
                 # plot_spec5(freqs, np.abs(signal_fft),  np.abs(noise_fft),
                 # model_spec,
-                plot_spec5(freqs, np.abs(corrected_vel_spec),  np.abs(
+                plot_spec5(freqs, np.abs(corrected_vel_spec), np.abs(
                     noise_fft), model_spec,
                            w2_no_atten, brune_vel,
                            title="sta:%s ch:%s spec fit phase:%s ["
                                  "lambda=%12.10g]" %
-                           (sta_code, cha_code, ch_dict['P_or_S'], sol[0]),
+                                 (sta_code, cha_code, ch_dict['P_or_S'],
+                                  sol[0]),
                            subtitle="fmin:%.1f fmax:%.1f "
                                     "use_fixed_fmin_fmax:%s" %
-                           (fmin, fmax, use_fixed_fmin_fmax))
+                                    (fmin, fmax, use_fixed_fmin_fmax))
 
             dd[cha_code] = ch_dict
         smom_dict[sta_code] = dd
@@ -754,14 +750,13 @@ def calc_fit(sta_dict, fc, fmin=20., fmax=1000.,
 def plot_spec5(freqs, signal_fft, noise_fft, model_spec,
                model2_spec, model3_spec,
                title=None, subtitle=None):
-
     # plt.loglog(freqs, np.abs(signal_fft), color='blue')
     plt.loglog(freqs, np.abs(signal_fft), color='blue', linestyle="--")
     # plt.loglog(freqs, np.abs(noise_fft),  color='red')
-    plt.loglog(freqs, model2_spec,  color='black')
-    plt.loglog(freqs, model_spec,  color='green')
+    plt.loglog(freqs, model2_spec, color='black')
+    plt.loglog(freqs, model_spec, color='green')
     # plt.loglog(freqs, model_spec,  color='green', linewidth=.5)
-    plt.loglog(freqs, model3_spec,  color='red')
+    plt.loglog(freqs, model3_spec, color='red')
 
     plt.legend(['signal', 'w^2', 'w^2 + ts', 'Brune vel'])
     # plt.legend(['signal', 'w^2', 'w^2 + ts', 'w^3'])
@@ -783,10 +778,9 @@ def plot_spec5(freqs, signal_fft, noise_fft, model_spec,
 
 def plot_spec3(freqs, signal_fft, noise_fft, model_spec, title=None,
                subtitle=None):
-
     plt.loglog(freqs, np.abs(signal_fft), color='blue')
-    plt.loglog(freqs, np.abs(noise_fft),  color='red')
-    plt.loglog(freqs, model_spec,  color='green')
+    plt.loglog(freqs, np.abs(noise_fft), color='red')
+    plt.loglog(freqs, model_spec, color='green')
     plt.legend(['signal', 'noise', 'model'])
     plt.xlim(1e0, 3e3)
     # plt.ylim(1e-12, 1e-6)
@@ -803,17 +797,16 @@ def plot_spec3(freqs, signal_fft, noise_fft, model_spec, title=None,
 
 
 def find_fmin_fmax_from_spec(signal_fft, noise_fft, snr_thresh, fc, df):
-
     npoly = 2
     nsmooth = 31
     signal = savgol_filter(np.abs(signal_fft), nsmooth, npoly)
     noise = savgol_filter(np.abs(noise_fft), nsmooth, npoly)
-    snr = signal/noise
+    snr = signal / noise
 
     fmin = None
     fmax = None
 
-    ic = int(fc/df)
+    ic = int(fc / df)
     i1 = -999
     i2 = -999
 
@@ -824,7 +817,7 @@ def find_fmin_fmax_from_spec(signal_fft, noise_fft, snr_thresh, fc, df):
             break
 
     if i1 > 0:
-        fmin = float(i1)*df
+        fmin = float(i1) * df
 
     for i in range(ic, snr.size):
         if snr[i] <= snr_thresh:
@@ -833,13 +826,12 @@ def find_fmin_fmax_from_spec(signal_fft, noise_fft, snr_thresh, fc, df):
             break
 
     if i2 > 0:
-        fmax = float(i2)*df
+        fmax = float(i2) * df
 
     return fmin, fmax
 
 
 def plot_spec(freqs, signal_fft, noise_fft=None, title=None):
-
     npoly = 2
     nsmooth = 31
     signal = savgol_filter(np.abs(signal_fft), nsmooth, npoly)
@@ -851,7 +843,7 @@ def plot_spec(freqs, signal_fft, noise_fft=None, title=None):
     plt.loglog(freqs, signal, color='blue')
 
     if noise_fft is not None:
-        plt.loglog(freqs, noise,  color='red')
+        plt.loglog(freqs, noise, color='red')
         # plt.loglog(freqs, np.abs(noise_fft),  color='red')
         plt.legend(['signal', 'noise'])
     # plt.loglog(freqs, model_spec,  color='green')
@@ -867,9 +859,8 @@ def plot_spec(freqs, signal_fft, noise_fft=None, title=None):
 
 
 def plot_spec2(freqs, spec, model_spec, title=None):
-
     plt.loglog(freqs, spec, color='blue')
-    plt.loglog(freqs, model_spec,  color='green')
+    plt.loglog(freqs, model_spec, color='green')
     plt.legend(['signal', 'model'])
     plt.xlim(1e0, 3e3)
     # plt.ylim(1e-12, 1e-4)
@@ -890,7 +881,7 @@ def plot_signal(signal, noise=None):
     dt = signal.stats.sampling_rate
 
     for i in range(signal.stats.npts):
-        t.append(float(i)*dt)
+        t.append(float(i) * dt)
     plt.plot(t, signal, color='blue')
 
     if noise:
@@ -906,23 +897,23 @@ def unpack_rfft(rfft, df):
     n = rfft.size
 
     if n % 2 == 0:
-        n2 = int(n/2)
+        n2 = int(n / 2)
     else:
         # n2 = int((n + 1) / 2)
         raise Exception("n is odd!!")
     # print("n2=%d" % n2)
 
-    c_arr = np.zeros(n2+1, dtype=np.complex_)
-    freqs = np.zeros(n2+1, dtype=np.float_)
+    c_arr = np.zeros(n2 + 1, dtype=np.complex_)
+    freqs = np.zeros(n2 + 1, dtype=np.float_)
 
     c_arr[0] = rfft[0]
-    c_arr[n2] = rfft[n-1]
+    c_arr[n2] = rfft[n - 1]
     freqs[0] = 0.
-    freqs[n2] = float(n2)*df
+    freqs[n2] = float(n2) * df
 
     for i in range(1, n2):
-        freqs[i] = float(i)*df
-        c_arr[i] = np.complex(rfft[2*i - 1], rfft[2*i])
+        freqs[i] = float(i) * df
+        c_arr[i] = np.complex(rfft[2 * i - 1], rfft[2 * i])
 
     return c_arr, freqs
 
@@ -980,15 +971,15 @@ def smooth(x, window_len=11, window='hanning'):
         # raise ValueError, "Window is on of 'flat', 'hanning', 'hamming',
         # 'bartlett', 'blackman'"
 
-    s = np.r_[x[window_len-1:0:-1], x, x[-2:-window_len-1:-1]]
+    s = np.r_[x[window_len - 1:0:-1], x, x[-2:-window_len - 1:-1]]
     # print(len(s))
 
     if window == 'flat':  # moving average
         w = np.ones(window_len, 'd')
     else:
-        w = eval('np.'+window+'(window_len)')
+        w = eval('np.' + window + '(window_len)')
 
-    y = np.convolve(w/w.sum(), s, mode='valid')
+    y = np.convolve(w / w.sum(), s, mode='valid')
 
     return y
 

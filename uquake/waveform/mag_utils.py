@@ -1,7 +1,6 @@
-
-#import warnings
-#warnings.simplefilter("ignore", UserWarning)
-#warnings.simplefilter("ignore")
+# import warnings
+# warnings.simplefilter("ignore", UserWarning)
+# warnings.simplefilter("ignore")
 
 import numpy as np
 
@@ -27,29 +26,29 @@ def calc_static_stress_drop(Mw, fc, phase='S', v=3.5, use_brune=False):
 
     """
 
-    if use_brune:          # Use Brune scaling
+    if use_brune:  # Use Brune scaling
         c = .375
-    else:                  # Use Madariaga scaling
+    else:  # Use Madariaga scaling
         if phase == 'S':
             c = .21
         else:
             c = .32
 
-    v *= 1e5 # cm/s
+    v *= 1e5  # cm/s
 
-    a = c * v / fc   # radius of circular fault from corner freq
+    a = c * v / fc  # radius of circular fault from corner freq
 
-    logM0 = 3/2 * Mw + 9.1 # in N-m
-    M0 = 10**logM0 * 1e7   # dyn-cm
+    logM0 = 3 / 2 * Mw + 9.1  # in N-m
+    M0 = 10 ** logM0 * 1e7  # dyn-cm
 
-    stress_drop = 7./16. * M0 * (1/a) ** 3 # in dyn/cm^2
-    stress_drop /= 10. # convert to Pa=N/m^2
+    stress_drop = 7. / 16. * M0 * (1 / a) ** 3  # in dyn/cm^2
+    stress_drop /= 10.  # convert to Pa=N/m^2
 
-    return stress_drop / 1e6 # MPa
+    return stress_drop / 1e6  # MPa
 
 
-cos= np.cos
-sin= np.sin
+cos = np.cos
+sin = np.sin
 degs2rad = np.pi / 180.
 
 
@@ -67,43 +66,47 @@ def double_couple_rad_pat(takeoff_angle, takeoff_azimuth, strike, dip, rake,
     i_h = takeoff_angle * degs2rad
     azd = (takeoff_azimuth - strike) * degs2rad
     # Below is the convention from Lay & Wallace - it looks wrong!
-    #azd = (strike - takeoff_azimuth) * degs2rad
+    # azd = (strike - takeoff_azimuth) * degs2rad
     strike = strike * degs2rad
-    dip    = dip * degs2rad
-    rake   = rake * degs2rad
+    dip = dip * degs2rad
+    rake = rake * degs2rad
 
     radpat = None
     if phase == 'P':
-        radpat = cos(rake)*sin(dip)*sin(i_h)**2 * sin(2.*azd) \
-                -cos(rake)*cos(dip)*sin(2.*i_h) * cos(azd) \
-                +sin(rake)*sin(2.*dip)*(cos(i_h)**2 - \
-                                        sin(i_h)**2 * sin(azd)**2) \
-                +sin(rake)*cos(2.*dip)*sin(2.*i_h)*sin(azd)
+        radpat = cos(rake) * sin(dip) * sin(i_h) ** 2 * sin(2. * azd) \
+                 - cos(rake) * cos(dip) * sin(2. * i_h) * cos(azd) \
+                 + sin(rake) * sin(2. * dip) * (cos(i_h) ** 2 - \
+                                                sin(i_h) ** 2 * sin(azd) ** 2) \
+                 + sin(rake) * cos(2. * dip) * sin(2. * i_h) * sin(azd)
 
     elif phase == 'SV':
-        radpat = sin(rake)*cos(2.*dip)*cos(2.*i_h) * sin(azd) \
-                -cos(rake)*cos(dip)*cos(2.*i_h) * cos(azd) \
-                +0.5*cos(rake)*sin(dip)*sin(2.*i_h) * sin(2.*azd) \
-                -0.5*sin(rake)*sin(2.*dip)*sin(2.*i_h)*(1 + sin(azd)**2)
+        radpat = sin(rake) * cos(2. * dip) * cos(2. * i_h) * sin(azd) \
+                 - cos(rake) * cos(dip) * cos(2. * i_h) * cos(azd) \
+                 + 0.5 * cos(rake) * sin(dip) * sin(2. * i_h) * sin(2. * azd) \
+                 - 0.5 * sin(rake) * sin(2. * dip) * sin(2. * i_h) * (
+                             1 + sin(azd) ** 2)
 
     elif phase == 'SH':
-        radpat = cos(rake)*cos(dip)*cos(i_h) * sin(azd) \
-                +cos(rake)*sin(dip)*sin(i_h) * cos(2.*azd) \
-                +sin(rake)*cos(2.*dip)*cos(i_h) * cos(azd) \
-                -0.5*sin(rake)*sin(2.*dip)*sin(i_h) * sin(2.*azd)
+        radpat = cos(rake) * cos(dip) * cos(i_h) * sin(azd) \
+                 + cos(rake) * sin(dip) * sin(i_h) * cos(2. * azd) \
+                 + sin(rake) * cos(2. * dip) * cos(i_h) * cos(azd) \
+                 - 0.5 * sin(rake) * sin(2. * dip) * sin(i_h) * sin(2. * azd)
 
     elif phase == 'S':
-        radpat_SV = sin(rake)*cos(2.*dip)*cos(2.*i_h) * sin(azd) \
-                   -cos(rake)*cos(dip)*cos(2.*i_h) * cos(azd) \
-                   +0.5*cos(rake)*sin(dip)*sin(2.*i_h) * sin(2.*azd) \
-                   -0.5*sin(rake)*sin(2.*dip)*sin(2.*i_h)*(1 + sin(azd)**2)
+        radpat_SV = sin(rake) * cos(2. * dip) * cos(2. * i_h) * sin(azd) \
+                    - cos(rake) * cos(dip) * cos(2. * i_h) * cos(azd) \
+                    + 0.5 * cos(rake) * sin(dip) * sin(2. * i_h) * sin(
+            2. * azd) \
+                    - 0.5 * sin(rake) * sin(2. * dip) * sin(2. * i_h) * (
+                                1 + sin(azd) ** 2)
 
-        radpat_SH = cos(rake)*cos(dip)*cos(i_h) * sin(azd) \
-                   +cos(rake)*sin(dip)*sin(i_h) * cos(2.*azd) \
-                   +sin(rake)*cos(2.*dip)*cos(i_h) * cos(azd) \
-                   -0.5*sin(rake)*sin(2.*dip)*sin(i_h) * sin(2.*azd)
+        radpat_SH = cos(rake) * cos(dip) * cos(i_h) * sin(azd) \
+                    + cos(rake) * sin(dip) * sin(i_h) * cos(2. * azd) \
+                    + sin(rake) * cos(2. * dip) * cos(i_h) * cos(azd) \
+                    - 0.5 * sin(rake) * sin(2. * dip) * sin(i_h) * sin(
+            2. * azd)
 
-        radpat = np.sqrt(radpat_SV**2 + radpat_SH**2)
+        radpat = np.sqrt(radpat_SV ** 2 + radpat_SH ** 2)
 
     else:
         print("%s: Unrecognized phase[%s] --> return None" % (fname, phase))
@@ -127,24 +130,24 @@ def free_surface_displacement_amplification(inc_angle, vp, vs,
     fname = 'free_surface_displacement_amplification'
 
     i = inc_angle * degs2rad
-    p = sin(i)/vp
+    p = sin(i) / vp
     cosi = cos(i)
-    cosj = np.sqrt(1. - (vs*p)**2)
-    p2= p*p
-    b2= vs*vs
-    a = (1/b2 - 2.*p2)
-    Rpole = a*a + 4.* p2 * cosi/vp * cosj/vs
+    cosj = np.sqrt(1. - (vs * p) ** 2)
+    p2 = p * p
+    b2 = vs * vs
+    a = (1 / b2 - 2. * p2)
+    Rpole = a * a + 4. * p2 * cosi / vp * cosj / vs
 
     if incident_wave == 'P':
-        x1_amp = 4.*vp/b2 * p * cosi/vp * cosj/vs / Rpole
+        x1_amp = 4. * vp / b2 * p * cosi / vp * cosj / vs / Rpole
         x2_amp = 0.
         # The - is because A&R convention has z-axis positive Down
-        x3_amp =-2.*vp/b2 * cosi/vp * a / Rpole
+        x3_amp = -2. * vp / b2 * cosi / vp * a / Rpole
 
     elif incident_wave == 'SV':
-        x1_amp = 2./vs*cosj/vs * a / Rpole
+        x1_amp = 2. / vs * cosj / vs * a / Rpole
         x2_amp = 0.
-        x3_amp = 4./b * p * cosi/vp * cosj/vs / Rpole
+        x3_amp = 4. / b * p * cosi / vp * cosj / vs / Rpole
 
     elif incident_wave == 'SH':
         x1_amp = 0.

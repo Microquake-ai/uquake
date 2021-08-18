@@ -6,7 +6,6 @@ from obspy.imaging.beachball import beachball
 
 
 def plot_beachball_obspy(cat, **kwargs):
-
     # default
     if 'facecolor' not in kwargs.keys():
         kwargs['facecolor'] = [0.5] * 3
@@ -34,7 +33,6 @@ plot_beachball_obspy.__doc__ = beachball.__doc__
 
 
 def plot_beachball(cat, lower_hemisphere=True, legend=False, output_file=None):
-
     if cat[0].preferred_focal_mechanism is None:
         logger.warning('nothing to do, the catalog does not have a '
                        'preferred focal mechanism')
@@ -91,4 +89,3 @@ def plot_beachball(cat, lower_hemisphere=True, legend=False, output_file=None):
 
     if output_file:
         plt.savefig(output_file, edgecolor='none')
-

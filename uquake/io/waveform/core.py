@@ -97,7 +97,8 @@ def read_IMS_ASCII(path, net='', **kwargs):
 
     stats.sampling_rate = float(field[1])
     timetmp = datetime.fromtimestamp(float(field[5])) \
-        + timedelta(seconds=float(field[6]) / 1e6)  # trigger time in second
+              + timedelta(
+        seconds=float(field[6]) / 1e6)  # trigger time in second
 
     trgtime_UTC = UTCDateTime(timetmp)
     stats.starttime = trgtime_UTC - float(field[10]) / stats.sampling_rate
@@ -136,9 +137,9 @@ def read_ESG_SEGY(fname, site=None, **kwargs):
                        'the site, network, station or component information '
                        'will not be appended')
 
-        return read(fname, format='SEGY',  unpack_trace_headers=True)
+        return read(fname, format='SEGY', unpack_trace_headers=True)
 
-    st = read(fname, format='SEGY',  unpack_trace_headers=True)
+    st = read(fname, format='SEGY', unpack_trace_headers=True)
 
     stations = site.stations()
     traces = []
@@ -192,6 +193,7 @@ def read_ESG_SEGY(fname, site=None, **kwargs):
             traces.append(Trace(trace=tr))
 
     return Stream(traces=traces)
+
 
 @uncompress
 def read_TEXCEL_CSV(filename, **kwargs):

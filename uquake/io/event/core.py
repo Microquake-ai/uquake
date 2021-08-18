@@ -29,21 +29,21 @@ def write_simple_sqlite(catalog, filename, **kwargs):
     """
 
     table_creation_cmd = \
-    """
-    CREATE TABLE IF NOT EXISTS events(
-    id text PRIMARY KEY,
-    datetime text NOT NULL,
-    x real NOT NULL,
-    y real NOT NULL,
-    z real NOT NULL,
-    magnitude real NOT NULL,
-    magnitude_type text NOT NULL,
-    Ep real,
-    Es real,
-    number_triggers integer NOT NULL,
-    number_p_picks integer NOT NULL,
-    number_s_picks integer NOT NULL)
-    """
+        """
+        CREATE TABLE IF NOT EXISTS events(
+        id text PRIMARY KEY,
+        datetime text NOT NULL,
+        x real NOT NULL,
+        y real NOT NULL,
+        z real NOT NULL,
+        magnitude real NOT NULL,
+        magnitude_type text NOT NULL,
+        Ep real,
+        Es real,
+        number_triggers integer NOT NULL,
+        number_p_picks integer NOT NULL,
+        number_s_picks integer NOT NULL)
+        """
 
     import sqlite3
     from numpy import unique
@@ -95,10 +95,10 @@ def write_simple_sqlite(catalog, filename, **kwargs):
                             (datetime,)).fetchall():
                 continue
 
-            conn.execute("INSERT INTO events(id, datetime, x, y, z, magnitude, " + \
-                         " magnitude_type, Ep, Es, number_triggers," + \
-                         " number_p_picks, number_s_picks) VALUES " + \
-                         " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                         (id, datetime, x, y, z, mag, mag_type, Ep, Es,
-                          number_triggers, s_picks, p_picks))
-
+            conn.execute(
+                "INSERT INTO events(id, datetime, x, y, z, magnitude, " + \
+                " magnitude_type, Ep, Es, number_triggers," + \
+                " number_p_picks, number_s_picks) VALUES " + \
+                " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (id, datetime, x, y, z, mag, mag_type, Ep, Es,
+                 number_triggers, s_picks, p_picks))

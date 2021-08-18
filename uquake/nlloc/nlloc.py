@@ -59,10 +59,11 @@ __valid_geographic_transformation__ = ['GLOBAL', 'SIMPLE', 'NONE', 'SDC',
 
 __valid_reference_ellipsoid__ = ['WGS-84', 'GRS-80', 'WGS-72', 'Australian',
                                  'Krasovsky', 'International', 'Hayford-1909'
-                                 'Clarke-1880', 'Clarke-1866', 'Airy Bessel',
+                                                               'Clarke-1880',
+                                 'Clarke-1866', 'Airy Bessel',
                                  'Hayford-1830', 'Sphere']
 
-__valid_units__ =['METER', 'KILOMETER']
+__valid_units__ = ['METER', 'KILOMETER']
 
 
 class Grid2Time:
@@ -192,12 +193,12 @@ class Control:
         and by program Time2EQ to generate noisy time picks)
         """
         try:
-            self.message_flag=int(message_flag)
+            self.message_flag = int(message_flag)
         except Exception as e:
             raise e
 
         try:
-            self.random_seed=int(random_seed)
+            self.random_seed = int(random_seed)
         except Exception as e:
             raise e
 
@@ -770,7 +771,7 @@ class LocFiles:
         else:
             self.phase = 'S'
 
-        self.swap_bytes_on_input=int(swap_bytes_on_input)
+        self.swap_bytes_on_input = int(swap_bytes_on_input)
 
     def __repr__(self):
         return f'GTFILES {self.velocity_file_path} ' \
@@ -870,7 +871,7 @@ class Srces:
         validate(units.upper(), self.__valid_measurement_units__)
 
         self.sites.append({'label': label, 'x': x, 'y': y, 'z': z,
-                             elev:'elev'})
+                           elev: 'elev'})
 
         self.units = units.upper()
 
@@ -906,7 +907,6 @@ class Srces:
         line = ""
 
         for site in self.sites:
-
             # test if site name is shorter than 6 characters
 
             line += f'GTSRCE {site["label"]} XYZ ' \
@@ -1132,7 +1132,6 @@ class NllocInputFiles:
 
 
 def read_hypocenter_file(filename, units='METER'):
-
     validate(units, __valid_units__)
     with open(filename, 'r') as hyp_file:
         all_lines = hyp_file.readlines()

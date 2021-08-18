@@ -1,4 +1,3 @@
-
 """ Collection of functions to calculate moment magnitude
 
 """
@@ -14,7 +13,8 @@ from obspy.core.event.magnitude import (StationMagnitude,
 
 from uquake.core.event import Pick
 from uquake.waveform.amp_measures import measure_pick_amps
-from uquake.waveform.mag_utils import double_couple_rad_pat, free_surface_displacement_amplification
+from uquake.waveform.mag_utils import double_couple_rad_pat, \
+    free_surface_displacement_amplification
 from uquake.waveform.smom_measure_legacy import measure_pick_smom
 
 warnings.simplefilter("ignore", UserWarning)
@@ -27,8 +27,7 @@ def moment_magnitude_new(st, event,
                          min_dist=20,
                          fmin=20, fmax=1000,
                          use_smom=False):
-
-    #TODO: this moment_magnitude_new function looks broken
+    # TODO: this moment_magnitude_new function looks broken
     picks = event.picks
 
     if use_smom:
@@ -38,7 +37,7 @@ def moment_magnitude_new(st, event,
         measure_pick_amps(st, picks, debug=False)
         comment = "Average of time-domain P & S moment magnitudes"
 
-# Use time(or freq) lambda to calculate moment magnitudes for each arrival
+    # Use time(or freq) lambda to calculate moment magnitudes for each arrival
 
     Mw_P, station_mags_P = calc_magnitudes_from_lambda(cat, vp=vp, vs=vs,
                                                        density=density,
@@ -50,8 +49,8 @@ def moment_magnitude_new(st, event,
                                                        P_or_S='S',
                                                        use_smom=use_smom)
 
-# Average Mw_P,Mw_S to get event Mw and wrap with list of
-#   station mags/contributions
+    # Average Mw_P,Mw_S to get event Mw and wrap with list of
+    #   station mags/contributions
 
     Mw = 0.5 * (Mw_P + Mw_S)
 
@@ -60,7 +59,6 @@ def moment_magnitude_new(st, event,
 
 
 def set_new_event_mag(event, station_mags, Mw, comment, make_preferred=False):
-
     count = len(station_mags)
 
     sta_mag_contributions = []
@@ -85,8 +83,9 @@ def set_new_event_mag(event, station_mags, Mw, comment, make_preferred=False):
     event.station_magnitudes = station_mags
 
     if make_preferred:
-        event.preferred_magnitude_id = ResourceIdentifier(id=event_mag.resource_id.id,
-                                                          referred_object=event_mag)
+        event.preferred_magnitude_id = ResourceIdentifier(
+            id=event_mag.resource_id.id,
+            referred_object=event_mag)
 
     return
 
@@ -110,9 +109,8 @@ def calc_magnitudes_from_lambda(cat,
 
     fname = 'calc_magnitudes_from_lambda'
 
-
-# Don't loop over event here, do it in the calling routine
-#   so that vp/vs can be set for correct source depth
+    # Don't loop over event here, do it in the calling routine
+    #   so that vp/vs can be set for correct source depth
     event = cat[0]
     origin = event.preferred_origin() if event.preferred_origin() else \
         event.origins[0]
@@ -174,9 +172,9 @@ def calc_magnitudes_from_lambda(cat,
                 fs_factor = free_surface_displacement_amplification(
                     inc_angle, vp, vs, incident_wave=P_or_S)
 
-            # MTH: Not ready to implement this.  The reflection coefficients
-            #      are expressed in x1,x2,x3 coords
-                #print("inc_angle:%.1f x1:%.1f x3:%.1f" % (inc_angle, fs_factor[0], fs_factor[2]))
+                # MTH: Not ready to implement this.  The reflection coefficients
+                #      are expressed in x1,x2,x3 coords
+                # print("inc_angle:%.1f x1:%.1f x3:%.1f" % (inc_angle, fs_factor[0], fs_factor[2]))
                 # MTH: The free surface corrections are returned as <x1,x2,x3>=<
                 fs_factor = 1.
             else:
@@ -197,8 +195,9 @@ def calc_magnitudes_from_lambda(cat,
                 magnitude_comment += ' radiation pattern calculated for (s,' \
                                      'd,r)= (%.1f,%.1f,%.1f) theta:%.1f ' \
                                      'az:%.1f pha:%s |rad|=%f' % \
-                    (strike, dip, rake, takeoff_angle, takeoff_azimuth,
-                     P_or_S, rad)
+                                     (strike, dip, rake, takeoff_angle,
+                                      takeoff_azimuth,
+                                      P_or_S, rad)
                 # logger.info(magnitude_comment)
             else:
                 logger.warnng("%s: sta:%s cha:%s pha:%s: "
@@ -209,13 +208,13 @@ def calc_magnitudes_from_lambda(cat,
 
         if _lambda is not None:
 
-            M0_scale = 4. * np.pi * density * v**3 / (rad * fs_factor)
+            M0_scale = 4. * np.pi * density * v ** 3 / (rad * fs_factor)
 
             # R  = np.linalg.norm(sta_dict['station'].loc -ev_loc) #Dist in meters
 
-        # MTH: obspy arrival.distance = *epicentral* distance in degrees
-        #   >> Add attribute hypo_dist_in_m to uquake arrival class
-        #         to make it clear
+            # MTH: obspy arrival.distance = *epicentral* distance in degrees
+            #   >> Add attribute hypo_dist_in_m to uquake arrival class
+            #         to make it clear
             if arr.distance:
                 R = arr.distance
             else:
@@ -224,14 +223,15 @@ def calc_magnitudes_from_lambda(cat,
             if R >= min_dist:
 
                 M0 = M0_scale * R * np.abs(_lambda)
-                Mw = 2./3. * np.log10(M0) - 6.033
-                #print("MTH: _lambda=%g R=%.1f M0=%g" % (np.abs(_lambda), R, M0))
+                Mw = 2. / 3. * np.log10(M0) - 6.033
+                # print("MTH: _lambda=%g R=%.1f M0=%g" % (np.abs(_lambda), R, M0))
 
                 Mw_list.append(Mw)
 
                 station_mag = StationMagnitude(origin_id=origin_id, mag=Mw,
                                                station_magnitude_type=mag_type,
-                                               comments=[Comment(text=magnitude_comment)],
+                                               comments=[Comment(
+                                                   text=magnitude_comment)],
                                                waveform_id=WaveformStreamID(
                                                    network_code=net,
                                                    station_code=sta,
@@ -244,11 +244,12 @@ def calc_magnitudes_from_lambda(cat,
                                                  min_dist))
 
         # else:
-            # logger.warning("arrival sta:%s cha:%s arr pha:%s lambda_key:%s is NOT SET --> Skip" \
-                # % (sta, cha, arr.phase, lambda_key))
+        # logger.warning("arrival sta:%s cha:%s arr pha:%s lambda_key:%s is NOT SET --> Skip" \
+        # % (sta, cha, arr.phase, lambda_key))
 
     logger.info("nmags=%d avg:%.1f med:%.1f std:%.1f" %
-                (len(Mw_list), np.mean(Mw_list), np.median(Mw_list), np.std(Mw_list)))
+                (len(Mw_list), np.mean(Mw_list), np.median(Mw_list),
+                 np.std(Mw_list)))
 
     return np.median(Mw_list), station_mags
 
@@ -261,11 +262,11 @@ def calculate_energy_from_flux(cat,
                                use_sdr_rad=False,
                                use_water_level=False,
                                rad_min=0.2):
-
     fname = 'calculate_energy_from_flux'
 
     for event in cat:
-        origin = event.preferred_origin() if event.preferred_origin() else event.origins[0]
+        origin = event.preferred_origin() if event.preferred_origin() else \
+        event.origins[0]
 
         use_sdr = False
 
@@ -276,7 +277,7 @@ def calculate_energy_from_flux(cat,
             use_sdr = True
 
         # for phase in ['P', 'S']:
-            # for arr in [x for x in arrivals if x.phase == phase]:
+        # for arr in [x for x in arrivals if x.phase == phase]:
 
         P_energy = []
         S_energy = []
@@ -291,7 +292,7 @@ def calculate_energy_from_flux(cat,
             #         f'Cannot get station for arrival "{arr.resource_id}"'
             #         f' for event "{event.resource_id}".')
 
-                # continue
+            # continue
             phase = arr.phase
 
             if phase.upper() == 'P':
@@ -410,5 +411,4 @@ def calculate_energy_from_flux(cat,
 
 
 if __name__ == '__main__':
-
     main()
