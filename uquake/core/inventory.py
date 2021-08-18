@@ -539,13 +539,13 @@ class Channel(inventory.Channel):
 
     def __repr__(self):
 
-        ret = f'Channel {self.code}, Location {self.location_code}\n' \
-              f'Time range: {self.start_date} - {self.end_date}\n' \
-              f'Easting [x]: {self.x:0.0f} m, Northing [y]: ' \
-              f'{self.y:0.0f} m, Elevation [z]: {self.z:0.0f} m\n' \
-              f'Dip (degrees): {self.dip:0.0f}, Azimuth (degrees): ' \
-              f'{self.azimuth:0.0f}\n'
-        
+        ret = (f'Channel {self.code}, Location {self.location_code}\n'
+               f'Time range: {self.start_date} - {self.end_date}\n'
+               f'Easting [x]: {self.x:0.0f} m, Northing [y]: '
+               f'{self.y:0.0f} m, Elevation [z]: {self.z:0.0f} m\n'
+               f'Dip (degrees): {self.dip:0.0f}, Azimuth (degrees): '
+               f'{self.azimuth:0.0f}\n')
+
         if self.response:
             ret += "Response information available"
         else:
