@@ -20,6 +20,7 @@ module to interact with the NLLoc
 from datetime import datetime
 from struct import unpack
 import numpy as np
+import uquake.grid.nlloc
 
 from obspy import UTCDateTime
 from ..core.inventory import Inventory
@@ -683,6 +684,37 @@ class Observations:
 
         return cls(picks, p_pick_error=p_pick_error,
                    s_pick_error=s_pick_error)
+
+    @classmethod
+    def generate_random_observations_in_grid(cls, tt_grids:
+    uquake.grid.nlloc.TravelTimeEnsemble, 
+                                             n_observations=1):
+        """
+
+        :param tt_grids: a velocity grid
+        :param tt_grids: uquake.grid.nlloc.TravelTimeEnsemble
+        :param n_observations: number of observations to generate
+        :type n_observations: int
+        :return: observations
+        :rtype: uquake.nlloc.nlloc.Observations
+        """
+
+        from uquake.core.event import Pick, WaveformStreamID
+
+        e_loc = tt_grids[0].generate_random_points_in_grid
+        travel_times = tt_grids.travel_times(e_loc)
+
+        picks = []
+        for phase in travel_times.keys():
+            for site in travel_times[phase].keys():
+                waveform_id = WaveformStreamID(network_code='TN',
+                                               station_code='STN',
+                                               channel_code='GPX')
+                WaveformStreamID()
+                pk = Pick(site=site, time=travel_times[phase][site],
+                          phase=phase, waveform_id=waveform_id,
+                          onset='impulsive')
+                picks.append(pk)
 
     def __repr__(self):
 
