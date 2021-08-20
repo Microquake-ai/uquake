@@ -846,6 +846,36 @@ class Srces:
 
         return cls(srces)
 
+    @classmethod
+    def generate_random_srces_in_grid(cls, grid, n_srces=1):
+        """
+        generate nb_seeds random seeds inside the grid provided. This function
+        is mainly used for testing purposes
+        :param grid: a grid
+        :type grid: uquake.grid.base.Grid or an object inheriting from Grid
+        :param n_srces: number of Srces to generate
+        :return: a list of srces
+
+        >>> from uquake.grid.base import Grid
+        >>> from uquake.nlloc.nlloc import Srces
+        >>> grid_dimensions = [10, 10, 10]
+        >>> grid_spacing = [1, 1, 1]
+        >>> grid_origin = [0, 0, 0]
+        >>> grid = Grid(grid_dimensions, grid_spacing, grid_origin, value=1)
+        >>> srces = Srces.generate_random_srces_in_grid(grid, nb_seeds=10)
+        """
+
+        srces = []
+        label_root = 'src'
+        for i, point in enumerate(grid.generate_random_points_in_grid(
+                nb_points=n_srces)):
+            label = f'{label_root}_{i}'
+            srces.append({'label': label,
+                          'x': point[0],
+                          'y': point[1],
+                          'z': point[2]})
+        return srces
+
     def add_site(self, label, x, y, z, elev=0, units='METERS'):
         """
         Add a single site to the source list
@@ -874,34 +904,6 @@ class Srces:
                            elev: 'elev'})
 
         self.units = units.upper()
-
-    @classmethod
-    def generate_random_srces_in_grid(cls, grid, n_srces=1):
-        """
-        generate nb_seeds random seeds inside the grid provided. This function
-        is mainly used for testing purposes
-        :param grid: a grid
-        :type grid: uquake.grid.base.Grid or an object inheriting from Grid
-        :param n_srces: number of Srces to generate
-        :return: a list of srces
-
-        >>> from uquake.grid.base import Grid
-        >>> from uquake.nlloc.nlloc import Srces
-        >>> grid_dimensions = [10, 10, 10]
-        >>> grid_spacing = [1, 1, 1]
-        >>> grid_origin = [0, 0, 0]
-        >>> grid = Grid(grid_dimensions, grid_spacing, grid_origin, value=1)
-        >>> srces = Srces.generate_random_srces_in_grid(grid, nb_seeds=10)
-        """
-
-        srces = cls()
-        label_root = 'seed'
-        for i, point in enumerate(grid.generate_random_points_in_grid(
-                nb_points=n_srces)):
-            label = f'{label_root}_{i}'
-            srces.add_site(label, point[0], point[1], point[2])
-
-        return srces
 
     def __repr__(self):
         line = ""
