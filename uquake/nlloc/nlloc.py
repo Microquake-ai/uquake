@@ -847,7 +847,7 @@ class Srces:
         return cls(srces)
 
     @staticmethod
-    def generate_random_srces_in_grid(gd, n_srces=1):
+    def generate_srces(gd, n_srces=1):
         """
         generate n_srces random srces inside the grid provided. This function
         is mainly used for testing purposes
