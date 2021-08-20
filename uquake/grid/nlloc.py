@@ -307,7 +307,7 @@ class Seeds:
         seeds = cls.__init__()
         label_root = 'seed'
         for i, point in enumerate(grid.generate_random_points_in_grid(
-                nb_points=n_seeds)):
+                n_points=n_seeds)):
             label = f'{label_root}_{i}'
             seeds.add(label, point[0], point[1], point[2])
 
