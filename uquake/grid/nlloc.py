@@ -288,7 +288,7 @@ class Seeds:
     @classmethod
     def generate_random_seeds_in_grid(cls, grid, n_seeds=1):
         """
-        generate nb_seeds random seeds inside the grid provided. This function
+        generate n_seeds random seeds inside the grid provided. This function
         is mainly used for testing purposes
         :param grid: a grid
         :type grid: uquake.grid.base.Grid or an object inheriting from Grid
