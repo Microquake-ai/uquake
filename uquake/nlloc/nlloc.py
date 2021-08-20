@@ -687,7 +687,7 @@ class Observations:
 
     @classmethod
     def generate_random_observations_in_grid(cls, tt_grids:
-    uquake.grid.nlloc.TravelTimeEnsemble, 
+    uquake.grid.nlloc.TravelTimeEnsemble,
                                              n_observations=1):
         """
 
@@ -702,7 +702,7 @@ class Observations:
         from uquake.core.event import Pick, WaveformStreamID
 
         e_loc = tt_grids[0].generate_random_points_in_grid
-        travel_times = tt_grids.travel_times(e_loc)
+        travel_times = tt_grids.travel_time(e_loc)
 
         picks = []
         for phase in travel_times.keys():
