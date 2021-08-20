@@ -874,7 +874,7 @@ class Srces:
                           'x': point[0],
                           'y': point[1],
                           'z': point[2]})
-        return srces
+        return cls(srces)
 
     def add_site(self, label, x, y, z, elev=0, units='METERS'):
         """
