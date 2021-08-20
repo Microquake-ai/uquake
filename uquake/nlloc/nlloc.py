@@ -846,7 +846,7 @@ class Srces:
 
         return cls(srces)
 
-    @classmethod
+    @staticmethod
     def generate_random_srces_in_grid(cls, grid, n_srces=1):
         """
         generate n_srces random srces inside the grid provided. This function
@@ -875,7 +875,7 @@ class Srces:
                           'y': point[1],
                           'z': point[2],
                           'elev': 0})
-        return cls(srces)
+        return Srces(srces)
 
     def add_site(self, label, x, y, z, elev=0, units='METERS'):
         """
