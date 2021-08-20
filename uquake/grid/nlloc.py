@@ -286,13 +286,13 @@ class Seeds:
         self.units = units.upper()
 
     @classmethod
-    def generate_random_seeds_in_grid(cls, grid, nb_seeds=1):
+    def generate_random_seeds_in_grid(cls, grid, n_seeds=1):
         """
         generate nb_seeds random seeds inside the grid provided. This function
         is mainly used for testing purposes
         :param grid: a grid
         :type grid: uquake.grid.base.Grid or an object inheriting from Grid
-        :param nb_seeds: number of seeds to generate
+        :param n_seeds: number of seeds to generate
         :return: a list of seeds
 
         >>> from uquake.grid.base import Grid
@@ -301,13 +301,13 @@ class Seeds:
         >>> grid_spacing = [1, 1, 1]
         >>> grid_origin = [0, 0, 0]
         >>> grid = Grid(grid_dimensions, grid_spacing, grid_origin, value=1)
-        >>> seeds = Seeds.generate_random_seeds_in_grid(grid, nb_seeds=10)
+        >>> seeds = Seeds.generate_random_seeds_in_grid(grid, n_seeds=10)
         """
 
         seeds = cls.__init__()
         label_root = 'seed'
         for i, point in enumerate(grid.generate_random_points_in_grid(
-                nb_points=nb_seeds)):
+                nb_points=n_seeds)):
             label = f'{label_root}_{i}'
             seeds.add(label, point[0], point[1], point[2])
 

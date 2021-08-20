@@ -284,18 +284,22 @@ class Grid:
         Ze = Ze.reshape(np.prod(Ze.shape))
         return Xe, Ye, Ze
 
-    def generate_random_points_in_grid(self, nb_points=1,
+    def generate_random_points_in_grid(self, n_points=1,
                                        grid_coordinates=False):
         """
         Generate a random set of points within the grid
-        :param nb_points: number of points to generate (default=1)
-        :type nb_points: int
+        :param n_points: number of points to generate (default=1)
+        :type n_points: int
+        :param grid_coordinates: whether the output is expressed in
+        grid coordinates (True) or model coordinates (False)
+        (default: False)
+        :type grid_coordinates: bool
         :return: an array of triplet
         """
 
-        points = np.random.rand(nb_points, len(self.data.shape))
+        points = np.random.rand(n_points, len(self.data.shape))
 
-        for i in range(nb_points):
+        for i in range(n_points):
             points[i] = points[i] * self.dimensions
 
         if not grid_coordinates:
