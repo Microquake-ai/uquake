@@ -715,6 +715,8 @@ class Observations:
                           phase_hint=phase, waveform_id=waveform_id,
                           onset='impulsive')
                 picks.append(pk)
+                
+        return cls(picks)
 
     def __repr__(self):
 
