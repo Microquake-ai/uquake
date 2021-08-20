@@ -343,9 +343,9 @@ class Seeds:
         return np.array(seed_labels)
 
 
-class Srces(Seeds):
-    def __init__(self, sites=[], units='METERS'):
-        super().__init__(sites=sites, units=units)
+# class Srces(Seeds):
+#     def __init__(self, sites=[], units='METERS'):
+#         super().__init__(sites=sites, units=units)
 
 
 class NLLocGrid(Grid):

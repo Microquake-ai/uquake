@@ -849,7 +849,7 @@ class Srces:
     @classmethod
     def generate_random_srces_in_grid(cls, grid, n_srces=1):
         """
-        generate nb_seeds random seeds inside the grid provided. This function
+        generate n_srces random srces inside the grid provided. This function
         is mainly used for testing purposes
         :param grid: a grid
         :type grid: uquake.grid.base.Grid or an object inheriting from Grid
@@ -873,7 +873,8 @@ class Srces:
             srces.append({'label': label,
                           'x': point[0],
                           'y': point[1],
-                          'z': point[2]})
+                          'z': point[2],
+                          'elev': 0})
         return cls(srces)
 
     def add_site(self, label, x, y, z, elev=0, units='METERS'):
