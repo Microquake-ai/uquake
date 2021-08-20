@@ -859,7 +859,7 @@ class Srces:
         srces = []
         label_root = 'src'
         for i, point in enumerate(gd.generate_random_points_in_grid(
-                nb_points=n_srces)):
+                n_points=n_srces)):
             label = f'{label_root}_{i}'
             srces.append({'label': label,
                           'x': point[0],
