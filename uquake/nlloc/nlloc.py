@@ -17,24 +17,14 @@ module to interact with the NLLoc
     (http://www.gnu.org/copyleft/lesser.html)
 """
 
-import os
-import shutil
-import tempfile
 from datetime import datetime
-from glob import glob
 from struct import unpack
-from time import time
 import numpy as np
 
 from obspy import UTCDateTime
-from ..core.inventory import Inventory, read_inventory
+from ..core.inventory import Inventory
 from ..core.logging import logger
-from ..grid.base import read_grid
-from ..core.event import (Arrival, Catalog, Origin, Event, AttribDict)
-
-import pickle
-
-from ..grid import nlloc as grid
+from ..core.event import (Catalog)
 
 from uuid import uuid4
 from pathlib import Path
@@ -804,6 +794,7 @@ class GridTimeMode:
 
 
 class Srces:
+
     __valid_measurement_units__ = ['METERS', 'KILOMETERS']
 
     def __init__(self, sites=[], units='METERS'):
