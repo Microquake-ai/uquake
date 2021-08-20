@@ -847,12 +847,12 @@ class Srces:
         return cls(srces)
 
     @staticmethod
-    def generate_random_srces_in_grid(cls, grid, n_srces=1):
+    def generate_random_srces_in_grid(gd, n_srces=1):
         """
         generate n_srces random srces inside the grid provided. This function
         is mainly used for testing purposes
-        :param grid: a grid
-        :type grid: uquake.grid.base.Grid or an object inheriting from Grid
+        :param gd: a grid
+        :type gd: uquake.grid.base.Grid or an object inheriting from Grid
         :param n_srces: number of Srces to generate
         :return: a list of srces
 
@@ -867,7 +867,7 @@ class Srces:
 
         srces = []
         label_root = 'src'
-        for i, point in enumerate(grid.generate_random_points_in_grid(
+        for i, point in enumerate(gd.generate_random_points_in_grid(
                 nb_points=n_srces)):
             label = f'{label_root}_{i}'
             srces.append({'label': label,
