@@ -701,7 +701,7 @@ class Observations:
 
         from uquake.core.event import Pick, WaveformStreamID
 
-        e_loc = tt_grids[0].generate_random_points_in_grid
+        e_loc = tt_grids[0].generate_random_points_in_grid()
         travel_times = tt_grids.travel_time(e_loc)
 
         picks = []
