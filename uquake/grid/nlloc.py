@@ -285,8 +285,8 @@ class Seeds:
 
         self.units = units.upper()
 
-    @staticmethod
-    def generate_random_seeds_in_grid(grid, nb_seeds=1):
+    @classmethod
+    def generate_random_seeds_in_grid(cls, grid, nb_seeds=1):
         """
         generate nb_seeds random seeds inside the grid provided. This function
         is mainly used for testing purposes
@@ -304,7 +304,7 @@ class Seeds:
         >>> seeds = Seeds.generate_random_seeds_in_grid(grid, nb_seeds=10)
         """
 
-        seeds = Seeds()
+        seeds = cls.__init__()
         label_root = 'seed'
         for i, point in enumerate(grid.generate_random_points_in_grid(
                 nb_points=nb_seeds)):
