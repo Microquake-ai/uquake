@@ -466,6 +466,8 @@ class Pick(obsevent.Pick):
 class WaveformStreamID(obsevent.WaveformStreamID):
     __doc__ = obsevent.WaveformStreamID.__doc__.replace('obspy', 'uquake')
 
+    extra_keys = []
+
     def __init__(self, obspy_obj=None, **kwargs):
         _init_handler(self, obspy_obj, **kwargs)
 

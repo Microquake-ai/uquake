@@ -712,7 +712,7 @@ class Observations:
                                                channel_code='GPX')
                 WaveformStreamID()
                 pk = Pick(site=site, time=travel_times[phase][site],
-                          phase=phase, waveform_id=waveform_id,
+                          phase_hint=phase, waveform_id=waveform_id,
                           onset='impulsive')
                 picks.append(pk)
 
