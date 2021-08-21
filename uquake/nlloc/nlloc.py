@@ -710,12 +710,11 @@ class Observations:
                 waveform_id = WaveformStreamID(network_code='TN',
                                                station_code='STN',
                                                channel_code='GPX')
-                WaveformStreamID()
                 pk = Pick(site=site, time=travel_times[phase][site],
                           phase_hint=phase, waveform_id=waveform_id,
                           onset='impulsive')
                 picks.append(pk)
-                
+
         return cls(picks)
 
     def __repr__(self):
