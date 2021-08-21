@@ -420,7 +420,6 @@ class Pick(obsevent.Pick):
 
     def __init__(self, obspy_obj=None, **kwargs):
         _init_handler(self, obspy_obj, **kwargs)
-        # MTH  - this seems to have been left out ??
         if obspy_obj:
             wid = self.waveform_id
             self.trace_id = "%s.%s.%s.%s" % (wid.network_code,
@@ -644,6 +643,9 @@ def _init_from_obspy_object(uquake_obj, obspy_obj):
                 else:
                     out.append(item)
             uquake_obj.__setattr__(key, out)
+        itype = type(val)
+        if itype in class_equiv:
+            uquake_obj.__setattr__(key, class_equiv[itype](val))
         else:
             uquake_obj.__setattr__(key, val)
 
