@@ -467,10 +467,7 @@ class WaveformStreamID(obsevent.WaveformStreamID):
     __doc__ = obsevent.WaveformStreamID.__doc__.replace('obspy', 'uquake')
 
     def __init__(self, obspy_obj=None, **kwargs):
-        if obspy_obj:
-            super().__init__(**obspy_obj.__dict__)
-        else:
-            super().__init__(**kwargs)
+        _init_handler(self, obspy_obj, **kwargs)
 
     @property
     def site_code(self):
@@ -623,7 +620,7 @@ def _init_handler(self, obspy_obj, **kwargs):
         # extra_args
 
 
-def _init_from_obspy_object(mquake_obj, obspy_obj):
+def _init_from_obspy_object(uquake_obj, obspy_obj):
     """
     When initializing uquake object from obspy_obj
     checks attributes for lists of obspy objects and
@@ -633,7 +630,8 @@ def _init_from_obspy_object(mquake_obj, obspy_obj):
     class_equiv = {obsevent.Pick: Pick,
                    obsevent.Arrival: Arrival,
                    obsevent.Origin: Origin,
-                   obsevent.Magnitude: Magnitude}
+                   obsevent.Magnitude: Magnitude,
+                   obsevent.WaveformStreamID: WaveformStreamID}
 
     for key, val in obspy_obj.__dict__.items():
         if type(val) == list:
@@ -644,9 +642,9 @@ def _init_from_obspy_object(mquake_obj, obspy_obj):
                     out.append(class_equiv[itype](item))
                 else:
                     out.append(item)
-            mquake_obj.__setattr__(key, out)
+            uquake_obj.__setattr__(key, out)
         else:
-            mquake_obj.__setattr__(key, val)
+            uquake_obj.__setattr__(key, val)
 
 
 def _set_attr_handler(self, name, value, namespace='UQUAKE'):
