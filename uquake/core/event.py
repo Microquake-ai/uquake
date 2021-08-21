@@ -644,7 +644,7 @@ def _init_from_obspy_object(uquake_obj, obspy_obj):
                     out.append(item)
             uquake_obj.__setattr__(key, out)
         itype = type(val)
-        if itype in class_equiv:
+        elif itype in class_equiv:
             uquake_obj.__setattr__(key, class_equiv[itype](val))
         else:
             uquake_obj.__setattr__(key, val)
@@ -728,6 +728,8 @@ def isfloat(value):
 
 def pop_keys_matching(dict_in, keys):
     # Move keys from dict_in to dict_out
+    from ipdb import set_trace
+    set_trace()
     dict_out = {}
     for key in keys:
         if key in dict_in:
