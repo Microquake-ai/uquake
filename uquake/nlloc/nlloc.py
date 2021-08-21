@@ -716,7 +716,6 @@ class Observations:
                                                f'{location_code:02d}',
                                                channel_code=channel_code)
 
-                kaboum
                 pk = Pick(site=site, time=time,
                           phase_hint=phase, waveform_id=waveform_id,
                           onset='impulsive', evaluation_mode='automatic',
