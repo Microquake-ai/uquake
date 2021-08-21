@@ -635,7 +635,10 @@ def _init_from_obspy_object(uquake_obj, obspy_obj):
 
     for key, val in obspy_obj.__dict__.items():
         itype = type(val)
-        if itype == list:
+        if itype in class_equiv:
+            uquake_obj.__setattr__(key, class_equiv[itype](val))
+
+        elif itype == list:
             out = []
             for item in val:
                 itype = type(item)
@@ -644,9 +647,6 @@ def _init_from_obspy_object(uquake_obj, obspy_obj):
                 else:
                     out.append(item)
             uquake_obj.__setattr__(key, out)
-
-        elif itype in class_equiv:
-            uquake_obj.__setattr__(key, class_equiv[itype](val))
         else:
             uquake_obj.__setattr__(key, val)
 
@@ -664,7 +664,8 @@ def _set_attr_handler(self, name, value, namespace='UQUAKE'):
 
     #  use obspy default setattr for default keys
     if name in self.defaults.keys():
-        super(type(self), self).__setattr__(name, value)
+        self.__dict__[name] = value
+        # super(type(self), self).__setattr__(name, value)
     elif name in self.extra_keys:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -682,7 +683,7 @@ def _set_attr_handler(self, name, value, namespace='UQUAKE'):
             self['extra'] = {}
         for key, adict in value.items():
             if key in self.extra_keys:
-                self.__setattr__(key, parse_string_val(adict.value))
+                self.__dict__[key] = parse_string_val(adict.value)
             else:
                 self['extra'][key] = adict
     else:
@@ -729,8 +730,6 @@ def isfloat(value):
 
 def pop_keys_matching(dict_in, keys):
     # Move keys from dict_in to dict_out
-    from ipdb import set_trace
-    set_trace()
     dict_out = {}
     for key in keys:
         if key in dict_in:

@@ -22,6 +22,7 @@ h5py = "^3.2.1"
 tqdm = "^4.59.0"
 
 [tool.poetry.dev-dependencies]
+ipdb = "^0.13.9"
 
 [tool.poetry.plugins] # Optional super table
 [tool.poetry.plugins."uquake.io.waveform"]
