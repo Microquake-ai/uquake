@@ -687,8 +687,9 @@ class Observations:
 
     @classmethod
     def generate_random_observations_in_grid(cls, tt_grids:
-    uquake.grid.nlloc.TravelTimeEnsemble,
-                                             n_observations=1):
+    uquake.grid.nlloc.TravelTimeEnsemble, network_code='TN',
+                                             station_code='STN',
+                                             channel_code='GPX'):
         """
 
         :param tt_grids: a velocity grid
@@ -705,15 +706,23 @@ class Observations:
         travel_times = tt_grids.travel_time(e_loc)
 
         picks = []
+        location_code = 0
         for phase in travel_times.keys():
             for site in travel_times[phase].keys():
-                waveform_id = WaveformStreamID(network_code='TN',
-                                               station_code='STN',
-                                               channel_code='GPX')
-                pk = Pick(site=site, time=travel_times[phase][site],
+                time = UTCDateTime.now() + travel_times[phase][site]
+                waveform_id = WaveformStreamID(network_code=network_code,
+                                               station_code=station_code,
+                                               location_code=
+                                               f'{location_code:02d}',
+                                               channel_code=channel_code)
+
+                kaboum
+                pk = Pick(site=site, time=time,
                           phase_hint=phase, waveform_id=waveform_id,
-                          onset='impulsive')
+                          onset='impulsive', evaluation_mode='automatic',
+                          evaluation_status='preliminary')
                 picks.append(pk)
+                location_code += 1
 
         return cls(picks)
 
