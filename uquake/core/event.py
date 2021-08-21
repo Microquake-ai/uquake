@@ -634,7 +634,8 @@ def _init_from_obspy_object(uquake_obj, obspy_obj):
                    obsevent.WaveformStreamID: WaveformStreamID}
 
     for key, val in obspy_obj.__dict__.items():
-        if type(val) == list:
+        itype = type(val)
+        if itype == list:
             out = []
             for item in val:
                 itype = type(item)
@@ -643,7 +644,7 @@ def _init_from_obspy_object(uquake_obj, obspy_obj):
                 else:
                     out.append(item)
             uquake_obj.__setattr__(key, out)
-        itype = type(val)
+
         elif itype in class_equiv:
             uquake_obj.__setattr__(key, class_equiv[itype](val))
         else:
