@@ -35,9 +35,11 @@ from obspy.clients.nrl import NRL
 from .logging import logger
 from uquake import __package_name__ as ns
 
-nrl = NRL()
-
 import pandas as pd
+# from pyproj import Proj
+import utm
+
+nrl = NRL()
 
 
 def geophone_response(resonance_frequency, gain, damping=0.707,
@@ -108,7 +110,8 @@ class Inventory(inventory.Inventory):
     #     super().__init__(self, *args, **kwargs)
 
     @classmethod
-    def from_obspy_inventory_object(cls, obspy_inventory):
+    def from_obspy_inventory_object(cls, obspy_inventory,
+                                    xy_from_lat_lon=False):
 
         source = ns  # Network ID of the institution sending
         # the message.
@@ -118,6 +121,34 @@ class Inventory(inventory.Inventory):
 
             for station in network.stations:
                 stations.append(Station.from_obspy_station(station))
+                if xy_from_lat_lon:
+                    if ((station.latitude is not None) and
+                            (station.longitude is not None)):
+
+                        (x, y, _, _) = utm.from_latlon(station.latitude,
+                                                       station.longitude)
+
+                        station.x = x
+                        station.y = y
+
+                    else:
+                        logger.warning(f'Latitude or Longitude are not'
+                                       f'defined for station {station.code}.')
+
+                for channel in station.channels:
+                    if xy_from_lat_lon:
+                        if ((channel.latitude is not None) and
+                                (channel.longitude is not None)):
+                            (x, y, _, _) = utm.from_latlon(channel.latitude,
+                                                           channel.longitude)
+
+                            channel.x = x
+                            channel.y = y
+
+                        logger.warning(f'Latitude or Longitude are not'
+                                       f'defined for station {station} '
+                                       f'channel {channel.code}.')
+
             network.stations = stations
 
         return Inventory([network], source)
@@ -337,8 +368,7 @@ class Station(inventory.Station):
     def loc(self):
         if self.extra:
             if self.extra.get('x', None) and self.extra.get(
-                    'y', None) and self.extra.get(
-                'z', None):
+                    'y', None) and self.extra.get('z', None):
                 return np.array([self.x, self.y, self.z])
             else:
                 raise AttributeError
@@ -808,8 +838,20 @@ def load_from_excel(file_name) -> Inventory:
     return inventory
 
 
-def read_inventory(path_or_file_object, format='STATIONXML', *args, **kwargs) \
+def read_inventory(path_or_file_object, format='STATIONXML',
+                   xy_from_lat_lon=False, *args, **kwargs) \
         -> Inventory:
+    """
+    Read inventory file
+    :param path_or_file_object: the path to the inventory file or a file object
+    :param format: the format
+    :param xy_from_lon_lat: if True convert populate the XY field by converting
+    the latitude and longitude to UTM
+    :param args: see obspy.core.inventory.read_inventory for more information
+    :param kwargs: see obspy.core.inventory.read_inventory for more information
+    :return: an inventory object
+    :rtype: ~uquake.core.inventory.Inventory
+    """
     if type(path_or_file_object) is Path:
         path_or_file_object = str(path_or_file_object)
 
@@ -817,7 +859,10 @@ def read_inventory(path_or_file_object, format='STATIONXML', *args, **kwargs) \
                                          format=format,
                                          *args, **kwargs)
 
-    return Inventory.from_obspy_inventory_object(obspy_inv)
+    return Inventory.from_obspy_inventory_object(obspy_inv,
+                    xy_from_lat_lon=xy_from_lat_lon)
+
+
 
 
 read_inventory.__doc__ = inventory.read_inventory.__doc__.replace(
