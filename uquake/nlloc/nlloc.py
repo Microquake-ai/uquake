@@ -700,7 +700,7 @@ class Observations:
 
         from uquake.core.event import Pick, WaveformStreamID
 
-        if not e_loc:
+        if e_loc is None:
             e_loc = tt_grids[0].generate_random_points_in_grid()
 
         travel_times = tt_grids.travel_time(e_loc)
