@@ -1197,21 +1197,20 @@ def read_scatter_file(filename):
     :return: a numpy array of the points in the scatter file
     """
 
-    f = open(filename, 'rb')
+    with open(filename, 'rb') as f:
+        n_samples = unpack('i', f.read(4))[0]
+        unpack('f', f.read(4))
+        unpack('f', f.read(4))
+        unpack('f', f.read(4))
 
-    n_samples = unpack('i', f.read(4))[0]
-    unpack('f', f.read(4))
-    unpack('f', f.read(4))
-    unpack('f', f.read(4))
+        points = []
 
-    points = []
+        for k in range(0, n_samples):
+            x = unpack('f', f.read(4))[0] * 1000
+            y = unpack('f', f.read(4))[0] * 1000
+            z = unpack('f', f.read(4))[0] * 1000
+            pdf = unpack('f', f.read(4))[0]
 
-    for k in range(0, n_samples):
-        x = unpack('f', f.read(4))[0] * 1000
-        y = unpack('f', f.read(4))[0] * 1000
-        z = unpack('f', f.read(4))[0] * 1000
-        pdf = unpack('f', f.read(4))[0]
-
-        points.append([x, y, z, pdf])
+            points.append([x, y, z, pdf])
 
     return np.array(points)
