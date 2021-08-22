@@ -30,6 +30,8 @@ from ..core.event import (Catalog)
 from uuid import uuid4
 from pathlib import Path
 
+test_station_code = 'STN'
+
 
 def validate(value, choices):
     if value not in choices:
@@ -686,18 +688,11 @@ class Observations:
                    s_pick_error=s_pick_error)
 
     @classmethod
-    def generate_random_observations_in_grid(cls, tt_grids:
-    uquake.grid.nlloc.TravelTimeEnsemble, network_code='TN',
-                                             station_code='STN',
-                                             channel_code='GPX'):
+    def generate_random_observations_in_grid(cls, tt_grids):
         """
 
         :param tt_grids: a velocity grid
-        :param tt_grids: uquake.grid.nlloc.TravelTimeEnsemble
-        :param n_observations: number of observations to generate
-        :type n_observations: int
-        :return: observations
-        :rtype: uquake.nlloc.nlloc.Observations
+        :param tt_grids: ~uquake.grid.nlloc.TravelTimeEnsemble
         """
 
         from uquake.core.event import Pick, WaveformStreamID
@@ -710,11 +705,10 @@ class Observations:
         for phase in travel_times.keys():
             for site in travel_times[phase].keys():
                 time = UTCDateTime.now() + travel_times[phase][site]
-                waveform_id = WaveformStreamID(network_code=network_code,
-                                               station_code=station_code,
+                waveform_id = WaveformStreamID(station_code=test_station_code,
                                                location_code=
                                                f'{location_code:02d}',
-                                               channel_code=channel_code)
+                                               channel_code='BHZ')
 
                 pk = Pick(site=site, time=time,
                           phase_hint=phase, waveform_id=waveform_id,
@@ -898,10 +892,10 @@ class Srces:
         """
 
         srces = []
-        label_root = 'src'
+        label_root = test_station_code
         for i, point in enumerate(gd.generate_random_points_in_grid(
                 n_points=n_srces)):
-            label = f'{label_root}_{i}'
+            label = f'{label_root}{i:02d}'
             srces.append({'label': label,
                           'x': point[0],
                           'y': point[1],
