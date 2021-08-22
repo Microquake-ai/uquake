@@ -688,16 +688,21 @@ class Observations:
                    s_pick_error=s_pick_error)
 
     @classmethod
-    def generate_random_observations_in_grid(cls, tt_grids):
+    def generate_observations_event_location(cls, tt_grids, e_loc=None):
         """
 
         :param tt_grids: a velocity grid
         :param tt_grids: ~uquake.grid.nlloc.TravelTimeEnsemble
+        :param e_loc: event location (default None), if not provided, a
+
+        :type
         """
 
         from uquake.core.event import Pick, WaveformStreamID
 
-        e_loc = tt_grids[0].generate_random_points_in_grid()
+        if not e_loc:
+            e_loc = tt_grids[0].generate_random_points_in_grid()
+
         travel_times = tt_grids.travel_time(e_loc)
 
         picks = []
