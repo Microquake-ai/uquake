@@ -839,8 +839,7 @@ def load_from_excel(file_name) -> Inventory:
 
 
 def read_inventory(path_or_file_object, format='STATIONXML',
-                   xy_from_lat_lon=False, *args, **kwargs) \
-        -> Inventory:
+                   xy_from_lat_lon=False, *args, **kwargs) -> Inventory:
     """
     Read inventory file
     :param path_or_file_object: the path to the inventory file or a file object
@@ -855,14 +854,14 @@ def read_inventory(path_or_file_object, format='STATIONXML',
     if type(path_or_file_object) is Path:
         path_or_file_object = str(path_or_file_object)
 
+    del kwargs['xy_from_lat_lon']
+
     obspy_inv = inventory.read_inventory(path_or_file_object,
                                          format=format,
                                          *args, **kwargs)
 
     return Inventory.from_obspy_inventory_object(obspy_inv,
                     xy_from_lat_lon=xy_from_lat_lon)
-
-
 
 
 read_inventory.__doc__ = inventory.read_inventory.__doc__.replace(
