@@ -706,7 +706,8 @@ class Observations:
             for site in travel_times[phase].keys():
                 time = UTCDateTime.now() + travel_times[phase][site]
                 waveform_id = WaveformStreamID(station_code=site[:-2],
-                                               location_code=site[-2:])
+                                               location_code=site[-2:],
+                                               channel_code='BHZ')
 
                 pk = Pick(site=site, time=time,
                           phase_hint=phase, waveform_id=waveform_id,
