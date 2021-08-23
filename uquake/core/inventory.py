@@ -120,20 +120,8 @@ class Inventory(inventory.Inventory):
             stations = []
 
             for station in network.stations:
-                stations.append(Station.from_obspy_station(station))
-                if xy_from_lat_lon:
-                    if ((station.latitude is not None) and
-                            (station.longitude is not None)):
-
-                        (x, y, _, _) = utm.from_latlon(station.latitude,
-                                                       station.longitude)
-
-                        station.x = x
-                        station.y = y
-
-                    else:
-                        logger.warning(f'Latitude or Longitude are not'
-                                       f'defined for station {station.code}.')
+                stations.append(Station.from_obspy_station(station,
+                                                           xy_from_lat_lon))
 
                 for channel in station.channels:
                     if xy_from_lat_lon:
@@ -144,10 +132,11 @@ class Inventory(inventory.Inventory):
 
                             channel.x = x
                             channel.y = y
-
-                        logger.warning(f'Latitude or Longitude are not'
-                                       f'defined for station {station} '
-                                       f'channel {channel.code}.')
+                        else:
+                            logger.warning(f'Latitude or Longitude are not'
+                                           f'defined for station '
+                                           f'{station.code} '
+                                           f'channel {channel.code}.')
 
             network.stations = stations
 
@@ -232,7 +221,7 @@ class Station(inventory.Station):
     #     _set_attr_handler(self, name, value)
 
     @classmethod
-    def from_obspy_station(cls, obspy_station):
+    def from_obspy_station(cls, obspy_station, xy_from_lat_lon=False):
         #     cls(*params) is same as calling Station(*params):
 
         stn = cls(obspy_station.code, obspy_station.latitude,
@@ -243,10 +232,22 @@ class Station(inventory.Station):
             except Exception as e:
                 logger.error(e)
 
+        if xy_from_lat_lon:
+            if (stn.latitude is not None) and (stn.longitude is not None):
+
+                (stn.x, stn.y, _, _) = utm.from_latlon(stn.latitude,
+                                                       stn.longitude)
+
+            else:
+                logger.warning(f'Latitude or Longitude are not'
+                               f'defined for station {station.code}.')
+
         stn.channels = []
 
         for cha in obspy_station.channels:
-            stn.channels.append(Channel.from_obspy_channel(cha))
+            stn.channels.append(Channel.from_obspy_channel(cha,
+                                                           xy_from_lat_lon=
+                                                           xy_from_lat_lon))
 
         return stn
 
@@ -542,7 +543,7 @@ class Channel(inventory.Channel):
             self.extra[key] = {'value': 0, 'namespace': ns}
 
     @classmethod
-    def from_obspy_channel(cls, obspy_channel):
+    def from_obspy_channel(cls, obspy_channel, xy_from_lat_lon=False):
 
         cha = cls(obspy_channel.code, obspy_channel.location_code,
                   obspy_channel.latitude, obspy_channel.longitude,
@@ -555,6 +556,12 @@ class Channel(inventory.Channel):
 
         for key in obspy_channel.__dict__.keys():
             cha.__dict__[key] = obspy_channel.__dict__[key]
+
+        if xy_from_lat_lon:
+            if (cha.latitude is not None) and (cha.longitude is not None):
+
+                (cha.x, cha.y, _, _) = utm.from_latlon(cha.latitude,
+                                                       cha.longitude)
 
         return cha
 
@@ -854,7 +861,7 @@ def read_inventory(path_or_file_object, format='STATIONXML',
     if type(path_or_file_object) is Path:
         path_or_file_object = str(path_or_file_object)
 
-    del kwargs['xy_from_lat_lon']
+    # del kwargs['xy_from_lat_lon']
 
     obspy_inv = inventory.read_inventory(path_or_file_object,
                                          format=format,
