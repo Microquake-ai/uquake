@@ -116,31 +116,14 @@ class Inventory(inventory.Inventory):
         source = ns  # Network ID of the institution sending
         # the message.
 
+        inv = cls([], ns)
+        inv.networks = []
         for network in obspy_inventory.networks:
-            stations = []
+            inv.networks.append(Network.from_obspy_network(network,
+                                                       xy_from_lat_lon=
+                                                       xy_from_lat_lon))
 
-            for station in network.stations:
-                stations.append(Station.from_obspy_station(station,
-                                                           xy_from_lat_lon))
-
-                for channel in station.channels:
-                    if xy_from_lat_lon:
-                        if ((channel.latitude is not None) and
-                                (channel.longitude is not None)):
-                            (x, y, _, _) = utm.from_latlon(channel.latitude,
-                                                           channel.longitude)
-
-                            channel.x = x
-                            channel.y = y
-                        else:
-                            logger.warning(f'Latitude or Longitude are not'
-                                           f'defined for station '
-                                           f'{station.code} '
-                                           f'channel {channel.code}.')
-
-            network.stations = stations
-
-        return Inventory([network], source)
+        return inv
 
     def write(self, path_or_file_obj, format='stationxml', *args, **kwargs):
         return super().write(path_or_file_obj, format, nsmap={ns: ns},
@@ -205,6 +188,83 @@ class Inventory(inventory.Inventory):
         return np.sort(sites)
 
 
+class Network(inventory.Network):
+    __doc__ = inventory.Network.__doc__.replace('obspy', ns)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @classmethod
+    def from_obspy_network(cls, obspy_network, xy_from_lat_lon=False):
+
+        net = cls(obspy_network.code)
+
+        for key in obspy_network.__dict__.keys():
+            if 'stations' in key:
+                net.__dict__[key] = []
+            else:
+                try:
+                    net.__dict__[key] = obspy_network.__dict__[key]
+                except Exception as e:
+                    logger.error(e)
+
+        for i, station in enumerate(obspy_network.stations):
+            net.stations.append(Station.from_obspy_station(station,
+                                                           xy_from_lat_lon))
+
+        return net
+
+    def get_grid_extent(self, padding_fraction=0.1, ignore_stations=[],
+                        ignore_sites=[]):
+        """
+        return the extents of a grid encompassing all sensors comprised in the
+        network
+        :param padding_fraction: buffer to add around the stations
+        :param ignore_stations: list of stations to exclude from the
+        calculation of the grid extents
+        :param ignore_sites: list of site to exclude from the calculation of
+        the grid extents
+        :type ignore_stations: list
+        :return: return the lower and upper corners
+        :rtype: dict
+        """
+
+        xs = []
+        ys = []
+        zs = []
+
+        coordinates = []
+        for station in self.stations:
+            if station.code in ignore_stations:
+                continue
+            for site in station.sites:
+                if site.code in ignore_sites:
+                    continue
+                coordinates.append(site.loc)
+
+        min = np.min(coordinates, axis=0)
+        max = np.max(coordinates, axis=0)
+        center = (max - min) / 2
+        d = (max - min * (1 + padding_fraction))
+
+        c1 = center - d / 2
+        c2 = center + d / 2
+
+        return c1, c2
+
+    @property
+    def site_coordinates(self):
+        coordinates = []
+        for station in self.stations:
+            coordinates.append(station.site_coordinates)
+
+        return np.array(coordinates)
+
+    @property
+    def station_coordinates(self):
+        return np.array([station.loc for station in self.stations])
+
+
 class Station(inventory.Station):
     __doc__ = inventory.Station.__doc__.replace('obspy', ns)
 
@@ -237,15 +297,16 @@ class Station(inventory.Station):
 
                 (stn.x, stn.y, _, _) = utm.from_latlon(stn.latitude,
                                                        stn.longitude)
+                stn.z = obspy_station.elevation
 
             else:
                 logger.warning(f'Latitude or Longitude are not'
-                               f'defined for station {station.code}.')
+                               f'defined for station {obspy_station.code}.')
 
         stn.channels = []
 
-        for cha in obspy_station.channels:
-            stn.channels.append(Channel.from_obspy_channel(cha,
+        for channel in obspy_station.channels:
+            stn.channels.append(Channel.from_obspy_channel(channel,
                                                            xy_from_lat_lon=
                                                            xy_from_lat_lon))
 
@@ -392,6 +453,13 @@ class Station(inventory.Station):
             sites.append(Site(self, channel_dict[key]))
 
         return sites
+
+    @property
+    def site_coordinates(self):
+        coordinates = []
+        for site in self.sites:
+            coordinates.append(site.loc)
+        return np.array(coordinates)
 
     def __str__(self):
         contents = self.get_contents()
@@ -562,6 +630,7 @@ class Channel(inventory.Channel):
 
                 (cha.x, cha.y, _, _) = utm.from_latlon(cha.latitude,
                                                        cha.longitude)
+                cha.z = cha.elevation
 
         return cha
 
