@@ -960,17 +960,16 @@ class VelocityGridEnsemble:
                                                sub_grid_resolution,
                                                *args, **kwargs)
 
-        else:
-            travel_time_grids = []
-            for seed, seed_label in zip(seeds, seed_labels):
-                for key in self.keys():
-                    tg = self[key].to_time(seed, seed_label,
-                                           sub_grid_resolution
-                                           =sub_grid_resolution,
-                                           *args, **kwargs)
-                    travel_time_grids.append(tg)
+        travel_time_grids = []
+        for seed, seed_label in zip(seeds, seed_labels):
+            for key in self.keys():
+                tg = self[key].to_time(seed, seed_label,
+                                       sub_grid_resolution
+                                       =sub_grid_resolution,
+                                       *args, **kwargs)
+                travel_time_grids.append(tg)
 
-            return TravelTimeEnsemble(travel_time_grids)
+        return TravelTimeEnsemble(travel_time_grids)
 
 
 class SeededGrid(NLLocGrid):
