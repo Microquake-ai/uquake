@@ -705,7 +705,7 @@ class VelocityGrid3D(NLLocGrid):
         :param seed: numpy array location of the seed or origin of useis wave
          in model coordinates
         (usually location of a station or an event)
-        :type seed: numpy.array
+        :type seed: numpy.array or list
         :param seed_label: seed label (name of station)
         :type seed_label: basestring
         :param sub_grid_resolution: resolution of the grid around the seed.
@@ -718,6 +718,9 @@ class VelocityGrid3D(NLLocGrid):
         :rtype: TTGrid
         """
 
+        if isinstance(seed, list):
+            seed = np.array(seed)
+
         if not self.in_grid(seed):
             logger.warning(f'{seed_label} is outside the grid. '
                            f'The travel time grid will not be calculated')
@@ -729,12 +732,16 @@ class VelocityGrid3D(NLLocGrid):
 
         sub_grid_spacing = spacing * sub_grid_resolution
 
-        extent = ((4 * spacing / sub_grid_spacing) * 1.2 \
-                  + sub_grid_spacing)
+        # extent = ((4 * sub_grid_spacing) * 1.2 + sub_grid_spacing)
 
-        x_i = np.arange(0, extent[0])
-        y_i = np.arange(0, extent[1])
-        z_i = np.arange(0, extent[2])
+        n_pts_inner_grid = (4 * spacing / sub_grid_spacing * 1.2).astype(int)
+        for i in range(0, len(n_pts_inner_grid)):
+            if n_pts_inner_grid[i] % 2:
+                n_pts_inner_grid[i] += 1
+
+        x_i = np.arange(0, n_pts_inner_grid[0]) * sub_grid_spacing[0]
+        y_i = np.arange(0, n_pts_inner_grid[1]) * sub_grid_spacing[1]
+        z_i = np.arange(0, n_pts_inner_grid[2]) * sub_grid_spacing[2]
 
         x_i = x_i - np.mean(x_i) + seed[0]
         y_i = y_i - np.mean(y_i) + seed[1]
@@ -755,7 +762,7 @@ class VelocityGrid3D(NLLocGrid):
 
         tt_tmp_grid = TTGrid(self.network_code, tt_tmp, [x_i[0], y_i[0],
                                                          z_i[0]],
-                             [sub_grid_spacing] * 3, seed, seed_label,
+                             sub_grid_spacing, seed, seed_label,
                              phase=self.phase, float_type=self.float_type,
                              model_id=self.model_id,
                              grid_units=self.grid_units)
