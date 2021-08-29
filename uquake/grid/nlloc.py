@@ -698,19 +698,23 @@ class VelocityGrid3D(NLLocGrid):
                          float_type=self.float_type,
                          model_id=self.model_id)
 
-    def to_time(self, seed, seed_label, sub_grid_resolution=1,
+    def to_time(self, seed, seed_label, sub_grid_resolution=0.1,
                 *args, **kwargs):
         """
         Eikonal solver based on scikit fast marching solver
         :param seed: numpy array location of the seed or origin of useis wave
          in model coordinates
         (usually location of a station or an event)
-        :type seed: numpy array
+        :type seed: numpy.array
         :param seed_label: seed label (name of station)
         :type seed_label: basestring
         :param sub_grid_resolution: resolution of the grid around the seed.
         Propagating the wavefront on a denser grid around the seed,
-        significantly improves the travel time accuracy.
+        significantly improves the travel time accuracy. The value represents
+        a fraction of the grid resolution. For instance, assuming a grid with
+        spacing of 10m, if the sub_grid_resolution is set to 0.1, the
+        resolution around the grid will be 1m.
+
         :rtype: TTGrid
         """
 
@@ -723,8 +727,10 @@ class VelocityGrid3D(NLLocGrid):
         shape = self.shape
         spacing = self.spacing
 
-        extent = (4 * spacing / sub_grid_resolution) * 1.2 \
-                 + sub_grid_resolution
+        sub_grid_spacing = spacing * sub_grid_resolution
+
+        extent = ((4 * spacing / sub_grid_spacing) * 1.2 \
+                  + sub_grid_spacing)
 
         x_i = np.arange(0, extent[0])
         y_i = np.arange(0, extent[1])
@@ -745,11 +751,11 @@ class VelocityGrid3D(NLLocGrid):
         phi[int(np.floor(len(x_i) / 2)), int(np.floor(len(y_i) / 2)),
             int(np.floor(len(z_i) / 2))] = 0
 
-        tt_tmp = skfmm.travel_time(phi, vel, dx=sub_grid_resolution)
+        tt_tmp = skfmm.travel_time(phi, vel, dx=sub_grid_spacing)
 
         tt_tmp_grid = TTGrid(self.network_code, tt_tmp, [x_i[0], y_i[0],
                                                          z_i[0]],
-                             [sub_grid_resolution] * 3, seed, seed_label,
+                             [sub_grid_spacing] * 3, seed, seed_label,
                              phase=self.phase, float_type=self.float_type,
                              model_id=self.model_id,
                              grid_units=self.grid_units)
@@ -808,7 +814,7 @@ class VelocityGrid3D(NLLocGrid):
     def to_time_multi_threaded(self, seeds, seed_labels, cpu_utilisation=0.9,
                                *args, **kwargs):
         """
-        Multithreaded version of the Eikonal solver
+        Multi-threaded version of the Eikonal solver
         based on scikit fast marching solver
         :param seeds: array of seed
         :type seeds: np.array
@@ -930,6 +936,42 @@ class VelocityGridEnsemble:
 
         return tt_grid_ensemble
 
+    def to_time(self, seeds, seed_labels, multi_threaded=False,
+                sub_grid_resolution=0.1, *args, **kwargs):
+        """
+        Convert the velocity grids to travel-time
+        :param seeds: a list of seeds usually represents site location
+        :type seeds: numpy.array
+        :param seed_labels: a list of seed labels, usually represents site
+        codes
+        :type seed_labels: list
+        :param multi_threaded: if true, the travel-time grid will used
+        multithreading
+        :param sub_grid_resolution: sub grid resolution for near source
+        solution in fraction of grid resolution
+        :param args:
+        :param kwargs:
+        :return: Travel time grid ensemble
+        :rtype: ~uquake.grid.nlloc.TTGridEnsemble
+        """
+        if multi_threaded:
+            return self.to_time_multi_threaded(seeds, seed_labels,
+                                               sub_grid_resolution=
+                                               sub_grid_resolution,
+                                               *args, **kwargs)
+
+        else:
+            travel_time_grids = []
+            for seed, seed_label in zip(seeds, seed_labels):
+                for key in self.keys():
+                    tg = self[key].to_time(seed, seed_label,
+                                           sub_grid_resolution
+                                           =sub_grid_resolution,
+                                           *args, **kwargs)
+                    travel_time_grids.append(tg)
+
+            return TravelTimeEnsemble(travel_time_grids)
+
 
 class SeededGrid(NLLocGrid):
     """
@@ -991,7 +1033,7 @@ class SeededGrid(NLLocGrid):
 class TTGrid(SeededGrid):
     def __init__(self, network_code, data_or_dims, origin, spacing, seed,
                  seed_label, phase='P', value=0, float_type="FLOAT",
-                 model_id=None, grid_units=__default_grid_units__):
+                 model_id=None, grid_units='second'):
         super().__init__(network_code, data_or_dims, origin, spacing, seed,
                          seed_label, phase=phase, value=value,
                          grid_type='TIME', float_type=float_type,
@@ -1379,13 +1421,12 @@ class TravelTimeEnsemble:
 class AngleGrid(SeededGrid):
     def __init__(self, network_code, data_or_dims, origin, spacing, seed,
                  seed_label, angle_type, phase='P', value=0,
-                 float_type="FLOAT", model_id=None,
-                 grid_units=__default_grid_units__):
+                 float_type="FLOAT", model_id=None, grid_units='degrees'):
         self.angle_type = angle_type
         super().__init__(network_code, data_or_dims, origin, spacing, seed,
                          seed_label, phase=phase, value=value,
                          grid_type='ANGLE', float_type=float_type,
-                         model_id=model_id)
+                         model_id=model_id, grid_units=grid_units)
 
     def write(self, path='.'):
         pass
