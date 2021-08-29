@@ -930,6 +930,30 @@ class VelocityGridEnsemble:
 
         return tt_grid_ensemble
 
+    def to_time(self, seeds, seed_labels, multithreading=False, *args, **kwargs):
+        """
+        create time grids from velocity grid
+        :param seeds: origin point, or the sensor location
+        :type seeds: numpy.array nx3 array
+        :param seed_labels: list of seed labels
+        :type seed_labels: list
+        :param multithreading: using multithreading if True (default: False)
+        :type multithreading: bool
+        :return: ~uquake.grid.nlloc.TTGridEnsemble
+        """
+
+        if multithreading:
+            tt_grid_ensemble = self.to_time_multi_threaded(seeds, seed_labels,
+                                                           *args, **kwargs)
+        else:
+            tt_grid_ensemble = TravelTimeEnsemble([])
+            for seed, seed_label in zip(seeds, seed_labels):
+                for key in self.keys():
+                    tt_grid_ensemble += self[key].to_time(seed, seed_label)
+
+        return tt_grid_ensemble
+
+
 
 class SeededGrid(NLLocGrid):
     """
