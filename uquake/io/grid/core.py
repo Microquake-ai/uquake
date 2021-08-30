@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # ------------------------------------------------------------------
-# Filename: grid.py
+# Filename: nlloc.py
 #  Purpose: plugin for reading and writing GridData object into various format 
 #   Author: uquake development team
 #    Email: devs@uquake.org

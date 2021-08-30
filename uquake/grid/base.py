@@ -129,9 +129,9 @@ class Grid:
         """
         create a grid from origin, corner and spacing
         :param origin: grid origin (e.g., lower left corner for 2D grid)
-        :type origin: tuple
+        :type origin: tuple or list or numpy.array
         :param corner: grid upper (e.g., upper right corner for 2D grid)
-        :type corner: tuple
+        :type corner: tuple or list or numpy.array
         :param spacing: spacing between the grid nodes
         :type spacing: float
         :param val: constant value with which to fill the grid
@@ -145,6 +145,22 @@ class Grid:
         data = np.ones(gshape) * val
         cls.__init__(data, spacing=spacing, origin=origin)
         cls.fill_homogeneous(val)
+        return cls
+
+    @classmethod
+    def from_ocd(cls, origin, corner, dimensions, val=0):
+        """
+        create a grid from origin, corner and dimensions
+        :param origin: grid origin (e.g., lower left corner for 2D grid)
+        :param corner: grid upper (e.g., upper right corner for 2D grid)
+        :param dimensions: grid dimensions
+        :param val: constant value with which to fill the grid
+        :return:
+        """
+
+        data = np.ones(dimensions) * val
+        spacing = (corner - origin) / (dimensions - 1)
+        cls.__init__(data, spacing, spacing=spacing, origin=origin)
         return cls
 
     def __repr__(self):

@@ -660,6 +660,18 @@ class VelocityGrid3D(NLLocGrid):
         return f'{network_code.upper()}.{phase.upper()}.mod'
 
     @classmethod
+    def from_ocd(cls, origin, corner, dimensions, val=0):
+        pass
+
+    @classmethod
+    def from_ocs(cls, origin, corner, spacing, val=0):
+        pass
+
+    @classmethod
+    def from_ocd(cls, origin, dimensions, spacing, val=0):
+        pass
+
+    @classmethod
     def from_layered_model(cls, layered_model, network_code, dims, origin,
                            spacing, **kwargs):
         """
