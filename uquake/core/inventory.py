@@ -38,6 +38,7 @@ from uquake import __package_name__ as ns
 import pandas as pd
 # from pyproj import Proj
 import utm
+from io import BytesIO
 
 nrl = NRL()
 
@@ -170,6 +171,12 @@ class Inventory(inventory.Inventory):
 
         else:
             return station_found
+
+    def to_bytes(self):
+
+        file_out = BytesIO()
+        self.write(file_out)
+        return file_out.getvalue()
 
     def __eq__(self, other):
         return np.all(self.sites == other.sites)
