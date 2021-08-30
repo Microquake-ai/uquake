@@ -16,6 +16,7 @@ Expansion of the obspy.core.event module
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+import io
 
 from obspy.core import inventory, AttribDict, UTCDateTime
 
@@ -125,6 +126,13 @@ class Inventory(inventory.Inventory):
                                                        xy_from_lat_lon))
 
         return inv
+
+    @staticmethod
+    def from_bytes(byte_string):
+        file_in = io.BytesIO(byte_string)
+        file_in.read()
+        file_in.seek(0)
+        return read_inventory(file_in)
 
     def write(self, path_or_file_obj, format='stationxml', *args, **kwargs):
         return super().write(path_or_file_obj, format, nsmap={ns: ns},
