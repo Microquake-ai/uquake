@@ -832,6 +832,18 @@ class GridTimeMode:
         return f'GTMODE {self.grid_mode} {self.angle_mode}'
 
 
+class Site:
+
+    def __init__(self, label, x, y, z, elev=None):
+        self.label = label
+        self.x = x
+        self.y = y
+        self.z = z
+        self.elev = elev
+        if elev is None:
+            self.elev = z
+
+
 class Srces:
 
     __valid_measurement_units__ = ['METERS', 'KILOMETERS']
@@ -845,8 +857,7 @@ class Srces:
 
         :Example:
 
-        >>> site = {'label': 'test', 'x': 1000, 'y': 1000, 'z': 1000,
-                      'elev': 0.0}
+        >>> site = Site(label='test', x=1000, y=1000, z=1000, elev=0.0)
         >>> sites = [site]
         >>> srces = Srces(srces)
 
@@ -865,16 +876,10 @@ class Srces:
         :type inventory: uquake.core.inventory.Inventory
         """
 
-        srces = []
+        sites = []
         for site in inventory.sites:
-            srce = {'label': site.code,
-                    'x': site.x,
-                    'y': site.y,
-                    'z': site.z,
-                    'elev': 0}
-            srces.append(srce)
-
-        return cls(srces)
+            sites.append(Site(site.code, site.x, site.y, site.z))
+        return cls(sites)
 
     @classmethod
     def generate_random_srces_in_grid(cls, gd, n_srces=1):
@@ -900,14 +905,11 @@ class Srces:
         for i, point in enumerate(gd.generate_random_points_in_grid(
                 n_points=n_srces)):
             label = f'{label_root}{i:02d}'
-            srces.append({'label': label,
-                          'x': point[0],
-                          'y': point[1],
-                          'z': point[2],
-                          'elev': 0})
+            site = Site(label, point[0], point[1], point[2])
+            srces.append(site)
         return cls(srces)
 
-    def add_site(self, label, x, y, z, elev=0, units='METERS'):
+    def add_site(self, label, x, y, z, elev=None, units='METERS'):
         """
         Add a single site to the source list
         :param label: site label
@@ -922,7 +924,7 @@ class Srces:
         in the units of measurements for site/source
         :type z: float
         :param elev: elevation above z grid position (positive UP) in
-        kilometers for site (Default = 0)
+        kilometers for site (Default = None)
         :type elev: float
         :param units: units of measurement used to express x, y, and z
         ( 'METERS' or 'KILOMETERS')
@@ -931,8 +933,7 @@ class Srces:
 
         validate(units.upper(), self.__valid_measurement_units__)
 
-        self.sites.append({'label': label, 'x': x, 'y': y, 'z': z,
-                           elev: 'elev'})
+        self.sites.append(Site(label, x, y, z, elev=elev))
 
         self.units = units.upper()
 
@@ -942,10 +943,10 @@ class Srces:
         for site in self.sites:
             # test if site name is shorter than 6 characters
 
-            line += f'GTSRCE {site["label"]} XYZ ' \
-                    f'{site["x"] / 1000:>15.6f} ' \
-                    f'{site["y"] / 1000:>15.6f} ' \
-                    f'{site["z"] / 1000:>15.6f} ' \
+            line += f'GTSRCE {site.label} XYZ ' \
+                    f'{site.x / 1000:>15.6f} ' \
+                    f'{site.y / 1000:>15.6f} ' \
+                    f'{site.z / 1000:>15.6f} ' \
                     f'0.00\n'
 
         return line
@@ -954,14 +955,14 @@ class Srces:
     def locs(self):
         seeds = []
         for site in self.sites:
-            seeds.append([site['x'], site['y'], site['z']])
+            seeds.append([site.x, site.y, site.z])
         return np.array(seeds)
 
     @property
     def labels(self):
         seed_labels = []
         for site in self.sites:
-            seed_labels.append(site['label'])
+            seed_labels.append(site.label)
 
         return np.array(seed_labels)
 
