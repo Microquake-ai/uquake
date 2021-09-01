@@ -1051,7 +1051,7 @@ class SeededGrid(NLLocGrid):
 class TTGrid(SeededGrid):
     def __init__(self, network_code, data_or_dims, origin, spacing, seed,
                  seed_label, phase='P', value=0, float_type="FLOAT",
-                 model_id=None, grid_units='second'):
+                 model_id=None, grid_units='METER'):
         super().__init__(network_code, data_or_dims, origin, spacing, seed,
                          seed_label, phase=phase, value=value,
                          grid_type='TIME', float_type=float_type,
