@@ -29,6 +29,7 @@ from ..core.event import (Catalog)
 
 from uuid import uuid4
 from pathlib import Path
+import json
 
 test_station_code = 'STN'
 
@@ -950,6 +951,26 @@ class Srces:
                     f'0.00\n'
 
         return line
+
+    @property
+    def json(self):
+        dict_out = vars(self)
+        for i, site in enumerate(dict_out['sites']):
+            dict_out['sites'][i] = vars(dict_out['sites'][i])
+        return json.dumps(dict_out)
+
+    @classmethod
+    def from_json(cls, json_obj):
+        obj = json.loads(json_obj)
+        sites = []
+        for key in obj.keys():
+            if key == 'sites':
+                for site_dict in obj[key]:
+                    sites.append(Site(**site_dict))
+
+        obj['sites'] = sites
+
+        cls.__init__(**obj)
 
     @property
     def locs(self):
