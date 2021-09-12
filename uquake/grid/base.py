@@ -467,15 +467,15 @@ class Grid:
 
     @property
     def shape(self):
-        return self.data.shape
+        return list(self.data.shape)
 
     @property
     def dims(self):
-        return self.data.shape
+        return self.shape
 
     @property
     def dimensions(self):
-        return self.data.shape
+        return self.shape
 
 
 def angles(travel_time_grid):

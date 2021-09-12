@@ -20,7 +20,6 @@ module to interact with the NLLoc
 from datetime import datetime
 from struct import unpack
 import numpy as np
-import uquake.grid.nlloc
 
 from obspy import UTCDateTime
 from ..core.inventory import Inventory
@@ -61,18 +60,24 @@ __valid_units__ = ['METER', 'KILOMETER']
 
 
 class Grid2Time:
-    def __init__(self, srces, grid_transform, base_directory, base_name,
+    # def __init__(self, srces, grid_transform, base_directory, base_name,
+    #              verbosity=1, random_seed=1000, p_wave=True, s_wave=True,
+    #              calculate_angles=True, model_directory='models',
+    #              grid_directory='grids'):
+
+    def __init__(self, inventory, base_directory, base_name,
                  verbosity=1, random_seed=1000, p_wave=True, s_wave=True,
                  calculate_angles=True, model_directory='models',
                  grid_directory='grids'):
+
         """
         Build the control file and run the Grid2Time program.
 
         Note that at this time the class does not support any geographic
         transformation
 
-        :param srces: inventory data
-        :type srces: Srces
+        :param inventory: inventory data
+        :type inventory: uquake.core.inventory.Inventory
         :param base_directory: the base directory of the project
         :type base_directory: str
         :param base_name: the network code
@@ -116,7 +121,7 @@ class Grid2Time:
         self.calculate_s_wave = s_wave
         self.calculate_angles = calculate_angles
 
-        if type(inventory) is not Inventory:
+        if isinstance(inventory, Inventory):
             raise TypeError('inventory must be '
                             '"uquake.core.inventory.Inventory" type')
         self.inventory = inventory
@@ -647,12 +652,18 @@ class LocationMethod:
         return line
 
 
+class SimpleArrival:
+    def __init__(self, time: UTCDateTime, site: str, phase: str,
+                 polarity: str):
+
+
+
 class Observations:
     def __init__(self, picks, p_pick_error=1e-3, s_pick_error=1e-3):
         """
 
-        :param picks: a list of pick object
-        :type picks: list of uquake.core.event.pick
+        :param picks: a list of Pick object
+        :type picks: list of uquake.core.event.Pick
         :param p_pick_error: p-wave picking error in second
         :param s_pick_error: s-wave picking error in second
         """
@@ -715,8 +726,7 @@ class Observations:
                                                location_code=site[-2:],
                                                channel_code='BHZ')
 
-                pk = Pick(site=site, time=time,
-                          phase_hint=phase, waveform_id=waveform_id,
+                pk = Pick(time=time, phase_hint=phase, waveform_id=waveform_id,
                           onset='impulsive', evaluation_mode='automatic',
                           evaluation_status='preliminary')
                 picks.append(pk)

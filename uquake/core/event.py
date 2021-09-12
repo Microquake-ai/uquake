@@ -32,6 +32,9 @@ import pickle
 from uquake.waveform.mag_utils import calc_static_stress_drop
 from .logging import logger
 from pathlib import Path
+from pydantic import BaseModel
+from typing import List, Optional
+import numpy typing as npt
 
 debug = False
 
@@ -446,6 +449,9 @@ class Pick(obsevent.Pick):
                     self.evaluation_status, self.resource_id)
         return string
 
+    def to_dict(self):
+        return vars(self)
+
     def get_sta(self):
         if self.waveform_id is not None:
             return self.waveform_id.station_code
@@ -796,7 +802,16 @@ class RayCollection:
         self.rays = self.rays + [item]
 
 
-class Ray:
+class Ray(BaseModel):
+
+    nodes: np.ndarray
+
+    @validator(nodes, pre=True)
+    @classmethod
+    def parse_nodes(cls, nodes):
+        return np.array(nodes)
+
+
 
     def __init__(self, nodes: list = [], site_code: str = None,
                  arrival_id: ResourceIdentifier = None,

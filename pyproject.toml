@@ -21,6 +21,7 @@ dynaconf = "^3.1.4"
 h5py = "^3.2.1"
 tqdm = "^4.59.0"
 utm = "^0.7.0"
+pydantic = "^1.8.2"
 
 [tool.poetry.dev-dependencies]
 ipdb = "^0.13.9"
