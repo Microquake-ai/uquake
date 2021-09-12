@@ -660,6 +660,18 @@ class VelocityGrid3D(NLLocGrid):
         return f'{network_code.upper()}.{phase.upper()}.mod'
 
     @classmethod
+    def from_ocd(cls, origin, corner, dimensions, val=0):
+        pass
+
+    @classmethod
+    def from_ocs(cls, origin, corner, spacing, val=0):
+        pass
+
+    @classmethod
+    def from_ocd(cls, origin, dimensions, spacing, val=0):
+        pass
+
+    @classmethod
     def from_layered_model(cls, layered_model, network_code, dims, origin,
                            spacing, **kwargs):
         """
@@ -698,21 +710,28 @@ class VelocityGrid3D(NLLocGrid):
                          float_type=self.float_type,
                          model_id=self.model_id)
 
-    def to_time(self, seed, seed_label, sub_grid_resolution=1,
+    def to_time(self, seed, seed_label, sub_grid_resolution=0.1,
                 *args, **kwargs):
         """
         Eikonal solver based on scikit fast marching solver
         :param seed: numpy array location of the seed or origin of useis wave
          in model coordinates
         (usually location of a station or an event)
-        :type seed: numpy array
+        :type seed: numpy.array or list
         :param seed_label: seed label (name of station)
         :type seed_label: basestring
         :param sub_grid_resolution: resolution of the grid around the seed.
         Propagating the wavefront on a denser grid around the seed,
-        significantly improves the travel time accuracy.
+        significantly improves the travel time accuracy. The value represents
+        a fraction of the grid resolution. For instance, assuming a grid with
+        spacing of 10m, if the sub_grid_resolution is set to 0.1, the
+        resolution around the grid will be 1m.
+
         :rtype: TTGrid
         """
+
+        if isinstance(seed, list):
+            seed = np.array(seed)
 
         if not self.in_grid(seed):
             logger.warning(f'{seed_label} is outside the grid. '
@@ -723,12 +742,18 @@ class VelocityGrid3D(NLLocGrid):
         shape = self.shape
         spacing = self.spacing
 
-        extent = (4 * spacing / sub_grid_resolution) * 1.2 \
-                 + sub_grid_resolution
+        sub_grid_spacing = spacing * sub_grid_resolution
 
-        x_i = np.arange(0, extent[0])
-        y_i = np.arange(0, extent[1])
-        z_i = np.arange(0, extent[2])
+        # extent = ((4 * sub_grid_spacing) * 1.2 + sub_grid_spacing)
+
+        n_pts_inner_grid = (4 * spacing / sub_grid_spacing * 1.2).astype(int)
+        for i in range(0, len(n_pts_inner_grid)):
+            if n_pts_inner_grid[i] % 2:
+                n_pts_inner_grid[i] += 1
+
+        x_i = np.arange(0, n_pts_inner_grid[0]) * sub_grid_spacing[0]
+        y_i = np.arange(0, n_pts_inner_grid[1]) * sub_grid_spacing[1]
+        z_i = np.arange(0, n_pts_inner_grid[2]) * sub_grid_spacing[2]
 
         x_i = x_i - np.mean(x_i) + seed[0]
         y_i = y_i - np.mean(y_i) + seed[1]
@@ -745,11 +770,11 @@ class VelocityGrid3D(NLLocGrid):
         phi[int(np.floor(len(x_i) / 2)), int(np.floor(len(y_i) / 2)),
             int(np.floor(len(z_i) / 2))] = 0
 
-        tt_tmp = skfmm.travel_time(phi, vel, dx=sub_grid_resolution)
+        tt_tmp = skfmm.travel_time(phi, vel, dx=sub_grid_spacing)
 
         tt_tmp_grid = TTGrid(self.network_code, tt_tmp, [x_i[0], y_i[0],
                                                          z_i[0]],
-                             [sub_grid_resolution] * 3, seed, seed_label,
+                             sub_grid_spacing, seed, seed_label,
                              phase=self.phase, float_type=self.float_type,
                              model_id=self.model_id,
                              grid_units=self.grid_units)
@@ -808,7 +833,7 @@ class VelocityGrid3D(NLLocGrid):
     def to_time_multi_threaded(self, seeds, seed_labels, cpu_utilisation=0.9,
                                *args, **kwargs):
         """
-        Multithreaded version of the Eikonal solver
+        Multi-threaded version of the Eikonal solver
         based on scikit fast marching solver
         :param seeds: array of seed
         :type seeds: np.array
@@ -930,30 +955,6 @@ class VelocityGridEnsemble:
 
         return tt_grid_ensemble
 
-    def to_time(self, seeds, seed_labels, multithreading=False, *args, **kwargs):
-        """
-        create time grids from velocity grid
-        :param seeds: origin point, or the sensor location
-        :type seeds: numpy.array nx3 array
-        :param seed_labels: list of seed labels
-        :type seed_labels: list
-        :param multithreading: using multithreading if True (default: False)
-        :type multithreading: bool
-        :return: ~uquake.grid.nlloc.TTGridEnsemble
-        """
-
-        if multithreading:
-            tt_grid_ensemble = self.to_time_multi_threaded(seeds, seed_labels,
-                                                           *args, **kwargs)
-        else:
-            tt_grid_ensemble = TravelTimeEnsemble([])
-            for seed, seed_label in zip(seeds, seed_labels):
-                for key in self.keys():
-                    tt_grid_ensemble += self[key].to_time(seed, seed_label)
-
-        return tt_grid_ensemble
-
-
 
 class SeededGrid(NLLocGrid):
     """
@@ -1015,7 +1016,7 @@ class SeededGrid(NLLocGrid):
 class TTGrid(SeededGrid):
     def __init__(self, network_code, data_or_dims, origin, spacing, seed,
                  seed_label, phase='P', value=0, float_type="FLOAT",
-                 model_id=None, grid_units=__default_grid_units__):
+                 model_id=None, grid_units='METER'):
         super().__init__(network_code, data_or_dims, origin, spacing, seed,
                          seed_label, phase=phase, value=value,
                          grid_type='TIME', float_type=float_type,
@@ -1403,13 +1404,12 @@ class TravelTimeEnsemble:
 class AngleGrid(SeededGrid):
     def __init__(self, network_code, data_or_dims, origin, spacing, seed,
                  seed_label, angle_type, phase='P', value=0,
-                 float_type="FLOAT", model_id=None,
-                 grid_units=__default_grid_units__):
+                 float_type="FLOAT", model_id=None, grid_units='degrees'):
         self.angle_type = angle_type
         super().__init__(network_code, data_or_dims, origin, spacing, seed,
                          seed_label, phase=phase, value=value,
                          grid_type='ANGLE', float_type=float_type,
-                         model_id=model_id)
+                         model_id=model_id, grid_units=grid_units)
 
     def write(self, path='.'):
         pass

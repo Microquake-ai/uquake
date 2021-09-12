@@ -20,7 +20,6 @@ module to interact with the NLLoc
 from datetime import datetime
 from struct import unpack
 import numpy as np
-import uquake.grid.nlloc
 
 from obspy import UTCDateTime
 from ..core.inventory import Inventory
@@ -29,6 +28,7 @@ from ..core.event import (Catalog)
 
 from uuid import uuid4
 from pathlib import Path
+import json
 
 test_station_code = 'STN'
 
@@ -60,18 +60,24 @@ __valid_units__ = ['METER', 'KILOMETER']
 
 
 class Grid2Time:
-    def __init__(self, srces, grid_transform, base_directory, base_name,
+    # def __init__(self, srces, grid_transform, base_directory, base_name,
+    #              verbosity=1, random_seed=1000, p_wave=True, s_wave=True,
+    #              calculate_angles=True, model_directory='models',
+    #              grid_directory='grids'):
+
+    def __init__(self, inventory, base_directory, base_name,
                  verbosity=1, random_seed=1000, p_wave=True, s_wave=True,
                  calculate_angles=True, model_directory='models',
                  grid_directory='grids'):
+
         """
         Build the control file and run the Grid2Time program.
 
         Note that at this time the class does not support any geographic
         transformation
 
-        :param srces: inventory data
-        :type srces: Srces
+        :param inventory: inventory data
+        :type inventory: uquake.core.inventory.Inventory
         :param base_directory: the base directory of the project
         :type base_directory: str
         :param base_name: the network code
@@ -115,7 +121,7 @@ class Grid2Time:
         self.calculate_s_wave = s_wave
         self.calculate_angles = calculate_angles
 
-        if type(inventory) is not Inventory:
+        if isinstance(inventory, Inventory):
             raise TypeError('inventory must be '
                             '"uquake.core.inventory.Inventory" type')
         self.inventory = inventory
@@ -646,12 +652,18 @@ class LocationMethod:
         return line
 
 
+class SimpleArrival:
+    def __init__(self, time: UTCDateTime, site: str, phase: str,
+                 polarity: str):
+
+
+
 class Observations:
     def __init__(self, picks, p_pick_error=1e-3, s_pick_error=1e-3):
         """
 
-        :param picks: a list of pick object
-        :type picks: list of uquake.core.event.pick
+        :param picks: a list of Pick object
+        :type picks: list of uquake.core.event.Pick
         :param p_pick_error: p-wave picking error in second
         :param s_pick_error: s-wave picking error in second
         """
@@ -714,8 +726,7 @@ class Observations:
                                                location_code=site[-2:],
                                                channel_code='BHZ')
 
-                pk = Pick(site=site, time=time,
-                          phase_hint=phase, waveform_id=waveform_id,
+                pk = Pick(time=time, phase_hint=phase, waveform_id=waveform_id,
                           onset='impulsive', evaluation_mode='automatic',
                           evaluation_status='preliminary')
                 picks.append(pk)
@@ -832,6 +843,18 @@ class GridTimeMode:
         return f'GTMODE {self.grid_mode} {self.angle_mode}'
 
 
+class Site:
+
+    def __init__(self, label, x, y, z, elev=None):
+        self.label = label
+        self.x = x
+        self.y = y
+        self.z = z
+        self.elev = elev
+        if elev is None:
+            self.elev = z
+
+
 class Srces:
 
     __valid_measurement_units__ = ['METERS', 'KILOMETERS']
@@ -845,8 +868,7 @@ class Srces:
 
         :Example:
 
-        >>> site = {'label': 'test', 'x': 1000, 'y': 1000, 'z': 1000,
-                      'elev': 0.0}
+        >>> site = Site(label='test', x=1000, y=1000, z=1000, elev=0.0)
         >>> sites = [site]
         >>> srces = Srces(srces)
 
@@ -865,16 +887,10 @@ class Srces:
         :type inventory: uquake.core.inventory.Inventory
         """
 
-        srces = []
+        sites = []
         for site in inventory.sites:
-            srce = {'label': site.code,
-                    'x': site.x,
-                    'y': site.y,
-                    'z': site.z,
-                    'elev': 0}
-            srces.append(srce)
-
-        return cls(srces)
+            sites.append(Site(site.code, site.x, site.y, site.z))
+        return cls(sites)
 
     @classmethod
     def generate_random_srces_in_grid(cls, gd, n_srces=1):
@@ -900,14 +916,11 @@ class Srces:
         for i, point in enumerate(gd.generate_random_points_in_grid(
                 n_points=n_srces)):
             label = f'{label_root}{i:02d}'
-            srces.append({'label': label,
-                          'x': point[0],
-                          'y': point[1],
-                          'z': point[2],
-                          'elev': 0})
+            site = Site(label, point[0], point[1], point[2])
+            srces.append(site)
         return cls(srces)
 
-    def add_site(self, label, x, y, z, elev=0, units='METERS'):
+    def add_site(self, label, x, y, z, elev=None, units='METERS'):
         """
         Add a single site to the source list
         :param label: site label
@@ -922,7 +935,7 @@ class Srces:
         in the units of measurements for site/source
         :type z: float
         :param elev: elevation above z grid position (positive UP) in
-        kilometers for site (Default = 0)
+        kilometers for site (Default = None)
         :type elev: float
         :param units: units of measurement used to express x, y, and z
         ( 'METERS' or 'KILOMETERS')
@@ -931,8 +944,7 @@ class Srces:
 
         validate(units.upper(), self.__valid_measurement_units__)
 
-        self.sites.append({'label': label, 'x': x, 'y': y, 'z': z,
-                           elev: 'elev'})
+        self.sites.append(Site(label, x, y, z, elev=elev))
 
         self.units = units.upper()
 
@@ -942,26 +954,46 @@ class Srces:
         for site in self.sites:
             # test if site name is shorter than 6 characters
 
-            line += f'GTSRCE {site["label"]} XYZ ' \
-                    f'{site["x"] / 1000:>15.6f} ' \
-                    f'{site["y"] / 1000:>15.6f} ' \
-                    f'{site["z"] / 1000:>15.6f} ' \
+            line += f'GTSRCE {site.label} XYZ ' \
+                    f'{site.x / 1000:>15.6f} ' \
+                    f'{site.y / 1000:>15.6f} ' \
+                    f'{site.z / 1000:>15.6f} ' \
                     f'0.00\n'
 
         return line
 
     @property
+    def json(self):
+        dict_out = vars(self)
+        for i, site in enumerate(dict_out['sites']):
+            dict_out['sites'][i] = vars(dict_out['sites'][i])
+        return json.dumps(dict_out)
+
+    @classmethod
+    def from_json(cls, json_obj):
+        obj = json.loads(json_obj)
+        sites = []
+        for key in obj.keys():
+            if key == 'sites':
+                for site_dict in obj[key]:
+                    sites.append(Site(**site_dict))
+
+        obj['sites'] = sites
+
+        cls.__init__(**obj)
+
+    @property
     def locs(self):
         seeds = []
         for site in self.sites:
-            seeds.append([site['x'], site['y'], site['z']])
+            seeds.append([site.x, site.y, site.z])
         return np.array(seeds)
 
     @property
     def labels(self):
         seed_labels = []
         for site in self.sites:
-            seed_labels.append(site['label'])
+            seed_labels.append(site.label)
 
         return np.array(seed_labels)
 

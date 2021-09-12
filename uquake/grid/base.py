@@ -129,9 +129,9 @@ class Grid:
         """
         create a grid from origin, corner and spacing
         :param origin: grid origin (e.g., lower left corner for 2D grid)
-        :type origin: tuple
+        :type origin: tuple or list or numpy.array
         :param corner: grid upper (e.g., upper right corner for 2D grid)
-        :type corner: tuple
+        :type corner: tuple or list or numpy.array
         :param spacing: spacing between the grid nodes
         :type spacing: float
         :param val: constant value with which to fill the grid
@@ -145,6 +145,22 @@ class Grid:
         data = np.ones(gshape) * val
         cls.__init__(data, spacing=spacing, origin=origin)
         cls.fill_homogeneous(val)
+        return cls
+
+    @classmethod
+    def from_ocd(cls, origin, corner, dimensions, val=0):
+        """
+        create a grid from origin, corner and dimensions
+        :param origin: grid origin (e.g., lower left corner for 2D grid)
+        :param corner: grid upper (e.g., upper right corner for 2D grid)
+        :param dimensions: grid dimensions
+        :param val: constant value with which to fill the grid
+        :return:
+        """
+
+        data = np.ones(dimensions) * val
+        spacing = (corner - origin) / (dimensions - 1)
+        cls.__init__(data, spacing, spacing=spacing, origin=origin)
         return cls
 
     def __repr__(self):
@@ -451,15 +467,15 @@ class Grid:
 
     @property
     def shape(self):
-        return self.data.shape
+        return list(self.data.shape)
 
     @property
     def dims(self):
-        return self.data.shape
+        return self.shape
 
     @property
     def dimensions(self):
-        return self.data.shape
+        return self.shape
 
 
 def angles(travel_time_grid):
@@ -561,7 +577,7 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
     toa = travel_time_grid.to_takeoff_point(start, grid_coordinate=False,
                                             order=1)
 
-    ray = Ray(nodes=nodes, site_code=travel_time_grid.seed_label,
+    ray = Ray(nodes=nodes.tolist(), site_code=travel_time_grid.seed_label,
               arrival_id=arrival_id, phase=travel_time_grid.phase,
               azimuth=az, takeoff_angle=toa, travel_time=tt,
               earth_model_id=earth_model_id)
