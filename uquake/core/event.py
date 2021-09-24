@@ -32,9 +32,6 @@ import pickle
 from uquake.waveform.mag_utils import calc_static_stress_drop
 from .logging import logger
 from pathlib import Path
-from pydantic import BaseModel, validator, validate_arguments
-from typing import List, Optional, Union
-from enum import Enum
 
 debug = False
 
@@ -449,9 +446,6 @@ class Pick(obsevent.Pick):
                     self.evaluation_status, self.resource_id)
         return string
 
-    def to_dict(self):
-        return vars(self)
-
     def get_sta(self):
         if self.waveform_id is not None:
             return self.waveform_id.station_code
@@ -802,72 +796,36 @@ class RayCollection:
         self.rays = self.rays + [item]
 
 
-class Phases(str, Enum):
-    P = 'P'
-    S = 'S'
+class Ray:
 
+    def __init__(self, nodes: list = [], site_code: str = None,
+                 arrival_id: ResourceIdentifier = None,
+                 phase: str = None, azimuth: float = None,
+                 takeoff_angle: float = None,
+                 travel_time: float = None,
+                 earth_model_id: ResourceIdentifier = None):
+        """
+        :param nodes: ray nodes
+        :param site_code: site code
+        :param arrival_id: the ResourceIdentifier of the arrival associated to
+        the ray
+        :param phase: seismic phase ("P" or "S")
+        :param azimuth: Azimuth in degrees
+        :param takeoff_angle: takeoff angle in degrees
+        :param travel_time: travel time between the source and the site in
+        second
+        :param earth_model_id: velocity model ResourceIdentifier
+        """
 
-class Ray(BaseModel):
-
-    nodes: List[List[float]]
-    site_code: Optional[str]
-    arrival_id: Optional[str]
-    phase: Optional[Phases]
-    azimuth: Optional[float]
-    takeoff_angle: Optional[float]
-    travel_time: Optional[float]
-    earth_model_id: Optional[str]
-
-    @validator('nodes')
-    @classmethod
-    def parse_nodes(cls, value):
-        if isinstance(value, np.ndarray):
-            return value.tolist()
-        elif isinstance(value, list):
-            return value
-        else:
-            raise TypeError
-
-    @validator('arrival_id', 'earth_model_id', pre=True)
-    @classmethod
-    def parse_arrival_id(cls, value):
-        return ResourceIdentifier(value)
-        # else:
-        #     raise TypeError
-
-
-
-
-    # @validator(nodes)
-
-    # def __init__(self, nodes: list = [], site_code: str = None,
-    #              arrival_id: ResourceIdentifier = None,
-    #              phase: str = None, azimuth: float = None,
-    #              takeoff_angle: float = None,
-    #              travel_time: float = None,
-    #              earth_model_id: ResourceIdentifier = None):
-    #     """
-    #     :param nodes: ray nodes
-    #     :param site_code: site code
-    #     :param arrival_id: the ResourceIdentifier of the arrival associated to
-    #     the ray
-    #     :param phase: seismic phase ("P" or "S")
-    #     :param azimuth: Azimuth in degrees
-    #     :param takeoff_angle: takeoff angle in degrees
-    #     :param travel_time: travel time between the source and the site in
-    #     second
-    #     :param earth_model_id: velocity model ResourceIdentifier
-    #     """
-    #
-    #     self.nodes = np.array(nodes)
-    #     self.site_code = site_code
-    #     self.arrival_id = arrival_id
-    #     self.phase = phase
-    #     self.azimuth = azimuth
-    #     self.takeoff_angle = takeoff_angle
-    #     self.travel_time = travel_time
-    #     self.resource_id = obsevent.ResourceIdentifier()
-    #     self.earth_model_id = earth_model_id
+        self.nodes = np.array(nodes)
+        self.site_code = site_code
+        self.arrival_id = arrival_id
+        self.phase = phase
+        self.azimuth = azimuth
+        self.takeoff_angle = takeoff_angle
+        self.travel_time = travel_time
+        self.resource_id = obsevent.ResourceIdentifier()
+        self.earth_model_id = earth_model_id
 
     def __setattr__(self, key, value):
         if key == 'phase':
@@ -880,24 +838,22 @@ class Ray(BaseModel):
 
     @property
     def length(self):
-        nodes = np.array(self.nodes)
-        if len(nodes) < 2:
+        if len(self.nodes) < 2:
             return 0
 
         length = 0
-        for k, node1 in enumerate(nodes[0:-1]):
-            node2 = nodes[k + 1]
+        for k, node1 in enumerate(self.nodes[0:-1]):
+            node2 = self.nodes[k + 1]
             length += np.linalg.norm(node1 - node2)
 
         return length
 
     @property
     def baz(self):
-        nodes = np.array(self.nodes)
         # back_azimuth
         baz = None
-        if len(nodes) > 2:
-            v = nodes[-2] - nodes[-1]
+        if len(self.nodes) > 2:
+            v = self.nodes[-2] - self.nodes[-1]
             baz = np.arctan2(v[0], v[1]) * 180 / np.pi
         return baz
 
@@ -907,10 +863,9 @@ class Ray(BaseModel):
 
     @property
     def incidence_angle(self):
-        nodes = np.array(self.nodes)
         ia = None
-        if len(nodes) > 2:
-            v = nodes[-2] - nodes[-1]
+        if len(self.nodes) > 2:
+            v = self.nodes[-2] - self.nodes[-1]
             h = np.sqrt(v[0] ** 2 + v[1] ** 2)
             ia = np.arctan2(h, v[2]) * 180 / np.pi
         return ia
@@ -921,7 +876,7 @@ class Ray(BaseModel):
     def __str__(self):
         txt = \
             f"""
-         site code: {self.site_code}
+       site code: {self.site_code}
         arrival id: {self.arrival_id}
              phase: {self.phase}
         length (m): {self.length}
