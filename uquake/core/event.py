@@ -830,7 +830,7 @@ class Ray(BaseModel):
 
     @validator('arrival_id', 'earth_model_id', pre=True)
     @classmethod
-    def parse_nodes(cls, value):
+    def parse_arrival_id(cls, value):
         return ResourceIdentifier(value)
         # else:
         #     raise TypeError
