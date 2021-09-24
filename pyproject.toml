@@ -53,9 +53,13 @@ VTK = "uquake.io.grid"
 PICKLE = "uquake.io.grid"
 CSV = "uquake.io.grid"
 
-# [tool.poetry.plugins."uquake.io.grid.NLLOC"]
-# readFormat = "uquake.io.grid:read_nll"
-# writeFormat = "uquake.io.grid:write_nll"
+#[tool.poetry.plugins."uquake.io.grid.NLLOC"]
+#readFormat = "uquake.io.grid:read_nll"
+#writeFormat = "uquake.io.grid:write_nll"
+
+[tool.poetry.plugins."uquake.grid..NLLOC"]
+readFormat = "uquake.io.grid:read_nlloc"
+#writeFormat = "uquake.io.grid:write_nll"
 
 [tool.poetry.plugins."uquake.io.grid.VTK"]
 readFormat = "uquake.io.grid:read_vtk"

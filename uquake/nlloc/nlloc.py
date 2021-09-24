@@ -655,13 +655,12 @@ class LocationMethod:
 class SimpleArrival:
     def __init__(self, time: UTCDateTime, site: str, phase: str,
                  polarity: str):
-
+        pass
 
 
 class Observations:
     def __init__(self, picks, p_pick_error=1e-3, s_pick_error=1e-3):
         """
-
         :param picks: a list of Pick object
         :type picks: list of uquake.core.event.Pick
         :param p_pick_error: p-wave picking error in second
