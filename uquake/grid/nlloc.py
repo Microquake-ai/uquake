@@ -29,6 +29,7 @@ from typing import Optional
 import h5py
 from .base import ray_tracer
 import shutil
+from uquake.grid import read_grid
 
 __cpu_count__ = cpu_count()
 
@@ -1135,7 +1136,8 @@ class TravelTimeEnsemble:
         for fle in Path(path).glob('*time*.hdr'):
             path = fle.parent
             base_name = '.'.join(fle.name.split('.')[:-1])
-            tt_grid = read_grid(str(base_name), path=str(path),
+            fname = str(Path(path) / base_name)
+            tt_grid = read_grid(fname, format='NLLOC',
                                 float_type=__default_float_type__)
             tt_grids.append(tt_grid)
 
