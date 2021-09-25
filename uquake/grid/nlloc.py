@@ -714,7 +714,8 @@ class VelocityGrid3D(NLLocGrid):
 
         X = np.array([Xe_grid, Ye_grid, Ze_grid]).T
 
-        tt_interp = tt_tmp_grid.interpolate(X, grid_coordinate=False, order=3)
+        tt_interp = tt_tmp_grid.interpolate(X, grid_coordinate=False,
+                                            order=3)[0]
 
         bias = np.max(tt_interp)
 
@@ -738,7 +739,7 @@ class VelocityGrid3D(NLLocGrid):
 
         tt_out_grid.data -= tt_out_grid.interpolate(seed.T,
                                                     grid_coordinate=False,
-                                                    order=3)
+                                                    order=3)[0]
 
         return tt_out_grid
 
@@ -1016,7 +1017,8 @@ class TTGrid(SeededGrid):
 
         return self.to_azimuth().interpolate(coord,
                                              grid_coordinate=grid_coordinate,
-                                             mode=mode, order=order, **kwargs)
+                                             mode=mode, order=order,
+                                             **kwargs)[0]
 
     def to_takeoff_point(self, coord, grid_coordinate=False, mode='nearest',
                          order=1, **kwargs):
@@ -1033,7 +1035,8 @@ class TTGrid(SeededGrid):
         """
         return self.to_takeoff().interpolate(coord,
                                              grid_coordinate=grid_coordinate,
-                                             mode=mode, order=order, **kwargs)
+                                             mode=mode, order=order,
+                                             **kwargs)[0]
 
     def ray_tracer(self, start, grid_coordinate=False, max_iter=1000,
                    arrival_id=None):
@@ -1058,7 +1061,7 @@ class TTGrid(SeededGrid):
 
     @classmethod
     def from_velocity(cls, seed, seed_label, velocity_grid):
-        return velocity_grid.eikonal(seed, seed_label)
+        return velocity_grid.to_time(seed, seed_label)
 
     def write(self, path='.'):
         return super().write(path=path)

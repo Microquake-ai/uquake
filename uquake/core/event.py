@@ -285,10 +285,10 @@ class Origin(obsevent.Origin):
         string = f"""
        resource_id: {self.resource_id}
          time(UTC): {self.time}
-                 x: {self.x:>10.2f}
-                 y: {self.y:>10.2f}
-                 z: {self.z:>10.2f}
-       uncertainty: {self.uncertainty:>10.2f} (m)
+                 x: {self.x}
+                 y: {self.y}
+                 z: {self.z}
+       uncertainty: {self.uncertainty} (m)
    evaluation_mode: {self.evaluation_mode}
  evaluation_status: {self.evaluation_status}
                 ---------
@@ -397,15 +397,15 @@ class Magnitude(obsevent.Magnitude):
 
         string = f"""
              resource_id: {self.resource_id.id}     
-               Magnitude: {self.mag:0.2f}
+               Magnitude: {self.mag}
           Magnitude type: {self.magnitude_type}
-   Corner frequency (Hz): {self.corner_frequency_hz:0.0f}
- Radiated Energy (joule): {self.energy_joule:0.2f}
-                   Es/Ep: {es_ep:0.2f}
-          Seismic moment: {self.seismic_moment:0.0f}
-       Source volume(m3): {self.potency_m3:0.4f}
-Static stress drop (MPa): {self.static_stress_drop_mpa:0.4f}
-     Apparent stress(Pa): {self.apparent_stress:0.2f}
+   Corner frequency (Hz): {self.corner_frequency_hz}
+ Radiated Energy (joule): {self.energy_joule}
+                   Es/Ep: {es_ep}
+          Seismic moment: {self.seismic_moment}
+       Source volume(m3): {self.potency_m3}
+Static stress drop (MPa): {self.static_stress_drop_mpa}
+     Apparent stress(Pa): {self.apparent_stress}
          evaluation mode: {self.evaluation_mode}
        evaluation status: {self.evaluation_status}
         """
@@ -510,10 +510,10 @@ class Arrival(obsevent.Arrival):
        resource_id: {self.resource_id}
            pick_id: {self.get_pick().resource_id}
              phase: {self.phase}
-           azimuth: {self.azimuth:0.2f} (deg)
-          distance: {self.distance:0.2f} (m)
-     takeoff_angle: {self.takeoff_angle:0.2f} (deg)
-     time_residual: {self.time_residual * 1000:0.2f} (ms)
+           azimuth: {self.azimuth} (deg)
+          distance: {self.distance} (m)
+     takeoff_angle: {self.takeoff_angle} (deg)
+     time_residual: {self.time_residual * 1000} (ms)
        time_weight: {self.time_weight}
         """
         return out_str
@@ -584,40 +584,6 @@ def read_events(filename, **kwargs):
 
     cat = obsevent.read_events(filename, **kwargs)
     mq_catalog = Catalog(obspy_obj=cat)
-
-    # fixing reference to preferred_*
-    # for i, evt in enumerate(mq_catalog.events):
-    #     if evt.preferred_origin_id is None:
-    #         continue
-    #     po_id = cat.events[i].preferred_origin_id.id
-    #     for j, ori in enumerate(evt.origins):
-    #         if ori.resource_id.id == po_id:
-    #             mq_catalog.events[i].preferred_origin_id = \
-    #                 ResourceIdentifier(id=po_id, referred_object=
-    #                 mq_catalog.events[i].origins[j])
-    #
-    #     if evt.preferred_magnitude_id is None:
-    #         continue
-    #     pm_id = cat.events[i].preferred_magnitude_id.id
-    #     for j, mag in enumerate(evt.magnitudes):
-    #         if mag.resource_id.id == pm_id:
-    #             mq_catalog.events[i].preferred_magnitude_id = \
-    #                 ResourceIdentifier(id=pm_id, referred_object=
-    #                 mq_catalog.events[i].magnitudes[j])
-    #
-    #     if evt.preferred_focal_mechanism_id is None:
-    #         continue
-    #     fm_id = cat.events[i].preferred_focal_mechanism_id.id
-    #     for j, mag in enumerate(evt.focal_mechanisms):
-    #         if mag.resource_id.id == fm_id:
-    #             mq_catalog.events[i].preferred_focal_mechanism_id = \
-    #                 ResourceIdentifier(id=fm_id, referred_object=
-    #                 mq_catalog.events[i].focal_mechanisms[j])
-
-    # if mq_catalog[0].preferred_origin():
-    #     if mq_catalog[0].preferred_origin().__encoded_rays__:
-    #         mq_catalog[0].preferred_origin().__encoded_rays__ = eval(
-    #             mq_catalog[0].preferred_origin().__encoded_rays__)
 
     return mq_catalog
 
