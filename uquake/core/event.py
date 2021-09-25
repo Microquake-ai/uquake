@@ -42,6 +42,7 @@ class Catalog(obsevent.Catalog):
     __doc__ = obsevent.Catalog.__doc__.replace('obspy', 'uquake')
 
     def __init__(self, obspy_obj=None, **kwargs):
+        # _init_handler(self, obspy_obj, **kwargs)
         if obspy_obj and len(kwargs) > 0:
             raise AttributeError("Initialize from either \
                                   obspy_obj or kwargs, not both")
@@ -205,6 +206,8 @@ class Origin(obsevent.Origin):
 
         if name == 'rays':
             self.__encoded_rays__ = self.__encode_rays__(self, value)
+        # elif name == 'encoded_rays':
+        #     self.__encoded_rays__ = value
         else:
             _set_attr_handler(self, name, value)
 
@@ -515,7 +518,7 @@ class Arrival(obsevent.Arrival):
           distance: {self.distance:0.2f} (m)
      takeoff_angle: {self.takeoff_angle:0.2f} (deg)
      time_residual: {self.time_residual * 1000:0.2f} (ms)
-       time_weight: {self.time_weight:0.1f}
+       time_weight: {self.time_weight}
         """
         return out_str
 
@@ -586,10 +589,39 @@ def read_events(filename, **kwargs):
     cat = obsevent.read_events(filename, **kwargs)
     mq_catalog = Catalog(obspy_obj=cat)
 
-    if mq_catalog[0].preferred_origin():
-        if mq_catalog[0].preferred_origin().__encoded_rays__:
-            mq_catalog[0].preferred_origin().__encoded_rays__ = eval(
-                mq_catalog[0].preferred_origin().__encoded_rays__)
+    # fixing reference to preferred_*
+    # for i, evt in enumerate(mq_catalog.events):
+    #     if evt.preferred_origin_id is None:
+    #         continue
+    #     po_id = cat.events[i].preferred_origin_id.id
+    #     for j, ori in enumerate(evt.origins):
+    #         if ori.resource_id.id == po_id:
+    #             mq_catalog.events[i].preferred_origin_id = \
+    #                 ResourceIdentifier(id=po_id, referred_object=
+    #                 mq_catalog.events[i].origins[j])
+    #
+    #     if evt.preferred_magnitude_id is None:
+    #         continue
+    #     pm_id = cat.events[i].preferred_magnitude_id.id
+    #     for j, mag in enumerate(evt.magnitudes):
+    #         if mag.resource_id.id == pm_id:
+    #             mq_catalog.events[i].preferred_magnitude_id = \
+    #                 ResourceIdentifier(id=pm_id, referred_object=
+    #                 mq_catalog.events[i].magnitudes[j])
+    #
+    #     if evt.preferred_focal_mechanism_id is None:
+    #         continue
+    #     fm_id = cat.events[i].preferred_focal_mechanism_id.id
+    #     for j, mag in enumerate(evt.focal_mechanisms):
+    #         if mag.resource_id.id == fm_id:
+    #             mq_catalog.events[i].preferred_focal_mechanism_id = \
+    #                 ResourceIdentifier(id=fm_id, referred_object=
+    #                 mq_catalog.events[i].focal_mechanisms[j])
+
+    # if mq_catalog[0].preferred_origin():
+    #     if mq_catalog[0].preferred_origin().__encoded_rays__:
+    #         mq_catalog[0].preferred_origin().__encoded_rays__ = eval(
+    #             mq_catalog[0].preferred_origin().__encoded_rays__)
 
     return mq_catalog
 
@@ -613,6 +645,11 @@ def _init_handler(self, obspy_obj, **kwargs):
 
     if obspy_obj:
         _init_from_obspy_object(self, obspy_obj)
+
+        if 'resource_id' in obspy_obj.__dict__.keys():
+            rid = obspy_obj.resource_id.id
+            self.resource_id = ResourceIdentifier(id=rid,
+                                                  referred_object=self)
     else:
         extra_kwargs = pop_keys_matching(kwargs, self.extra_keys)
         super(type(self), self).__init__(**kwargs)  # init obspy_origin args
@@ -627,7 +664,8 @@ def _init_from_obspy_object(uquake_obj, obspy_obj):
     converts them to equivalent uquake objects.
     """
 
-    class_equiv = {obsevent.Pick: Pick,
+    class_equiv = {obsevent.event: Event,
+                   obsevent.Pick: Pick,
                    obsevent.Arrival: Arrival,
                    obsevent.Origin: Origin,
                    obsevent.Magnitude: Magnitude,
@@ -665,6 +703,8 @@ def _set_attr_handler(self, name, value, namespace='UQUAKE'):
     #  use obspy default setattr for default keys
     if name in self.defaults.keys():
         self.__dict__[name] = value
+        if isinstance(self.__dict__[name], ResourceIdentifier):
+            self.__dict__[name] = ResourceIdentifier(id=value.id)
         # super(type(self), self).__setattr__(name, value)
     elif name in self.extra_keys:
         with warnings.catch_warnings():
