@@ -230,8 +230,11 @@ class Origin(obsevent.Origin):
     def __decode_rays__(self):
         if self.__encoded_rays__ is None:
             return
-
-        return pickle.loads(b64decode(self.__encoded_rays__))
+        try:
+            return pickle.loads(b64decode(self.__encoded_rays__))
+        except Exception as e:
+            self.__encoded_rays__ = eval(self.__encoded_rays__)
+            return pickle.loads(b64decode(self.__encoded_rays__))
 
     def get_arrival_id(self, phase, station_code):
         arrival_id = None
