@@ -406,7 +406,8 @@ class Magnitude(obsevent.Magnitude):
        Source volume(m3): {self.potency_m3:0.4f}
 Static stress drop (MPa): {self.static_stress_drop_mpa:0.4f}
      Apparent stress(Pa): {self.apparent_stress:0.2f}
-         evaluation_mode: {self.evaluation_mode}
+         evaluation mode: {self.evaluation_mode}
+       evaluation status: {self.evaluation_status}
         """
 
         return string
