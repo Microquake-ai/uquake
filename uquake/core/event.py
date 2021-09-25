@@ -395,24 +395,19 @@ class Magnitude(obsevent.Magnitude):
         if self.energy_p_joule and self.energy_s_joule:
             es_ep = self.energy_s_joule / self.energy_p_joule
 
-        string = """
-             resource_id: {}     
-               Magnitude: {}
-          Magnitude type: {}
-   Corner frequency (Hz): {}
- Radiated Energy (joule): {}
-                   Es/Ep: {}
-          Seismic moment: {}
-       Source volume(m3): {}
-Static stress drop (MPa): {}
-     Apparent stress(Pa): {}
-         evaluation_mode: {}
-        """.format(self.resource_id.id, self.mag,
-                   self.magnitude_type, self.corner_frequency_hz,
-                   self.energy_joule, es_ep, self.seismic_moment,
-                   self.potency_m3,
-                   self.static_stress_drop_mpa, self.apparent_stress,
-                   self.evaluation_mode)
+        string = f"""
+             resource_id: {self.resource_id.id}     
+               Magnitude: {self.mag:0.2f}
+          Magnitude type: {self.magnitude_type}
+   Corner frequency (Hz): {self.corner_frequency_hz:0.0f}
+ Radiated Energy (joule): {self.energy_joule:0.2f}
+                   Es/Ep: {es_ep:0.2f}
+          Seismic moment: {self.seismic_moment:0.0f}
+       Source volume(m3): {self.potency_m3:0.4f}
+Static stress drop (MPa): {self.static_stress_drop_mpa:0.4f}
+     Apparent stress(Pa): {self.apparent_stress:0.2f}
+         evaluation_mode: {self.evaluation_mode}
+        """
 
         return string
 
