@@ -562,7 +562,7 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
         gvect = np.array([gd.interpolate(cloc, grid_coordinate=False,
                                          order=1)[0] for gd in gds])
 
-        cloc = cloc - gamma * gvect / np.linalg.norm(gvect)
+        cloc = cloc - gamma * gvect / (np.linalg.norm(gvect) + 1e-8)
         nodes.append(cloc)
         dist = np.linalg.norm(cloc - end)
 
