@@ -144,41 +144,23 @@ class Inventory(inventory.Inventory):
     def get_channel(self, sta=None, cha=None):
         return self.select(sta, cha_code=cha)
 
-    def select(self, network=None, station=None, sites=None,
-               location=None, channel=None):
-        """
-            Select a single Station or Channel object out of the Inventory
-        """
-        station_found = None
+    def select(self, network=None, station=None, location=None, channel=None):
 
-        for net in self:
-            for sta in net.stations:
-                if sta.code in station:
-                    if network:
-                        if net.code == network:
-                            station_found = sta
-                            break
-                    else:
-                        station_found = sta
+        return super().select(network=network, station=station,
+                              location=location, channel=channel)
 
-                        break
+    def select_site(self, sites=None):
+        if isinstance(sites, list):
+            for site in sites:
+                for obj_site in self.sites:
+                    if site.code == obj_site.code:
+                        yield obj_site
 
-        if not station_found:
-            return None
-
-        channel_found = None
-
-        if channel:
-            for cha in station_found.channels:
-                if cha.code in channel:
-                    channel_found = cha
-
-                    break
-
-            return channel_found
-
-        else:
-            return station_found
+        elif isinstance(sites, str):
+            site = sites
+            for obj_site in self.sites:
+                if site.code == obj_site.code:
+                    return obj_site
 
     def to_bytes(self):
 
