@@ -22,6 +22,7 @@ from pathlib import Path
 from uuid import uuid4
 from ...grid.nlloc import (valid_float_types, VelocityGrid3D, TTGrid,
                            AngleGrid, NLLocGrid, __default_float_type__)
+import os
 
 
 def read_pickle(filename, protocol=-1, **kwargs):
@@ -243,7 +244,7 @@ def read_nlloc(filename, float_type=__default_float_type__):
         #  grid_type='VELOCITY_METERS', grid_units='METER',
         #  float_type="FLOAT", model_id=None):
 
-    network_code = filename.split('.')[0]
+    network_code = filename.split('.')[0].split(os.path.sep)[-1]
     if grid_type in ['VELOCITY', 'VELOCITY_METERS']:
         return VelocityGrid3D(network_code, data, origin, spacing, phase=phase,
                               model_id=model_id)
