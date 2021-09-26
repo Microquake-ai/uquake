@@ -244,7 +244,7 @@ def read_nlloc(filename, float_type=__default_float_type__):
         #  grid_type='VELOCITY_METERS', grid_units='METER',
         #  float_type="FLOAT", model_id=None):
 
-    network_code = filename.split('.')[0].split(os.path.sep)[-1]
+    network_code = filename.split(os.path.sep)[-1].split('.')[0]
     if grid_type in ['VELOCITY', 'VELOCITY_METERS']:
         return VelocityGrid3D(network_code, data, origin, spacing, phase=phase,
                               model_id=model_id)
