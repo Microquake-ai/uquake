@@ -688,9 +688,11 @@ class Channel(inventory.Channel):
     @property
     def orientation_vector(self):
 
-        up = -np.sin(self.dip)
-        east = np.sin(self.azimuth) * np.cos(self.dip)
-        north = np.cos(self.azimuth) * np.cos(self.dip)
+        up = -np.sin(self.dip * np.pi / 180)
+        east = np.sin(self.azimuth * np.pi / 180) * \
+               np.cos(self.dip * np.pi / 180)
+        north = np.cos(self.azimuth * np.pi / 180) * \
+                np.cos(self.dip * np.pi / 180)
 
         return np.array([east, north, up])
 
@@ -917,7 +919,7 @@ def read_inventory(path_or_file_object, format='STATIONXML',
     Read inventory file
     :param path_or_file_object: the path to the inventory file or a file object
     :param format: the format
-    :param xy_from_lon_lat: if True convert populate the XY field by converting
+    :param xy_from_lat_lon: if True convert populate the XY field by converting
     the latitude and longitude to UTM
     :param args: see obspy.core.inventory.read_inventory for more information
     :param kwargs: see obspy.core.inventory.read_inventory for more information
