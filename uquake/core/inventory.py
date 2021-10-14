@@ -637,9 +637,10 @@ class Channel(inventory.Channel):
             if not hasattr(self, 'extra'):
                 self.extra = {}
 
-            if value not in self.valid_status:
-                if value is not None:
-                    raise ValueError
+            if key == 'status':
+                if value not in self.valid_status:
+                    if value is not None:
+                        raise ValueError
 
             if key == 'oriented':
                 if value is not None:
