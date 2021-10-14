@@ -615,7 +615,7 @@ class Channel(inventory.Channel):
                   obspy_channel.elevation, obspy_channel.depth)
 
         if hasattr(obspy_channel, 'extra'):
-            for key in cha.extra_keys:
+            for key in cha.extra_keys():
                 if key not in obspy_channel.__dict__['extra'].key():
                     cha.__dict__['extra'][key] = None
                 else:
