@@ -594,8 +594,7 @@ class Site:
 
 class Channel(inventory.Channel):
     defaults = {}
-    extra_keys = ['x', 'y', 'z', 'alternative_code', 'status', 'oriented']
-    valid_status = ['active', 'inactive']
+    extra_keys = ['x', 'y', 'z', 'alternative_code', 'active', 'oriented']
 
     __doc__ = inventory.Channel.__doc__.replace('obspy', ns)
 
@@ -636,16 +635,6 @@ class Channel(inventory.Channel):
         if key in self.extra_keys:
             if not hasattr(self, 'extra'):
                 self.extra = {}
-
-            if key == 'status':
-                if value not in self.valid_status:
-                    if value is not None:
-                        raise ValueError
-
-            if key == 'oriented':
-                if value is not None:
-                    if not isinstance(value, bool):
-                        raise TypeError
 
             self.extra[key] = {'value': value, 'namespace': ns}
         else:
