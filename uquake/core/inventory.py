@@ -617,7 +617,7 @@ class Channel(inventory.Channel):
         if hasattr(obspy_channel, 'extra'):
             for key in cha.extra_keys:
                 if key not in obspy_channel.__dict__['extra'].keys():
-                    cha.__dict__['extra'][key] = None
+                    cha.__dict__['extra'][key] = 0
                 else:
                     cha.__dict__['extra'][key] = \
                         obspy_channel.__dict__['extra'][key]
