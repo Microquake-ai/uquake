@@ -259,6 +259,11 @@ def read_nlloc(filename, float_type=__default_float_type__):
                          model_id=model_id)
 
     else:
-        return NLLocGrid(data, origin, spacing, phase,
+        grid = NLLocGrid(data, origin, spacing, phase,
                          grid_type=grid_type, model_id=model_id,
                          grid_units=grid_unit)
+
+        if grid_type == 'SLOW_LEN':
+            return VelocityGrid3D.from_slow_len(grid, network_code)
+
+        return grid
