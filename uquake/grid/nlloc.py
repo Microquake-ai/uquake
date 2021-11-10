@@ -626,7 +626,7 @@ class VelocityGrid3D(NLLocGrid):
     def from_slow_len(cls, grid: NLLocGrid, network_code: str):
         data = np.mean(grid.spacing) / grid.data
         return cls(network_code, data, grid.origin, grid.spacing,
-                   grid.phase, phase=grid.phase, float_type=grid.float_type,
+                   phase=grid.phase, float_type=grid.float_type,
                    model_id=grid.model_id)
 
     def to_time(self, seed, seed_label, sub_grid_resolution=0.1,
