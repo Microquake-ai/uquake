@@ -17,16 +17,12 @@ Expansion of the obspy.core.event module
     (http://www.gnu.org/copyleft/lesser.html)
 """
 import io
-
 from obspy.core import inventory, AttribDict, UTCDateTime
-
 from obspy.core.inventory import Network
-
 from obspy.signal.invsim import corn_freq_2_paz
 from obspy.core.inventory import (Response, InstrumentSensitivity,
                                   PolesZerosResponseStage)
 import numpy as np
-
 from obspy.core.inventory.util import (Equipment, Operator, Person,
                                        PhoneNumber, Site, _textwrap,
                                        _unified_content_strings)
@@ -37,7 +33,7 @@ from .logging import logger
 from uquake import __package_name__ as ns
 
 import pandas as pd
-# from pyproj import Proj
+import pyproj
 import utm
 from io import BytesIO
 
@@ -113,7 +109,9 @@ class Inventory(inventory.Inventory):
 
     @classmethod
     def from_obspy_inventory_object(cls, obspy_inventory,
-                                    xy_from_lat_lon=False):
+                                    xy_from_lat_lon=False,
+                                    input_projection=4326,
+                                    output_projection=None):
 
         source = ns  # Network ID of the institution sending
         # the message.
@@ -122,8 +120,12 @@ class Inventory(inventory.Inventory):
         inv.networks = []
         for network in obspy_inventory.networks:
             inv.networks.append(Network.from_obspy_network(network,
-                                                       xy_from_lat_lon=
-                                                       xy_from_lat_lon))
+                                                           xy_from_lat_lon=
+                                                           xy_from_lat_lon,
+                                                           input_projection=
+                                                           input_projection,
+                                                           output_projection=
+                                                           output_projection))
 
         return inv
 
@@ -192,7 +194,8 @@ class Network(inventory.Network):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_obspy_network(cls, obspy_network, xy_from_lat_lon=False):
+    def from_obspy_network(cls, obspy_network, xy_from_lat_lon=False,
+                           input_projection=4326, output_projection=None):
 
         net = cls(obspy_network.code)
 
@@ -207,7 +210,11 @@ class Network(inventory.Network):
 
         for i, station in enumerate(obspy_network.stations):
             net.stations.append(Station.from_obspy_station(station,
-                                                           xy_from_lat_lon))
+                                                           xy_from_lat_lon,
+                                                           input_projection=
+                                                           input_projection,
+                                                           output_projection=
+                                                           output_projection))
 
         return net
 
@@ -278,7 +285,10 @@ class Station(inventory.Station):
     #     _set_attr_handler(self, name, value)
 
     @classmethod
-    def from_obspy_station(cls, obspy_station, xy_from_lat_lon=False):
+    def from_obspy_station(cls, obspy_station, xy_from_lat_lon=False,
+                           output_projection=None,
+                           input_projection=4326):
+
         #     cls(*params) is same as calling Station(*params):
 
         stn = cls(obspy_station.code, obspy_station.latitude,
@@ -292,8 +302,12 @@ class Station(inventory.Station):
         if xy_from_lat_lon:
             if (stn.latitude is not None) and (stn.longitude is not None):
 
-                (stn.x, stn.y, _, _) = utm.from_latlon(stn.latitude,
-                                                       stn.longitude)
+                in_proj = pyproj.Proj(init=f'EPSG:{input_projection}')
+                out_proj = pyproj.Proj(init=f'EPSG:{output_projection}')
+
+                stn.x, stn.y = pyproj.transform(in_proj, out_proj,
+                                                stn.latitude, stn.longitude)
+
                 stn.z = obspy_station.elevation
 
             else:
@@ -305,7 +319,11 @@ class Station(inventory.Station):
         for channel in obspy_station.channels:
             stn.channels.append(Channel.from_obspy_channel(channel,
                                                            xy_from_lat_lon=
-                                                           xy_from_lat_lon))
+                                                           xy_from_lat_lon,
+                                                           input_projection=
+                                                           input_projection,
+                                                           output_projection=
+                                                           output_projection))
 
         return stn
 
@@ -608,7 +626,8 @@ class Channel(inventory.Channel):
             self.extra[key] = {'value': 0, 'namespace': ns}
 
     @classmethod
-    def from_obspy_channel(cls, obspy_channel, xy_from_lat_lon=False):
+    def from_obspy_channel(cls, obspy_channel, xy_from_lat_lon=False,
+                           output_projection=None, input_projection=4326):
 
         cha = cls(obspy_channel.code, obspy_channel.location_code,
                   obspy_channel.latitude, obspy_channel.longitude,
@@ -628,8 +647,11 @@ class Channel(inventory.Channel):
         if xy_from_lat_lon:
             if (cha.latitude is not None) and (cha.longitude is not None):
 
-                (cha.x, cha.y, _, _) = utm.from_latlon(cha.latitude,
-                                                       cha.longitude)
+                in_proj = pyproj.Proj(init=f'EPSG:{input_projection}')
+                out_proj = pyproj.Proj(init=f'EPSG:{output_projection}')
+
+                cha.x, cha.y = pyproj.transform(in_proj, out_proj,
+                                                cha.latitude, cha.longitude)
                 cha.z = cha.elevation
 
         return cha
@@ -917,18 +939,28 @@ def load_from_excel(file_name) -> Inventory:
 
 
 def read_inventory(path_or_file_object, format='STATIONXML',
-                   xy_from_lat_lon=False, *args, **kwargs) -> Inventory:
+                   xy_from_lat_lon=False, input_projection=4326,
+                   output_projection=None, *args, **kwargs) -> Inventory:
     """
     Read inventory file
     :param path_or_file_object: the path to the inventory file or a file object
     :param format: the format
     :param xy_from_lat_lon: if True convert populate the XY field by converting
     the latitude and longitude to UTM
+    :param input_projection: The input projection. Applicable if
+    xy_from_lat_lon is True (default=4326 for for latitude longitude)
+    :param output_projection: The output projection. Has to be specified if
+    xy_from_lat_lon is True. Default=None
     :param args: see obspy.core.inventory.read_inventory for more information
     :param kwargs: see obspy.core.inventory.read_inventory for more information
     :return: an inventory object
     :rtype: ~uquake.core.inventory.Inventory
     """
+
+    if xy_from_lat_lon and (output_projection is None):
+        raise ValueError('the output projection is needed for conversion'
+                         'from latitude-longitude to UTM')
+
     if type(path_or_file_object) is Path:
         path_or_file_object = str(path_or_file_object)
 
@@ -939,7 +971,9 @@ def read_inventory(path_or_file_object, format='STATIONXML',
                                          *args, **kwargs)
 
     return Inventory.from_obspy_inventory_object(obspy_inv,
-                    xy_from_lat_lon=xy_from_lat_lon)
+                    xy_from_lat_lon=xy_from_lat_lon,
+                    output_projection=output_projection,
+                    input_projection=input_projection)
 
 
 read_inventory.__doc__ = inventory.read_inventory.__doc__.replace(
