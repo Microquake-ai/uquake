@@ -34,7 +34,7 @@ from uquake import __package_name__ as ns
 
 import pandas as pd
 from io import BytesIO
-from util.tools import lon_lat_x_y
+from .util.tools import lon_lat_x_y
 
 nrl = NRL()
 
