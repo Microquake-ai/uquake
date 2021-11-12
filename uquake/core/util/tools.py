@@ -7,8 +7,10 @@ import pyproj
 
 
 def lon_lat_x_y(input_projection, output_projection, longitude, latitude):
-    transformer = pyproj.Transformer(input_projection, output_projection,
-                                     always_xy=True)
+    transformer = pyproj.Transformer.from_crs(input_projection,
+                                              output_projection,
+                                              always_xy=True)
+    
     return transformer.transform(longitude, latitude)
 
 
