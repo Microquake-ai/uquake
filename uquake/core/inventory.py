@@ -646,7 +646,7 @@ class Channel(inventory.Channel):
         if xy_from_lat_lon:
             if (cha.latitude is not None) and (cha.longitude is not None):
 
-                cha.x, cha.z = lon_lat_x_y(input_projection, output_projection,
+                cha.x, cha.y = lon_lat_x_y(input_projection, output_projection,
                                            longitude=cha.longitude,
                                            latitude=cha.latitude)
 
