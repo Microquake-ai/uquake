@@ -33,9 +33,8 @@ from .logging import logger
 from uquake import __package_name__ as ns
 
 import pandas as pd
-import pyproj
-import utm
 from io import BytesIO
+from util.tools import lon_lat_x_y
 
 nrl = NRL()
 
@@ -302,17 +301,17 @@ class Station(inventory.Station):
         if xy_from_lat_lon:
             if (stn.latitude is not None) and (stn.longitude is not None):
 
-                in_proj = pyproj.Proj(init=f'EPSG:{input_projection}')
-                out_proj = pyproj.Proj(init=f'EPSG:{output_projection}')
-
-                stn.x, stn.y = pyproj.transform(in_proj, out_proj,
-                                                stn.latitude, stn.longitude)
+                stn.x, stn.y = lon_lat_x_y(input_projection, output_projection,
+                                           longitude=stn.longitude,
+                                           latitude=stn.latitude)
 
                 stn.z = obspy_station.elevation
 
             else:
                 logger.warning(f'Latitude or Longitude are not'
                                f'defined for station {obspy_station.code}.')
+
+                output_projection = 32725
 
         stn.channels = []
 
@@ -647,11 +646,10 @@ class Channel(inventory.Channel):
         if xy_from_lat_lon:
             if (cha.latitude is not None) and (cha.longitude is not None):
 
-                in_proj = pyproj.Proj(init=f'EPSG:{input_projection}')
-                out_proj = pyproj.Proj(init=f'EPSG:{output_projection}')
+                cha.x, cha.z = lon_lat_x_y(input_projection, output_projection,
+                                           longitude=cha.longitude,
+                                           latitude=cha.latitude)
 
-                cha.x, cha.y = pyproj.transform(in_proj, out_proj,
-                                                cha.latitude, cha.longitude)
                 cha.z = cha.elevation
 
         return cha
