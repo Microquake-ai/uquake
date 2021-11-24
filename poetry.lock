@@ -286,6 +286,19 @@ numpy = [
 ]
 
 [[package]]
+name = "hashwrap"
+version = "0.0.2"
+description = "Routines for running HASH algorithms for earthquake focal mechanism"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+matplotlib = "*"
+numpy = "*"
+toml = "*"
+
+[[package]]
 name = "hyperlink"
 version = "21.0.0"
 description = "A featureful, immutable, and correct URL for Python."
@@ -1012,7 +1025,7 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.7.1,<4.0"
-content-hash = "ca7551f977886d4d52f0ff6edd26c3b490475098d7df4382f46709d724fd4e87"
+content-hash = "ad3468fc4447877c0b0b4e5364d8bb7f42c6ddde47748083b8977255fdc1baaa"
 
 [metadata.files]
 aiohttp = [
@@ -1375,6 +1388,9 @@ h5py = [
     {file = "h5py-3.5.0-cp39-cp39-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:f75d7bdaba8d3537490b0f53adcd043991ada3597f88e772969172c45145a8f6"},
     {file = "h5py-3.5.0-cp39-cp39-win_amd64.whl", hash = "sha256:cdff848353e2d20d5f66535957595c79932851f51e496623a96186d02ba0cf30"},
     {file = "h5py-3.5.0.tar.gz", hash = "sha256:77c7be4001ac7d3ed80477de5b6942501d782de1bbe4886597bdfec2a7ab821f"},
+]
+hashwrap = [
+    {file = "hashwrap-0.0.2.tar.gz", hash = "sha256:6e9a1fde146ff3adc3fe7c7768bef03d356da15cec07e399c4abeaa8a4de90af"},
 ]
 hyperlink = [
     {file = "hyperlink-21.0.0-py2.py3-none-any.whl", hash = "sha256:e6b14c37ecb73e89c77d78cdb4c2cc8f3fb59a885c5b3f819ff4ed80f25af1b4"},
