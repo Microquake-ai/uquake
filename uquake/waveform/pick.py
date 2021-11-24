@@ -274,6 +274,156 @@ def snr_repicker(st, picks, start_search_window, end_search_window,
     return snrs, o_picks
 
 
+def snr_ensemble_re_picker(st, picks, start_search_window, end_search_window,
+                           start_refined_search_window,
+                           end_refined_search_window,
+                           refined_window_search_resolution,
+                           snr_calc_pre_pick_window_len=1e-3,
+                           snr_calc_post_pick_window_len=20e-3,
+                           trace_padding=30e-3):
+    """
+    Function to improve the picks based on the SNR for an ensemble of traces.
+    :param st: seismogram containing a seismic event
+    :type st: :py:class:`obspy.core.stream.Stream`
+    :param picks: list of :class: uquake.core.event.Pick object
+    picks
+    :type picks: uquake.core.event.Catalog
+    :param start_search_window: start of the search window relative to
+    provided picks in seconds
+    :type start_search_window: float
+    :param end_search_window: end of the search window relative to the
+    provided picks in seconds
+    :param start_refined_search_window: start of the refined search window in
+    seconds
+    :type: float
+    :param end_refined_search_window: end of the refined search window in
+    seconds
+    :type: float
+    :type end_search_window: float
+    :param refined_window_search_resolution: resolution of the search space in
+    seconds
+    :type refined_window_search_resolution: float
+    :param snr_calc_pre_pick_window_len: length of the window before the
+    presumed pick
+    :type snr_calc_pre_pick_window_len: float
+    :param snr_calc_post_pick_window_len: length of the window after the
+    presumed pick
+    :type snr_calc_post_pick_window_len: float
+    :param trace_padding: buffer from trace start and end time excluded from
+    search window
+    :returns:  Tuple comprising 1) a :py:class:`uquake.core.event.Catalog`
+    a new catalog containing a single event with a list of picks and 2) the SNR
+    """
+
+    snr_dt = np.arange(start_refined_search_window, end_refined_search_window,
+                       refined_window_search_resolution)
+
+    refined_window_size = end_refined_search_window - \
+                          start_refined_search_window
+
+    biases = np.arange(start_search_window, end_search_window,
+                       refined_window_size)
+
+    # from ipdb import set_trace
+    # set_trace()
+
+    function_name = 'snr_picker'
+
+    st.detrend('demean')
+
+    pre_window_length = snr_calc_pre_pick_window_len
+    post_window_length = snr_calc_post_pick_window_len
+
+    snrs_ensemble = []
+    picks_ensemble = []
+    for bias in biases:
+        o_picks = []
+        snrs = []
+        for pick in picks:
+            network = pick.waveform_id.network_code
+            station = pick.waveform_id.station_code
+            location = pick.waveform_id.location_code
+
+            tr = st.select(network=network, station=station,
+                           location=location).copy()[0]
+            if tr is None:
+                continue
+
+            phase = pick.phase_hint
+
+            earliest_time = pick.time + bias + start_refined_search_window
+            latest_time = pick.time + bias + end_refined_search_window
+
+            if earliest_time is None or earliest_time < tr.stats.starttime + \
+                    trace_padding:
+                earliest_time = tr.stats.starttime + trace_padding
+
+            if latest_time is None or latest_time > tr.stats.endtime - \
+                    trace_padding:
+                latest_time = tr.stats.endtime - trace_padding
+
+            tau = []
+            for dt in (snr_dt + bias):
+                taut = pick.time + dt
+
+                if earliest_time <= taut <= latest_time:
+                    tau.append(taut)
+
+            if not tau:
+                continue
+            if tau[0] <= tr.stats.starttime:
+                logger.error("Too early! tau[0]=%s <= tr.st=%s"
+                             % (tau[0], tr.stats.starttime))
+                logger.error("earliest_time:%s latest_time:%s"
+                             % (earliest_time, latest_time))
+
+                continue
+            if tau[-1] >= tr.stats.endtime:
+                logger.error("Too late! tau[-1]=%s >= tr.et=%s"
+                             % (tau[-1], tr.stats.endtime))
+                continue
+
+            tau = np.array(tau)
+            indices = (tau - tr.stats.starttime) * tr.stats.sampling_rate
+            tmp = np.array([(taut, index,
+                             calculate_snr(tr, taut,
+                                           pre_wl=pre_window_length,
+                                           post_wl=post_window_length))
+                            for taut, index in zip(tau, indices)])
+
+            alpha = 0
+
+            index = np.argmax(tmp[:, 2])
+            pick_time = tmp[index, 0]
+
+            snr = calculate_snr(tr, pick_time, pre_wl=pre_window_length,
+                                post_wl=post_window_length)
+
+            logger.debug("%s: sta:%s [%s] time_diff:%0.3f SNR:%.2f" %
+                         (function_name, station, phase, pick.time -
+                          pick_time, snr))
+
+            method_string = 'snr_picker preWl=%.3g postWl=%.3g alpha=%.1f' % \
+                            (pre_window_length, post_window_length, alpha)
+            o_picks.append(make_pick(pick_time, phase=pick.phase_hint,
+                                     wave_data=tr, snr=snr,
+                                     method_string=method_string,
+                                     resource_id=pick.resource_id))
+            snrs.append(snr)
+
+        # snrs_ensemble.append(np.percentile(snrs, 75))
+        snrs_ensemble.append(np.sum(snrs))
+        picks_ensemble.append(o_picks)
+
+    index = np.argmax(snrs_ensemble)
+    output_picks = picks_ensemble[index]
+
+    # from ipdb import set_trace
+    # set_trace()
+
+    return snrs, output_picks
+
+
 def calculate_snr(trace, pick, pre_wl=1e-3, post_wl=10e-3):
     """
     input :
