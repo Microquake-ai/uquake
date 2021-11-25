@@ -163,8 +163,16 @@ class Event(obsevent.Event):
 
         if self.origins:
             og = self.preferred_origin() or self.origins[-1]
+
+            if og.x is None:
+                x = 0
+            if og.y is None:
+                y = 0
+            if og.z is None:
+                z = 0
+
             out += '%s | %0.2f, %0.2f, %0.2f | %s' % (og.time,
-                                                      og.x, og.y, og.z,
+                                                      x, y, z,
                                                       og.evaluation_mode)
 
         if self.magnitudes:

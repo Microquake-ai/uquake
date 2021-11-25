@@ -189,8 +189,6 @@ def snr_repicker(st, picks, start_search_window, end_search_window,
     snr_dt = np.arange(start_search_window, end_search_window,
                        search_resolution)
 
-    function_name = 'snr_picker'
-
     st.detrend('demean')
 
     o_picks = []
@@ -208,8 +206,6 @@ def snr_repicker(st, picks, start_search_window, end_search_window,
                        location=location).copy()[0]
         if tr is None:
             continue
-
-        phase = pick.phase_hint
 
         earliest_time = pick.time + start_search_window
         latest_time = pick.time + end_search_window
@@ -259,9 +255,9 @@ def snr_repicker(st, picks, start_search_window, end_search_window,
         snr = calculate_snr(tr, pick_time, pre_wl=pre_window_length,
                             post_wl=post_window_length)
 
-        logger.debug("%s: sta:%s [%s] time_diff:%0.3f SNR:%.2f" %
-                     (function_name, station, phase, pick.time -
-                      pick_time, snr))
+        # logger.debug("%s: sta:%s [%s] time_diff:%0.3f SNR:%.2f" %
+        #              (function_name, station, phase, pick.time -
+        #               pick_time, snr))
 
         method_string = 'snr_picker preWl=%.3g postWl=%.3g alpha=%.1f' % \
                         (pre_window_length, post_window_length, alpha)
@@ -323,11 +319,6 @@ def snr_ensemble_re_picker(st, picks, start_search_window, end_search_window,
 
     biases = np.arange(start_search_window, end_search_window,
                        refined_window_size)
-
-    # from ipdb import set_trace
-    # set_trace()
-
-    function_name = 'snr_picker'
 
     st.detrend('demean')
 
@@ -399,10 +390,6 @@ def snr_ensemble_re_picker(st, picks, start_search_window, end_search_window,
             snr = calculate_snr(tr, pick_time, pre_wl=pre_window_length,
                                 post_wl=post_window_length)
 
-            logger.debug("%s: sta:%s [%s] time_diff:%0.3f SNR:%.2f" %
-                         (function_name, station, phase, pick.time -
-                          pick_time, snr))
-
             method_string = 'snr_picker preWl=%.3g postWl=%.3g alpha=%.1f' % \
                             (pre_window_length, post_window_length, alpha)
             o_picks.append(make_pick(pick_time, phase=pick.phase_hint,
@@ -411,15 +398,11 @@ def snr_ensemble_re_picker(st, picks, start_search_window, end_search_window,
                                      resource_id=pick.resource_id))
             snrs.append(snr)
 
-        # snrs_ensemble.append(np.percentile(snrs, 75))
         snrs_ensemble.append(np.sum(snrs))
         picks_ensemble.append(o_picks)
 
     index = np.argmax(snrs_ensemble)
     output_picks = picks_ensemble[index]
-
-    # from ipdb import set_trace
-    # set_trace()
 
     return snrs, output_picks
 
