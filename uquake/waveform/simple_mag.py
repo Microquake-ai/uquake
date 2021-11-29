@@ -1132,7 +1132,7 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
                                f'{location_code}')
                 continue
 
-            if sensor_response.response is None:
+            if sensor_response[0][0][0].response is None:
                 logger.warning(f'no response was found in the inventory for '
                                f'sensor '
                                f'{network_code}.{station_code}.'
