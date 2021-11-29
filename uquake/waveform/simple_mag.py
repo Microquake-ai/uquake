@@ -1111,7 +1111,9 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
         indices = []
         for k, arr in enumerate(origin.arrivals):
             pick = arr.get_pick()
-            sta_code = pick.get_sta()
+            network_code = pick.waveform_id.network_code
+            station_code = pick.waveform_id.station_code
+            location_code = pick.waveform_id.location_code
             travel_time = arr.get_pick().time - origin.time
             # ensuring backward compatibility
             if not pick:
@@ -1119,7 +1121,9 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
             at = pick.time
             phase = pick.phase_hint
 
-            sensor_response = inventory.select(sta_code)
+            sensor_response = inventory.select(network=network_code,
+                                               station=station_code,
+                                               location=location_code)
             st_loc = sensor_response.loc
             if not sensor_response:
                 logger.warning(f'sensor response not found for sensor '
