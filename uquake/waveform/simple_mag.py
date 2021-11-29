@@ -1169,7 +1169,7 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
             high_bp_freq = max_frequency
             pulse = pulse.taper(max_percentage=0.05, type='cosine')
             pulse.filter('bandpass', freqmin=low_bp_freq, freqmax=high_bp_freq)
-            pulse = pulse.remove_response(output='DISP')
+            dp = pulse.remove_response(output='DISP')
 
             # ideally the sensor signal should be deconvolved and a larger
             # portion of the spectrum should be used. It is possible to get
