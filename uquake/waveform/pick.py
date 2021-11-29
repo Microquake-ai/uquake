@@ -487,7 +487,7 @@ def _CalculateCF1_3(tr1, BW=None, WS=1e-3):
 
 
 def measure_incidence_angle(st: Stream, inventory: Inventory,
-                            picks: list[Pick], window_length_second: float):
+                            picks: list, window_length_second: float):
 
     station_location_list = list(set([(tr.stats.station, tr.stats.location)
                                       for tr in st]))
