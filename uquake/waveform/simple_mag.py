@@ -1124,6 +1124,14 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
             sensor_response = inventory.select(network=network_code,
                                                station=station_code,
                                                location=location_code)
+
+            if sensor_response is None:
+                logger.warning(f'no response was found in the inventory for '
+                               f'sensor '
+                               f'{network_code}.{station_code}.'
+                               f'{location_code}')
+                continue
+
             st_loc = sensor_response[0][0][0].loc
             if not sensor_response:
                 logger.warning(f'sensor response not found for sensor '
