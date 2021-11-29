@@ -22,8 +22,10 @@ from ..core import Stream, Trace
 from obspy.realtime.signal import kurtosis
 from scipy.signal import detrend
 from ..core.logging import logger
-from ..core.event import make_pick
+from ..core.event import make_pick, Pick
+from ..core.inventory import Inventory
 from ..core.util.tools import copy_picks_to_dict
+from ..core import UTCDateTime
 
 
 def measure_polarity(st, catalog, site, average_time_window=1e-3,
@@ -142,8 +144,8 @@ def pick_uncertainty(tr, pick_time, snr_window=10):
     :type pick_time: obspy UTCDateTime
     :param snr_window: length of window in ms centered on pick_time to
     calculate SNR.
-        Noise and signal energy are calculated over the first and second half of
-        the pick window, respectively.
+        Noise and signal energy are calculated over the first and second half
+        of the pick window, respectively.
     :type snr_window: float
     :returns: pick uncertainty in second
     :rtype: float
@@ -482,5 +484,35 @@ def _CalculateCF1_3(tr1, BW=None, WS=1e-3):
         cf3 = np.zeros(cf2.shape)
 
     return cf1, cf2, cf3
+
+
+def measure_incidence_angle(st: Stream, inventory: Inventory,
+                            picks: list[Pick], window_length_second: float):
+
+    station_location_list = list(set([(tr.stats.station, tr.stats.location)
+                                      for tr in st]))
+
+    st_rotated = st.rotate('->ZNE', inventory=inventory)
+
+    for station, location in station_location_list:
+        st_ = st_rotated.select(station=station, location=location)
+        p_pick = None
+        s_pick = None
+        for pick in picks:
+            if (pick.waveform_id.station_code == station) and \
+               (pick.waveform_id.location_code == location):
+
+                if pick.phase_hint == 'P':
+                    p_pick = pick
+
+                elif pick.phase_hint == 'S':
+                    s_pick = pick
+
+        if p_pick is not None:
+            st_.trim(starttime=p_pick.time,
+                     endtime=p_pick.time + window_length_second)
+
+            
+
 
 

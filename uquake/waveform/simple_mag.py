@@ -2,13 +2,11 @@ import numpy as np
 from numpy.fft import fft
 from scipy.optimize import curve_fit
 from scipy.ndimage.interpolation import map_coordinates
-from uquake.helpers.logging import logger
+from uquake.core.logging import logger
 from obspy.core.trace import Stats
 from uquake.core.stream import Trace, Stream
-from uquake.core.data import GridData
+from uquake.grid.base import Grid
 from uquake.core import event
-from uquake.waveform.mag_utils import calc_static_stress_drop
-from uquake.core.util.cli import ProgressBar
 
 
 ########################################################################################
@@ -38,9 +36,9 @@ def anelastic_scattering_attenuation(raypath_or_distance, velocity, quality,
     :param raypath_or_distance: raypath or distance
     :type raypath_or_distance: a list of point along the raypath or a float
     :param velocity: velocity along the raypath
-    :type: uquake.core.data.grid.GridData or float
+    :type: uquake.core.data.grid.Grid or float
     :param quality: Seismic quality factor
-    :type quality: uquake.core.data.grid.GridData or float
+    :type quality: uquake.core.data.grid.Grid or float
     :param seismogram: displacement waveform
     :type seismogram: uquake.core.Trace
     :return: attenuated seismogram
@@ -135,8 +133,7 @@ def calculate_attenuation(raypath, velocity, quality=None, Mw=-1):
 
 def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
                                triaxial=True,
-                               orientation=(0, 0, 1), pwave=True,
-                               progress=True, buf=0,
+                               orientation=(0, 0, 1), pwave=True, buf=0,
                                traveltime=None, eventSeed=False, Mw=-1.,
                                tt=None, return_tt=False,
                                homogeneous=True):
@@ -144,7 +141,7 @@ def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
     :param seed: seed (often receiver) location
     :type seed: tuple with same dimension as the grid
     :param velocity: velocity grid
-    :type velocity: uquake.core.data.GridData
+    :type velocity: uquake.core.data.Grid
     :param locations: 2-D grid containing the coordinates at which the
     attenuation is calculated
     for instance [[x1,y1,z1],[x2,y2,z2],...,[xn,yn,zn]].
@@ -161,7 +158,7 @@ def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
     :param progress: show progress bar if true
     :type progress: bool
     :param traveltime: precalculated traveltime grid (for MapReduce)
-    :type traveltime: uquake.core.data.GridData
+    :type traveltime: uquake.core.data.Grid
     :param eventSeed: True if seed is an event
     :type eventSeed: bool
     :param Mw: Moment magnitude
@@ -215,9 +212,6 @@ def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
     c2 = velocity.origin + (np.array(velocity.shape) - \
                             np.array([1, 1, 1])) * velocity.spacing
 
-    if progress:
-        pb = ProgressBar(max=NoNode)
-
     for k, coord in enumerate(locations):
         pb()
 
@@ -264,13 +258,13 @@ def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
 
         import scipy.ndimage as ndimage
 
-        tt_out = GridData(
+        tt_out = Grid(
             ndimage.map_coordinates(tt.data, tt.transform_to(locations).T),
             spacing=velocity.shape, origin=velocity.origin)
-        return GridData(tmp, spacing=velocity.shape,
+        return Grid(tmp, spacing=velocity.shape,
                         origin=velocity.origin), tt_out
     else:
-        return GridData(tmp, spacing=velocity.shape, origin=velocity.origin)
+        return Grid(tmp, spacing=velocity.shape, origin=velocity.origin)
 
 
 def Mw2M0(Mw):
@@ -446,11 +440,11 @@ def detection_level_sta_lta_grid(attenuationGrid, VpGrid, VsGrid,
     with the same dimensions as the attenuation grid.
 
     :param attenuationGrid: Attenuation grid
-    :type attenuationGrid: uquake.core.data.GridData
+    :type attenuationGrid: uquake.core.data.Grid
     :param VpGrid: P-wave velocity grid
-    :type VpGrid: uquake.core.data.GridData
+    :type VpGrid: uquake.core.data.Grid
     :param VsGrid: S-wave velocity grid
-    :type VsGrid: uquake.core.data.GridData
+    :type VsGrid: uquake.core.data.Grid
     :param noise_level: Level of noise to add to the seismogram
     :type noise_level: float
     :param acceleration: if True use acceleration if false use velocity
@@ -469,7 +463,7 @@ def detection_level_sta_lta_grid(attenuationGrid, VpGrid, VsGrid,
     :type magResolution: float
     :param pwave: True if it is a P-wave
     :type pwave: bool
-    :rtype: uquake.core.data.GridData
+    :rtype: uquake.core.data.Grid
     """
 
     Sensitivity = attenuationGrid.copy()
@@ -1057,9 +1051,9 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
     :param inventory: network information (contains stations information)
     :type inventory: uquake.station.Site
     :param vp: P-wave velocity
-    :type vp: float or uquake.core.data.GridData
+    :type vp: float or uquake.core.data.Grid
     :param vs: S-wave velocity
-    :type vs: float or uquake.core.data.GridData
+    :type vs: float or uquake.core.data.Grid
     :param only_triaxial: whether only triaxial sensor are used in the
     magnitude calculation (optional) (not yet implemented)
     :type only_triaxial: bool
