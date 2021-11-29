@@ -1228,7 +1228,7 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
                 dp_spectrum += np.abs(np.fft.fft(tr.data, n=len_spectrum))
             # one_spectrum = np.fft.fft(st_one_taper[0].data, n=len_spectrum)
 
-            dp_spectrum_scaled = dp_spectrum # / (one_spectrum + water_level)
+            # dp_spectrum_scaled = dp_spectrum # / (one_spectrum + water_level)
 
             if arr.distance is not None:
                 hypo_dist = arr.distance
@@ -1265,7 +1265,8 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
         if not spectrum_norm_matrix:
             continue
         spectrum_norm = np.nanmedian(spectrum_norm_matrix, axis=0)
-        fi = np.nonzero((np.isnan(spectrum_norm) == False) & (f > 0))[0]
+        f = np.median(frequencies, axis=0)
+        fi = np.nonzero((np.isnan(spectrum_norm) is False) & (f > 0))[0]
 
         p_opt, p_cov = curve_fit(spectral_function, f[fi],
                                  np.log10(spectrum_norm[fi]),
