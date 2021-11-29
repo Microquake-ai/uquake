@@ -1266,7 +1266,7 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
             continue
         spectrum_norm = np.nanmedian(spectrum_norm_matrix, axis=0)
         f = np.median(frequencies, axis=0)
-        fi = np.nonzero((np.isnan(spectrum_norm) is False) & (f > 0))[0]
+        fi = np.nonzero((np.isnan(spectrum_norm) == False) & (f > 0))[0]
 
         p_opt, p_cov = curve_fit(spectral_function, f[fi],
                                  np.log10(spectrum_norm[fi]),
