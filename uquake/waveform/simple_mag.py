@@ -1158,12 +1158,18 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
                 continue
 
             pulse = st_trs.copy()
+            pulse.attach_response(inventory)
 
             # filter the pulse using the corner frequency of the sensor
             low_bp_freq = np.min(poles) / (2 * np.pi)
             high_bp_freq = np.max(poles) / (2 * np.pi)
             if high_bp_freq > pulse[0].stats.sampling_rate / 2:
-                high_bp_freq = pulse[0].stats.sampling_rate / 2
+                high_bp_freq = pulse[0].stats.sampling_rate / 2.5
+
+            high_bp_freq = max_frequency
+            pulse = pulse.taper(max_percentage=0.05, type='cosine')
+            pulse.filter('bandpass', freqmin=low_bp_freq, freqmax=high_bp_freq)
+            pulse = pulse.remove_response(output='DISP')
 
             # ideally the sensor signal should be deconvolved and a larger
             # portion of the spectrum should be used. It is possible to get
@@ -1172,14 +1178,15 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
             # complicated. The max frequency could also be found looking at
             # the noise floor.
 
-            high_bp_freq = max_frequency
-            pulse.filter('bandpass', freqmin=low_bp_freq, freqmax=high_bp_freq)
-            pulse = pulse.taper(max_percentage=0.05, type='cosine')
-
-            if sensor_response.motion == 'ACCELERATION':
-                dp = pulse.copy().integrate().integrate()
-            elif sensor_response.motion == 'VELOCITY':
-                dp = pulse.copy().integrate()
+            # if hasattr(sensor_response[0][0][0], motion):
+            #     motion = sensor_response[0][0][0]
+            #     if sensor_response[0][0][0].motion == 'ACCELERATION':
+            #         dp = pulse.copy().integrate().integrate()
+            #     elif sensor_response[0][0][0].motion == 'VELOCITY':
+            #         dp = pulse.copy().integrate()
+            #
+            # else:
+            #     dp =
 
             # dp = pulse.copy()
 
