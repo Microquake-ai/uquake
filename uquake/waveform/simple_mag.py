@@ -1127,11 +1127,14 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
             st_loc = sensor_response.loc
             if not sensor_response:
                 logger.warning(f'sensor response not found for sensor '
-                               f'{sta_code}')
+                               f'{network_code}.{station_code}'
+                               f'.{location_code}')
                 continue
 
             poles = np.abs(sensor_response[0].response.get_paz().poles)
-            st_trs = stream.select(station=sta_code)
+            st_trs = stream.select(network_code=network_code,
+                                   station_code=station_code,
+                                   location_code=location_code)
 
             if len(st_trs) == 0:
                 continue
