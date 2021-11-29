@@ -1200,20 +1200,20 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
                           side='left')
 
             # applying the same operation to the one signal
-            st_one_trimmed = st_one.trim(starttime=at - 0.01,
-                                         endtime=at + 2 * win_length)
-            st_one_taper = st_one_trimmed.taper(type='cosine',
-                                                max_percentage=0.5,
-                                                max_length=0.08,
-                                                side='left')
-
+            # st_one_trimmed = st_one.trim(starttime=at - 0.01,
+            #                              endtime=at + 2 * win_length)
+            # st_one_taper = st_one_trimmed.taper(type='cosine',
+            #                                     max_percentage=0.5,
+            #                                     max_length=0.08,
+            #                                     side='left')
+            #
             dp_spectrum = np.zeros(len_spectrum)
             water_level = 1e-15
             for tr in dp:
                 dp_spectrum += np.abs(np.fft.fft(tr.data, n=len_spectrum))
-            one_spectrum = np.fft.fft(st_one_taper[0].data, n=len_spectrum)
+            # one_spectrum = np.fft.fft(st_one_taper[0].data, n=len_spectrum)
 
-            dp_spectrum_scaled = dp_spectrum / (one_spectrum + water_level)
+            dp_spectrum_scaled = dp_spectrum # / (one_spectrum + water_level)
 
             if arr.distance is not None:
                 hypo_dist = arr.distance
