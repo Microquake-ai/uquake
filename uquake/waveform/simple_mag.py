@@ -1264,6 +1264,8 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
 
         if not spectrum_norm_matrix:
             continue
+
+        st_count = len(spectrum_norm_matrix)
         spectrum_norm = np.nanmedian(spectrum_norm_matrix, axis=0)
         f = np.median(frequencies, axis=0)
         fi = np.nonzero((np.isnan(spectrum_norm) == False) & (f > 0))[0]
