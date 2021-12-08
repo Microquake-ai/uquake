@@ -5,6 +5,8 @@ description = "extension of the ObsPy library for local seismicity"
 authors = ["uQuake development team <dev@uQuake.org>"]
 license = "MIT"
 
+# poetry config virtualenvs.create false; poetry env info
+
 [tool.poetry.dependencies]
 python = ">=3.7.1,<4.0"
 numpy = "^1.18.0"
@@ -21,7 +23,6 @@ dynaconf = "^3.1.4"
 h5py = "^3.2.1"
 tqdm = "^4.59.0"
 pydantic = "^1.8.2"
-psycopg2 = "^2.9.1"
 pyproj = "^3.2.1"
 
 [tool.poetry.dev-dependencies]
