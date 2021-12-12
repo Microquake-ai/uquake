@@ -166,10 +166,16 @@ class Event(obsevent.Event):
 
             if og.x is None:
                 x = 0
+            else:
+                x = og.x
             if og.y is None:
                 y = 0
+            else:
+                y = og.y
             if og.z is None:
                 z = 0
+            else:
+                z = og.z
 
             out += '%s | %0.2f, %0.2f, %0.2f | %s' % (og.time,
                                                       x, y, z,
@@ -293,6 +299,9 @@ class Origin(obsevent.Origin):
         return magnitudes
 
     def __str__(self, **kwargs):
+
+        if self.uncertainty is None:
+
         string = f"""
        resource_id: {self.resource_id}
          time(UTC): {self.time}
