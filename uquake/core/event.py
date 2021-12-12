@@ -300,8 +300,6 @@ class Origin(obsevent.Origin):
 
     def __str__(self, **kwargs):
 
-        if self.uncertainty is None:
-
         string = f"""
        resource_id: {self.resource_id}
          time(UTC): {self.time}
