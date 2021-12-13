@@ -337,8 +337,14 @@ def snr_ensemble_re_picker(st, picks, start_search_window, end_search_window,
             station = pick.waveform_id.station_code
             location = pick.waveform_id.location_code
 
-            tr = st.select(network=network, station=station,
-                           location=location).copy()[0]
+            st_tmp = st.select(network=network, station=station,
+                               location=location).copy()
+
+            if len(st_tmp) == 0:
+                continue
+
+            tr = st_tmp.composite()[0]
+
             if tr is None:
                 continue
 

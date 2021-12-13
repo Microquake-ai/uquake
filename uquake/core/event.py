@@ -210,8 +210,7 @@ class Event(obsevent.Event):
 class Origin(obsevent.Origin):
     __doc__ = obsevent.Origin.__doc__.replace('obspy', 'uquake')
     extra_keys = ['x', 'y', 'z', 'x_error', 'y_error', 'z_error', 'scatter',
-                  'interloc_vmax', 'interloc_time', '__encoded_rays__',
-                  'author']
+                  '__encoded_rays__', 'author']
 
     def __init__(self, obspy_obj=None, **kwargs):
         _init_handler(self, obspy_obj, **kwargs)
@@ -277,7 +276,7 @@ class Origin(obsevent.Origin):
         return np.array([self.x, self.y, self.z])
 
     @property
-    def uncertainty(self):
+    def location_uncertainty(self):
         if self.origin_uncertainty is None:
             return None
         else:
@@ -306,7 +305,7 @@ class Origin(obsevent.Origin):
                  x: {self.x}
                  y: {self.y}
                  z: {self.z}
-       uncertainty: {self.uncertainty} (m)
+       uncertainty: {self.location_uncertainty} (m)
    evaluation_mode: {self.evaluation_mode}
  evaluation_status: {self.evaluation_status}
                 ---------
