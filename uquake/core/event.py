@@ -280,6 +280,8 @@ class Origin(obsevent.Origin):
         if self.origin_uncertainty is None:
             return None
         else:
+            if self.origin_uncertainty.confidence_ellipsoid is None:
+                return None
             return self.origin_uncertainty.confidence_ellipsoid \
                 .semi_major_axis_length
 
@@ -822,7 +824,9 @@ class Ray:
                  phase: str = None, azimuth: float = None,
                  takeoff_angle: float = None,
                  travel_time: float = None,
-                 earth_model_id: ResourceIdentifier = None):
+                 earth_model_id: ResourceIdentifier = None,
+                 network: str = None, station: str = None,
+                 location: str = None):
         """
         :param nodes: ray nodes
         :param site_code: site code

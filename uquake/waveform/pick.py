@@ -272,6 +272,46 @@ def snr_repicker(st, picks, start_search_window, end_search_window,
     return snrs, o_picks
 
 
+def linearity_ensemble_re_picker(st, picks, start_search_window,
+                                 end_search_window,
+                                 start_refined_search_window,
+                                 end_refinde_search_window,
+                                 refined_window_search_resolution,
+                                 linearity_calc_window_len):
+    """
+        Function to improve the picks based on the linearity or planarity
+        for an ensemble of traces.
+        :param st: waveforms containing a seismic event
+        :type st: :py:class:`uquake.core.stream.Stream`
+        :param picks: list of :class:`uquake.core.event.Pick` object
+        picks
+        :type picks: list of :py:class:`uquake.core.event.Pick`
+        :param start_search_window: start of the search window relative to
+        provided picks in seconds
+        :type start_search_window: float
+        :param end_search_window: end of the search window relative to the
+        provided picks in seconds
+        :param start_refined_search_window: start of the refined search
+        window in seconds
+        :type: float
+        :param end_refined_search_window: end of the refined search window in
+        seconds
+        :type: float
+        :type end_search_window: float
+        :param refined_window_search_resolution: resolution of the search
+        space in seconds
+        :type refined_window_search_resolution: float
+        :param linearity_calc_window_len: length of the window after the
+        presumed pick used to calculate the linearity
+        :param trace_padding: buffer from trace start and end time excluded
+        from search window
+        :returns:  Tuple comprising 1) a :py:class:`uquake.core.event.Catalog`
+        a new catalog containing a single event with a list of picks and 2)
+        the SNR
+        """
+
+
+
 def snr_ensemble_re_picker(st, picks, start_search_window, end_search_window,
                            start_refined_search_window,
                            end_refined_search_window,
@@ -281,11 +321,11 @@ def snr_ensemble_re_picker(st, picks, start_search_window, end_search_window,
                            trace_padding=30e-3):
     """
     Function to improve the picks based on the SNR for an ensemble of traces.
-    :param st: seismogram containing a seismic event
-    :type st: :py:class:`obspy.core.stream.Stream`
-    :param picks: list of :class: uquake.core.event.Pick object
+    :param st: waveforms containing a seismic event
+    :type st: :py:class:`uquake.core.stream.Stream`
+    :param picks: list of :class:`uquake.core.event.Pick` object
     picks
-    :type picks: uquake.core.event.Catalog
+    :type picks: list of :py:class:`uquake.core.event.Pick`
     :param start_search_window: start of the search window relative to
     provided picks in seconds
     :type start_search_window: float
@@ -413,6 +453,75 @@ def snr_ensemble_re_picker(st, picks, start_search_window, end_search_window,
     output_picks = picks_ensemble[index]
 
     return snrs, output_picks
+
+
+def extract_trace_segment(st: stream, pick_time: UTCDateTime,
+                          window_length: float):
+    """
+        Extract a fragment of trace and return the waveform in a matrix
+        :param st: waveforms recorded by a particular site
+        :type st: :py:class:`uquake.core.stream.Stream`
+        :param pick_time: pick time
+        :type pick_time: :py:class:uquake.core.UTCDateTime
+        :param window_length: length of the window in seconds over which the
+        linearity is measured
+        :return: the waveform data package as a numpy ndarray
+        :rtype: :py:class:numpy.ndarray
+        """
+    # Assuming here that all the traces recorded at a specific sensor are
+    # aligned
+    st[0].stats.sampling_rate
+
+    waveforms = []
+    for tr in st:
+        sampling_rate = tr.stats.sampling_rate
+        window_length_sample = window_length * sampling_rate
+        start_measurement_window = (pick_time - tr.stats.sampling_rate)
+        start_measurement_window_sample = start_measurement_window * \
+                                          sampling_rate
+
+        end_measurement_window_sample = start_measurement_window_sample + \
+                                        window_length_sample
+        waveforms.append(tr.data[start_measurement_window_sample:
+                                 end_measurement_window_sample])
+
+    return np.array(waveforms)
+
+
+
+def measure_linearity(st: Stream, pick_time: UTCDateTime,
+                      window_length: float):
+    """
+    measure the linearity of the particule motion using PCA
+    :param st: waveforms recorded by a particular site
+    :type st: :py:class:`uquake.core.stream.Stream`
+    :param pick_time: pick time
+    :type pick_time: :py:class:uquake.core.UTCDateTime
+    :param window_length: length of the window in seconds over which the
+    linearity is measured
+    :return: the linearity between 0 and 1. 1 representing a perfect linearity
+    :rtype: float
+    """
+
+
+
+
+    pass
+
+
+def measure_planarity():
+    """
+    measure the planarity of the particule motion using PCA
+    :param st: waveforms recorded by a particular site
+    :type st: :py:class:`uquake.core.stream.Stream`
+    :param pick_time: pick time
+    :type pick_time: :py:class:uquake.core.UTCDateTime
+    :param window_length: length of the window in seconds over which the
+    linearity is measured
+    :return: the linearity between 0 and 1. 1 representing a perfect planarity
+    :rtype: float
+    """
+    pass
 
 
 def calculate_snr(trace, pick, pre_wl=1e-3, post_wl=10e-3):
