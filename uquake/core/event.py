@@ -434,7 +434,8 @@ Static stress drop (MPa): {self.static_stress_drop_mpa}
 
 class Pick(obsevent.Pick):
     __doc__ = obsevent.Pick.__doc__.replace('obspy', 'uquake')
-    extra_keys = ['method', 'snr', 'trace_id', 'author']
+    extra_keys = ['method', 'snr', 'trace_id', 'author', 'linearity',
+                  'planarity', 'azimuth', 'dip']
 
     def __init__(self, obspy_obj=None, **kwargs):
         _init_handler(self, obspy_obj, **kwargs)
