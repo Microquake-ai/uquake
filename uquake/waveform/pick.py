@@ -455,7 +455,7 @@ def snr_ensemble_re_picker(st, picks, start_search_window, end_search_window,
     return snrs, output_picks
 
 
-def extract_trace_segment(st: stream, pick_time: UTCDateTime,
+def extract_trace_segment(st: Stream, pick_time: UTCDateTime,
                           window_length: float):
     """
         Extract a fragment of trace and return the waveform in a matrix
