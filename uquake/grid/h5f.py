@@ -15,8 +15,8 @@ class H5TTable(object):
         if dset_key is not None:
             self.set_dataset(dset_key)
 
-        self.stations = self.hf['stations'][:].astype('U4')
-        self._stadict = dict(zip(self.stations, np.arange(len(self.stations))))
+        self.sitess = self.hf['sites'][:].astype('U4')
+        self._stadict = dict(zip(self.sites, np.arange(len(self.sites))))
 
         self.locations = self.hf['locations'][:]
         self.coords = self.hf['grid_locs'][:]
@@ -39,11 +39,11 @@ class H5TTable(object):
     def spacing(self):
         return self.hf.attrs['spacing']
 
-    def index_sta(self, stations):
-        if isinstance(stations, (list, np.ndarray)):
-            return np.array([self._stadict[sta] for sta in stations])
+    def index_sta(self, sites):
+        if isinstance(sites, (list, np.ndarray)):
+            return np.array([self._stadict[sta] for sta in sites])
         else:
-            return self._stadict[stations]
+            return self._stadict[sites]
 
     def icol_to_xyz(self, index):
         nx, ny, nz = self.shape
@@ -58,7 +58,6 @@ class H5TTable(object):
         x, y, z = loc
         ix, iy, iz = ((loc - self.origin) / self.spacing).astype(int)
         nx, ny, nz = self.shape
-        # return (iz * nx * ny) + (iy * nx) + ix;
 
         return int((ix * ny * nz) + (iy * nz) + iz)
 
@@ -68,11 +67,10 @@ class H5TTable(object):
 
 def gdef_to_points(shape, origin, spacing):
     maxes = origin + shape * spacing
-    x = np.arange(origin[0], maxes[0], spacing).astype(np.float32)
-    y = np.arange(origin[1], maxes[1], spacing).astype(np.float32)
-    z = np.arange(origin[2], maxes[2], spacing).astype(np.float32)
+    x = np.arange(origin[0], maxes[0], spacing[0]).astype(np.float32)
+    y = np.arange(origin[1], maxes[1], spacing[1]).astype(np.float32)
+    z = np.arange(origin[2], maxes[2], spacing[2]).astype(np.float32)
     points = np.zeros((np.product(shape), 3), dtype=np.float32)
-    # points = np.stack(np.meshgrid(x, y, z), 3).reshape(3, -1).astype(np.float32)
     ix = 0
 
     for xv in x:

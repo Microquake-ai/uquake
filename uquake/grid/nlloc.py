@@ -1355,7 +1355,7 @@ class TravelTimeEnsemble:
         hf.create_dataset('locations', data=seeds)
         gdef = np.concatenate((shape, origin, [spacing])).astype(np.int32)
         hf.create_dataset('grid_def', data=gdef)
-        hf.create_dataset('stations', data=seed_labels.astype('S4'))
+        hf.create_dataset('sites', data=seed_labels.astype('S4'))
         hf.close()
 
 
