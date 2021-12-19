@@ -30,6 +30,7 @@ import h5py
 from .base import ray_tracer
 import shutil
 from uquake.grid import read_grid
+from .hdf5 import H5TTable, write_hdf5
 
 __cpu_count__ = cpu_count()
 
@@ -1295,18 +1296,18 @@ class TravelTimeEnsemble:
     @property
     def seeds(self):
         seeds = []
-        for grid in self.travel_time_grids:
-            seeds.append(grid.seed)
+        for seed_label in self.seed_labels:
+            seeds.append(self.select(seed_labels=seed_label)[0].seed)
 
         return np.array(seeds)
-
+    
     @property
     def seed_labels(self):
         seed_labels = []
         for grid in self.travel_time_grids:
             seed_labels.append(grid.seed_label)
 
-        return np.array(seed_labels)
+        return np.unique(np.array(seed_labels))
 
     @property
     def shape(self):
@@ -1325,38 +1326,11 @@ class TravelTimeEnsemble:
             travel_time_grid.write(path=path)
 
     def write_hdf5(self, file_name):
-        hf = h5py.File(file_name, 'w')
-
-        shape = self.shape
-        origin = self.origin
-        spacing = self.spacing
-        ngrid = np.product(shape)
-        gridlocs = gdef_to_points(shape, origin, spacing)
-        hf.create_dataset('grid_locs', data=gridlocs.astype(np.float32))
-
-        hf.attrs['shape'] = shape
-        hf.attrs['origin'] = origin
-        hf.attrs['spacing'] = spacing
-        for phase in ['P', 'S']:
-            sorted_tt_grids = self.travel_time_grids.select(phase=phase).sort()
-            seeds = sorted_tt_grids.seeds
-            seed_labels = np.array(sorted_tt_grids.seed_labels)
-            nsta = len(sorted_tt_grids)
-            tts = np.zeros((nsta, ngrid), dtype=np.float32)
-
-            for i, tt_grid in enumerate(sorted_tt_grids):
-                tts[i] = tt_grid.data.reshape(ngrid)
-
-            seeds = np.array(seeds).astype(np.float32)
-
-            hf.create_dataset(f'tt{phase.lower()}',
-                              data=tts)
-
-        hf.create_dataset('locations', data=seeds)
-        gdef = np.concatenate((shape, origin, [spacing])).astype(np.int32)
-        hf.create_dataset('grid_def', data=gdef)
-        hf.create_dataset('sites', data=seed_labels.astype('S4'))
-        hf.close()
+        write_hdf5(file_name, self)
+        
+    def to_hdf5(self, file_name):
+        self.write_hdf5(file_name)
+        return H5TTable(file_name)
 
 
 class AngleGrid(SeededGrid):
@@ -1371,20 +1345,3 @@ class AngleGrid(SeededGrid):
 
     def write(self, path='.'):
         pass
-
-
-def gdef_to_points(shape, origin, spacing):
-    maxes = origin + shape * spacing
-    x = np.arange(origin[0], maxes[0], spacing[0]).astype(np.float32)
-    y = np.arange(origin[1], maxes[1], spacing[1]).astype(np.float32)
-    z = np.arange(origin[2], maxes[2], spacing[2]).astype(np.float32)
-    points = np.zeros((np.product(shape), 3), dtype=np.float32)
-    ix = 0
-
-    for xv in x:
-        for yv in y:
-            for zv in z:
-                points[ix] = [xv, yv, zv]
-                ix += 1
-
-    return points
