@@ -1375,9 +1375,9 @@ class AngleGrid(SeededGrid):
 
 def gdef_to_points(shape, origin, spacing):
     maxes = origin + shape * spacing
-    x = np.arange(origin[0], maxes[0], spacing).astype(np.float32)
-    y = np.arange(origin[1], maxes[1], spacing).astype(np.float32)
-    z = np.arange(origin[2], maxes[2], spacing).astype(np.float32)
+    x = np.arange(origin[0], maxes[0], spacing[0]).astype(np.float32)
+    y = np.arange(origin[1], maxes[1], spacing[1]).astype(np.float32)
+    z = np.arange(origin[2], maxes[2], spacing[2]).astype(np.float32)
     points = np.zeros((np.product(shape), 3), dtype=np.float32)
     ix = 0
 
