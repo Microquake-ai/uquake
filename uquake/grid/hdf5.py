@@ -22,6 +22,9 @@ class H5TTable(object):
         self.locations = self.hf['locations'][:]
         self.coords = self.hf['grid_locs'][:]
 
+    def __delete__(self):
+        sefl.hf.close()
+
     def set_dataset(self, key):
         if key in self.keys:
             self.dset = self.hf[key]
@@ -134,7 +137,7 @@ def write_hdf5(fname, tt_grids):
     hf.create_dataset('grid_locs', data=gridlocs.astype(np.float32))
     gdef = np.concatenate((shape, origin, spacing)).astype(np.int32)
     hf.create_dataset('grid_def', data=gdef)
-    hf.create_dataset('sites', data=sites.astype('S4'))
+    hf.create_dataset('sites', data=sites.astype('S6'))
 
     nsites = len(sites)
     ngrid = np.product(shape)
