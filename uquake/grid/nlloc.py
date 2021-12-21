@@ -17,6 +17,8 @@
     (http://www.gnu.org/copyleft/lesser.html)
 """
 import numpy as np
+import scipy.ndimage
+
 from .base import Grid
 from pathlib import Path
 from uuid import uuid4
@@ -31,6 +33,7 @@ from .base import ray_tracer
 import shutil
 from uquake.grid import read_grid
 from .hdf5 import H5TTable, write_hdf5
+from scipy.interpolate import interp1d
 
 __cpu_count__ = cpu_count()
 
@@ -415,7 +418,8 @@ class LayeredVelocityModel(object):
 
     def __init__(self, model_id=None, velocity_model_layers=None,
                  phase='P', grid_units='METER',
-                 float_type=__default_float_type__):
+                 float_type=__default_float_type__,
+                 gradient=False):
         """
         Initialize
         :param model_id: model id, if not set the model ID is set using UUID
@@ -444,6 +448,8 @@ class LayeredVelocityModel(object):
             model_id = str(uuid4())
 
         self.model_id = model_id
+
+        self.gradient = gradient
 
     def __repr__(self):
         output = ''
@@ -497,7 +503,14 @@ class LayeredVelocityModel(object):
         v = v[i_sort]
 
         z_interp = np.arange(z_min, z_max, spacing[2])
-        v_interp = np.interp(z_interp, z, v)
+        kind = 'previous'
+        if self.gradient:
+            kind = 'linear'
+
+
+        f_interp = interp1d(z, v, kind=kind)
+
+        v_interp = f_interp(z_interp)
 
         return z_interp, v_interp
 
@@ -1065,7 +1078,8 @@ class TTGrid(SeededGrid):
 
         return ray_tracer(self, start, grid_coordinate=grid_coordinate,
                           max_iter=max_iter, arrival_id=arrival_id,
-                          earth_model_id=self.model_id)
+                          earth_model_id=self.model_id,
+                          network=self.network_code)
 
     @classmethod
     def from_velocity(cls, seed, seed_label, velocity_grid):
@@ -1200,7 +1214,7 @@ class TravelTimeEnsemble:
 
         return TravelTimeEnsemble(sorted_tt_grids)
 
-    def travel_time(self, seed, grid_coordinate: bool = False,
+    def travel_time(self, seed, grid_coordinates: bool = False,
                     seed_labels: Optional[list] = None,
                     phase: Optional[list] = None):
         """
@@ -1223,7 +1237,7 @@ class TravelTimeEnsemble:
         if not self.travel_time_grids[0].in_grid(seed):
             raise ValueError('seed is outside the grid')
 
-        if grid_coordinate:
+        if grid_coordinates:
             seed = self.travel_time_grids[0].transform_from(seed)
 
         tt_grids = self.select(seed_labels=seed_labels, phase=phase)
@@ -1233,7 +1247,8 @@ class TravelTimeEnsemble:
         phases = []
         for tt_grid in tt_grids:
             labels.append(tt_grid.seed_label)
-            tts.append(tt_grid.interpolate(seed.T, grid_coordinate=False)[0])
+            tts.append(tt_grid.interpolate(seed.T,
+                       grid_coordinates=grid_coordinates)[0])
             phases.append(tt_grid.phase)
 
         tts_dict = {}
@@ -1265,10 +1280,10 @@ class TravelTimeEnsemble:
 
         travel_time_grids = self.select(seed_labels=seed_labels)
 
-        if multithreading:
+        kwargs = {'grid_coordinate': grid_coordinate,
+                  'max_iter': max_iter}
 
-            kwargs = {'grid_coordinate': grid_coordinate,
-                      'max_iter': max_iter}
+        if multithreading:
 
             ray_tracer_func = partial(ray_tracer, **kwargs)
 
@@ -1284,12 +1299,13 @@ class TravelTimeEnsemble:
             with Pool(num_threads) as pool:
                 results = pool.starmap(ray_tracer_func, data)
 
+            for result in results:
+                result.network = self.travel_time_grids[0].network_code
+
         else:
             results = []
             for travel_time_grid in travel_time_grids:
-                results.append(ray_tracer(travel_time_grid, start,
-                                          grid_coordinate=grid_coordinate,
-                                          max_iter=max_iter))
+                results.append(travel_time_grid.ray_tracer(start, **kwargs))
 
         return results
 

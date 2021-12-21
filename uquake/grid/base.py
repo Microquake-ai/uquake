@@ -24,6 +24,8 @@ from pkg_resources import load_entry_point
 from ..core.util import ENTRY_POINTS
 from pathlib import Path
 from scipy.ndimage.interpolation import map_coordinates
+from ..core.event import WaveformStreamID
+import matplotlib.pyplot as plt
 
 
 def read_grid(filename, format='PICKLE', **kwargs):
@@ -461,6 +463,48 @@ class Grid:
 
         return write_format(self, filename, **kwargs)
 
+    def plot_1D(self, x, y, z_resolution, grid_coordinate=False,
+                inventory=None, reverse_y=True):
+        """
+
+        :param x: x location
+        :param y: y location
+        :param z_resolution_m: z resolution in grid units
+        :param grid_coordinates:
+        :return:
+        """
+
+        if not grid_coordinate:
+            x, y, z = self.transform_from([x, y, 0])
+
+        zs = np.arange(self.origin[2], self.corner[2], z_resolution)
+
+        coords = []
+        for z in zs:
+            coords.append(np.array([x, y, z]))
+
+        values = self.interpolate(coords, grid_coordinate=grid_coordinate)
+
+        plt.plot(values, zs)
+        if reverse_y:
+            plt.gca().invert_yaxis()
+
+        if (inventory):
+            z_stas = []
+            for network in inventory:
+                for station in network:
+                    loc = station.loc
+                    z_stas.append(loc[2])
+
+            plt.plot([np.mean(values)] * len(z_stas), z_stas, 'kv')
+
+
+
+            plt.plot()
+
+            plt.plot()
+        plt.show()
+
     @property
     def ndim(self):
         return self.data.ndim
@@ -476,6 +520,11 @@ class Grid:
     @property
     def dimensions(self):
         return self.shape
+
+    @property
+    def corner(self):
+        return np.array(self.origin) + np.array(self.shape) * \
+               np.array(self.spacing)
 
 
 def angles(travel_time_grid):
@@ -507,7 +556,8 @@ def angles(travel_time_grid):
 
 
 def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
-               arrival_id=None, earth_model_id=None):
+               arrival_id=None, earth_model_id=None,
+               network: str=None):
     """
     This function calculates the ray between a starting point (start) and an
     end point, which should be the seed of the travel_time grid, using the
@@ -525,6 +575,8 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
     :type arrival_id: uquake.core.event.ResourceIdentifier
     :param earth_model_id: velocity/earth model id.
     :type earth_model_id: uquake.core.event.ResourceIdentifier
+    :param network: network information
+    :type network: str
     :rtype: numpy.array
     """
 
@@ -580,6 +632,6 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
     ray = Ray(nodes=nodes, site_code=travel_time_grid.seed_label,
               arrival_id=arrival_id, phase=travel_time_grid.phase,
               azimuth=az, takeoff_angle=toa, travel_time=tt,
-              earth_model_id=earth_model_id)
+              earth_model_id=earth_model_id, network=network)
 
     return ray

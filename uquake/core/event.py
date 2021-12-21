@@ -818,7 +818,7 @@ class RayCollection:
         self.rays = self.rays + [item]
 
 
-class Ray:
+class Ray(object):
 
     def __init__(self, nodes: list = [], site_code: str = None,
                  arrival_id: ResourceIdentifier = None,
@@ -826,8 +826,7 @@ class Ray:
                  takeoff_angle: float = None,
                  travel_time: float = None,
                  earth_model_id: ResourceIdentifier = None,
-                 network: str = None, station: str = None,
-                 location: str = None):
+                 network: str = None):
         """
         :param nodes: ray nodes
         :param site_code: site code
@@ -839,6 +838,8 @@ class Ray:
         :param travel_time: travel time between the source and the site in
         second
         :param earth_model_id: velocity model ResourceIdentifier
+        :param network:
+        :type network: str
         """
 
         self.nodes = np.array(nodes)
@@ -850,6 +851,7 @@ class Ray:
         self.travel_time = travel_time
         self.resource_id = obsevent.ResourceIdentifier()
         self.earth_model_id = earth_model_id
+        self.network = network
 
     def __setattr__(self, key, value):
         if key == 'phase':
@@ -882,6 +884,14 @@ class Ray:
         return baz
 
     @property
+    def station(self):
+        return self.site_code[0:4]
+
+    @property
+    def location(self):
+        return self.site_code[4:]
+
+    @property
     def back_azimuth(self):
         self.baz
 
@@ -894,13 +904,30 @@ class Ray:
             ia = np.arctan2(h, v[2]) * 180 / np.pi
         return ia
 
+    def to_pick(self, origin_time):
+        time = origin_time + self.travel_time
+        waveform_id = WaveformStreamID(network_code=self.network,
+                                       station_code=self.station,
+                                       location_code=self.location)
+
+        method_id = ResourceIdentifier('predicted from rays')
+        return Pick(time=time, waveform_id=waveform_id, method_id=method_id,
+                    back_azimuth=self.back_azimuth, phase_hint=self.phase,
+                    evaluation_mode='automatic',
+                    evaluation_status='preliminary')
+
+
     def __len__(self):
         return len(self.nodes)
 
     def __str__(self):
+
+        site_code = f'{self.network}.{self.site_code[0:4]}.' \
+                    f'{self.site_code[4:]}'
+
         txt = \
             f"""
-       site code: {self.site_code}
+       site code: {site_code}
         arrival id: {self.arrival_id}
              phase: {self.phase}
         length (m): {self.length}

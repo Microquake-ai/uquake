@@ -16,7 +16,9 @@ class H5TTable(object):
         if dset_key is not None:
             self.set_dataset(dset_key)
 
-        self.sites = self.hf['sites'][:].astype('U4')
+        self.sites = self.hf['sites'][:].astype('U6')
+        self.stations = self.hf['stations'][:].astype('U4')
+        self.station_locations = self.hf['station_locations'].astype('U2')
         self._sitedict = dict(zip(self.sites, np.arange(len(self.sites))))
 
         self.locations = self.hf['locations'][:]
@@ -138,6 +140,10 @@ def write_hdf5(fname, tt_grids):
     gdef = np.concatenate((shape, origin, spacing)).astype(np.int32)
     hf.create_dataset('grid_def', data=gdef)
     hf.create_dataset('sites', data=sites.astype('S6'))
+    stations = np.array([site[0:4] for site in sites])
+    station_locations = np.array([site[4:] for site in sites])
+    hf.create_dataset('stations', data=stations.astype('S4'))
+    hf.create_dataset('station_locations', data=station_locations.astype('S2'))
 
     nsites = len(sites)
     ngrid = np.product(shape)
