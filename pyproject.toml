@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "uquake"
-version = "0.9.39"
+version = "0.10.0"
 description = "extension of the ObsPy library for local seismicity"
 authors = ["uQuake development team <dev@uQuake.org>"]
 license = "MIT"
