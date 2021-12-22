@@ -303,15 +303,15 @@ class Grid:
         return Xe, Ye, Ze
 
     def generate_random_points_in_grid(self, n_points=1,
-                                       grid_coordinates=False):
+                                       grid_space=False):
         """
         Generate a random set of points within the grid
         :param n_points: number of points to generate (default=1)
         :type n_points: int
-        :param grid_coordinates: whether the output is expressed in
+        :param grid_space: whether the output is expressed in
         grid coordinates (True) or model coordinates (False)
         (default: False)
-        :type grid_coordinates: bool
+        :type grid_space: bool
         :return: an array of triplet
         """
 
@@ -320,7 +320,7 @@ class Grid:
         for i in range(n_points):
             points[i] = points[i] * self.dimensions
 
-        if not grid_coordinates:
+        if not grid_space:
             return self.transform_from_grid(points)
 
         return points
@@ -346,7 +346,7 @@ class Grid:
 
         write_format(self, filename, **kwargs)
 
-    def interpolate(self, coord, grid_coordinate=True, mode='nearest',
+    def interpolate(self, coord, grid_space=True, mode='nearest',
                     order=1, **kwargs):
         """
         This function interpolate the values at a given point expressed
@@ -354,7 +354,7 @@ class Grid:
         :param coord: Coordinate of the point(s) at which to interpolate
         either in grid or absolute coordinates
         :type coord: list, tuple, numpy.array
-        :param grid_coordinate: true if the coordinates are expressed in
+        :param grid_space: true if the coordinates are expressed in
         grid space (indices can be float) as opposed to model space
         :param mode: {'reflect', 'constant', 'nearest', 'mirror', 'wrap'},
         optional
@@ -386,13 +386,13 @@ class Grid:
             The order has to be in the range 0-5.
         :type order: int
 
-        :type grid_coordinate: bool
+        :type grid_space: bool
         :rtype: numpy.array
         """
 
         coord = np.array(coord)
 
-        if not grid_coordinate:
+        if not grid_space:
             coord = self.transform_to(coord)
 
         if len(coord.shape) < 2:
@@ -463,18 +463,18 @@ class Grid:
 
         return write_format(self, filename, **kwargs)
 
-    def plot_1D(self, x, y, z_resolution, grid_coordinate=False,
+    def plot_1D(self, x, y, z_resolution, grid_space=False,
                 inventory=None, reverse_y=True):
         """
 
         :param x: x location
         :param y: y location
         :param z_resolution_m: z resolution in grid units
-        :param grid_coordinates:
+        :param grid_space:
         :return:
         """
 
-        if not grid_coordinate:
+        if not grid_space:
             x, y, z = self.transform_from([x, y, 0])
 
         zs = np.arange(self.origin[2], self.corner[2], z_resolution)
@@ -483,7 +483,7 @@ class Grid:
         for z in zs:
             coords.append(np.array([x, y, z]))
 
-        values = self.interpolate(coords, grid_coordinate=grid_coordinate)
+        values = self.interpolate(coords, grid_space=grid_space)
 
         plt.plot(values, zs)
         if reverse_y:
@@ -555,7 +555,7 @@ def angles(travel_time_grid):
     return azimuth, takeoff
 
 
-def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
+def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
                arrival_id=None, earth_model_id=None,
                network: str=None):
     """
@@ -566,7 +566,7 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
     :type travel_time_grid: TTGrid
     :param start: the starting point (usually event location)
     :type start: tuple, list or numpy.array
-    :param grid_coordinate: true if the coordinates are expressed in
+    :param grid_space: true if the coordinates are expressed in
     grid space (indices can be fractional) as opposed to model space
     (x, y, z)
     :param max_iter: maximum number of iteration
@@ -582,7 +582,7 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
 
     from uquake.core.event import Ray
 
-    if grid_coordinate:
+    if grid_space:
         start = np.array(start)
         start = travel_time_grid.transform_from(start)
 
@@ -611,7 +611,7 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
         if np.all(dist < spacing * 4):
             gamma = np.min(spacing) / 4
 
-        gvect = np.array([gd.interpolate(cloc, grid_coordinate=False,
+        gvect = np.array([gd.interpolate(cloc, grid_space=False,
                                          order=1)[0] for gd in gds])
 
         cloc = cloc - gamma * gvect / (np.linalg.norm(gvect) + 1e-8)
@@ -622,11 +622,11 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
 
     nodes.append(end)
 
-    tt = travel_time_grid.interpolate(start, grid_coordinate=False, order=1)[0]
+    tt = travel_time_grid.interpolate(start, grid_space=False, order=1)[0]
 
-    az = travel_time_grid.to_azimuth_point(start, grid_coordinate=False,
+    az = travel_time_grid.to_azimuth_point(start, grid_space=False,
                                            order=1)
-    toa = travel_time_grid.to_takeoff_point(start, grid_coordinate=False,
+    toa = travel_time_grid.to_takeoff_point(start, grid_space=False,
                                             order=1)
 
     ray = Ray(nodes=nodes, site_code=travel_time_grid.seed_label,

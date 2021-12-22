@@ -696,7 +696,7 @@ class VelocityGrid3D(NLLocGrid):
 
         coords = np.array([X_i.ravel(), Y_i.ravel(), Z_i.ravel()]).T
 
-        vel = self.interpolate(coords, grid_coordinate=False).reshape(
+        vel = self.interpolate(coords, grid_space=False).reshape(
             X_i.shape)
 
         phi = np.ones_like(X_i)
@@ -735,7 +735,7 @@ class VelocityGrid3D(NLLocGrid):
 
         X = np.array([Xe_grid, Ye_grid, Ze_grid]).T
 
-        tt_interp = tt_tmp_grid.interpolate(X, grid_coordinate=False,
+        tt_interp = tt_tmp_grid.interpolate(X, grid_space=False,
                                             order=3)[0]
 
         bias = np.max(tt_interp)
@@ -759,7 +759,7 @@ class VelocityGrid3D(NLLocGrid):
                              grid_units=self.grid_units)
 
         tt_out_grid.data -= tt_out_grid.interpolate(seed.T,
-                                                    grid_coordinate=False,
+                                                    grid_space=False,
                                                     order=3)[0]
 
         return tt_out_grid
@@ -1022,13 +1022,13 @@ class TTGrid(SeededGrid):
                          phase=self.phase, float_type=self.float_type,
                          model_id=self.model_id, grid_units=self.grid_units)
 
-    def to_azimuth_point(self, coord, grid_coordinate=False, mode='nearest',
+    def to_azimuth_point(self, coord, grid_space=False, mode='nearest',
                          order=1, **kwargs):
         """
         calculate the azimuth angle at a particular point on the grid for a
         given seed location
         :param coord: coordinates at which to calculate the takeoff angle
-        :param grid_coordinate: true if the coordinates are expressed in
+        :param grid_space: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
         :param mode: interpolation mode
@@ -1037,17 +1037,17 @@ class TTGrid(SeededGrid):
         """
 
         return self.to_azimuth().interpolate(coord,
-                                             grid_coordinate=grid_coordinate,
+                                             grid_space=grid_space,
                                              mode=mode, order=order,
                                              **kwargs)[0]
 
-    def to_takeoff_point(self, coord, grid_coordinate=False, mode='nearest',
+    def to_takeoff_point(self, coord, grid_space=False, mode='nearest',
                          order=1, **kwargs):
         """
         calculate the takeoff angle at a particular point on the grid for a
         given seed location
         :param coord: coordinates at which to calculate the takeoff angle
-        :param grid_coordinate: true if the coordinates are expressed in
+        :param grid_space: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
         :param mode: interpolation mode
@@ -1055,11 +1055,11 @@ class TTGrid(SeededGrid):
         :return: takeoff angle at the location coord
         """
         return self.to_takeoff().interpolate(coord,
-                                             grid_coordinate=grid_coordinate,
+                                             grid_space=grid_space,
                                              mode=mode, order=order,
                                              **kwargs)[0]
 
-    def ray_tracer(self, start, grid_coordinate=False, max_iter=1000,
+    def ray_tracer(self, start, grid_space=False, max_iter=1000,
                    arrival_id=None):
         """
         This function calculates the ray between a starting point (start) and an
@@ -1067,7 +1067,7 @@ class TTGrid(SeededGrid):
         gradient descent method.
         :param start: the starting point (usually event location)
         :type start: tuple, list or numpy.array
-        :param grid_coordinate: true if the coordinates are expressed in
+        :param grid_space: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
         :param max_iter: maximum number of iteration
@@ -1076,7 +1076,7 @@ class TTGrid(SeededGrid):
         :rtype: numpy.array
         """
 
-        return ray_tracer(self, start, grid_coordinate=grid_coordinate,
+        return ray_tracer(self, start, grid_space=grid_space,
                           max_iter=max_iter, arrival_id=arrival_id,
                           earth_model_id=self.model_id,
                           network=self.network_code)
@@ -1196,7 +1196,7 @@ class TravelTimeEnsemble:
 
         return TravelTimeEnsemble(returned_grids)
 
-    def sort(self, ascending=True):
+    def sort(self, ascending:bool = True):
         """
         sorting the travel time grid by seed_label
         :param ascending: if true the grids are sorted in ascending order
@@ -1214,14 +1214,14 @@ class TravelTimeEnsemble:
 
         return TravelTimeEnsemble(sorted_tt_grids)
 
-    def travel_time(self, seed, grid_coordinates: bool = False,
+    def travel_time(self, seed, grid_space: bool = False,
                     seed_labels: Optional[list] = None,
                     phase: Optional[list] = None):
         """
         calculate the travel time at a specific point for a series of site
         ids
         :param seed: travel time seed
-        :param grid_coordinate: true if the coordinates are expressed in
+        :param grid_space: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
         :param seed_labels: a list of sites from which to calculate the
@@ -1234,11 +1234,11 @@ class TravelTimeEnsemble:
         if isinstance(seed, list):
             seed = np.array(seed)
 
+        if grid_space:
+            seed = self.travel_time_grids[0].transform_from(seed)
+
         if not self.travel_time_grids[0].in_grid(seed):
             raise ValueError('seed is outside the grid')
-
-        if grid_coordinates:
-            seed = self.travel_time_grids[0].transform_from(seed)
 
         tt_grids = self.select(seed_labels=seed_labels, phase=phase)
 
@@ -1248,7 +1248,7 @@ class TravelTimeEnsemble:
         for tt_grid in tt_grids:
             labels.append(tt_grid.seed_label)
             tts.append(tt_grid.interpolate(seed.T,
-                       grid_coordinates=grid_coordinates)[0])
+                       grid_space=False)[0])
             phases.append(tt_grid.phase)
 
         tts_dict = {}
@@ -1260,13 +1260,72 @@ class TravelTimeEnsemble:
 
         return tts_dict
 
+    def angles(self, seed, grid_space: bool = False,
+                seed_labels: Optional[list] = None,
+                phase: Optional[list] = None, **kwargs):
+        """
+        calculate the azimuth at a specific point for a series of site
+        ids
+        :param seed: travel time seed
+        :param grid_space: true if the coordinates are expressed in
+        grid space (indices can be fractional) as opposed to model space
+        (x, y, z)
+        :param seed_labels: a list of sites from which to calculate the
+        travel time.
+        :param phase: a list of phases for which the travel time need to be
+        calculated
+        :return: a list of dictionary containing the azimuth and site id
+        """
+
+        if isinstance(seed, list):
+            seed = np.array(seed)
+
+        if grid_space:
+            seed = self.travel_time_grids[0].transform_from(seed)
+
+        if not self.travel_time_grids[0].in_grid(seed):
+            raise ValueError('seed is outside the grid')
+
+        tt_grids = self.select(seed_labels=seed_labels, phase=phase)
+
+        azimuths = []
+        takeoffs = []
+        labels = []
+        phases = []
+        for tt_grid in tt_grids:
+            labels.append(tt_grid.seed_label)
+            azimuths.append(tt_grid.to_azimuth_point(seed.T,
+                                                     grid_space=False,
+                                                     **kwargs))
+            takeoffs.append(tt_grid.to_takeoff_point(seed.T,
+                                                     grid_space=False,
+                                                     **kwargs))
+            phases.append(tt_grid.phase)
+
+        azimuth_dict = {}
+        takeoff_dict = {}
+        for phase in np.unique(phases):
+            azimuth_dict[phase] = {}
+            takeoff_dict[phase] = {}
+
+        for label, azimuth, takeoff, phase in zip(labels, azimuths, takeoffs,
+                                                  phases):
+            takeoff_dict[phase][label] = takeoff
+            azimuth_dict[phase][label] = azimuth
+
+        angle_dict = {}
+        angle_dict['takeoff'] = takeoff_dict
+        angle_dict['azimuth'] = azimuth_dict
+
+        return angle_dict
+
     def ray_tracer(self, start, seed_labels=None, multithreading=False,
-                   cpu_utilisation=0.9, grid_coordinate=False, max_iter=1000):
+                   cpu_utilisation=0.9, grid_space=False, max_iter=1000):
         """
 
         :param start: origin of the ray, usually the location of an event
         :param seed_labels: a list of seed labels
-        :param grid_coordinate: true if the coordinates are expressed in
+        :param grid_space: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
         :param multithreading: if True use multithreading
@@ -1280,7 +1339,7 @@ class TravelTimeEnsemble:
 
         travel_time_grids = self.select(seed_labels=seed_labels)
 
-        kwargs = {'grid_coordinate': grid_coordinate,
+        kwargs = {'grid_space': grid_space,
                   'max_iter': max_iter}
 
         if multithreading:

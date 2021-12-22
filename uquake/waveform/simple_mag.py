@@ -1096,8 +1096,8 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
         ev_loc = np.array([origin.x, origin.y, origin.z])
 
         if not ((type(vp) == np.float) or (type(vp) == np.int)):
-            vp_src = vp.interpolate(ev_loc, grid_coordinate=False)
-            vs_src = vs.interpolate(ev_loc, grid_coordinate=False)
+            vp_src = vp.interpolate(ev_loc, grid_space=False)
+            vs_src = vs.interpolate(ev_loc, grid_space=False)
         else:
             vp_src = vp
             vs_src = vs
@@ -1184,26 +1184,15 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
             high_bp_freq = max_frequency
             pulse = pulse.taper(max_percentage=0.05, type='cosine')
             pulse.filter('bandpass', freqmin=low_bp_freq, freqmax=high_bp_freq)
-            dp = pulse.remove_response(output='DISP')
+            low_bp_freq1 = 10 ** (np.log10(low_bp_freq) - 0.2)
+            low_bp_freq2 = low_bp_freq
+            high_bp_freq1 = high_bp_freq
+            high_bp_freq2 = 10 ** (np.log10(high_bp_freq) + 0.2)
+            pre_filt = [low_bp_freq1, low_bp_freq2, high_bp_freq1,
+                        high_bp_freq2]
+            # dp = pulse.remove_response(output='DISP', pre_filt=pre_filt)
 
-            # ideally the sensor signal should be deconvolved and a larger
-            # portion of the spectrum should be used. It is possible to get
-            # to frequency lower than the corner frequency of the sensor
-            # down the the noise floor. This would be a bit more
-            # complicated. The max frequency could also be found looking at
-            # the noise floor.
-
-            # if hasattr(sensor_response[0][0][0], motion):
-            #     motion = sensor_response[0][0][0]
-            #     if sensor_response[0][0][0].motion == 'ACCELERATION':
-            #         dp = pulse.copy().integrate().integrate()
-            #     elif sensor_response[0][0][0].motion == 'VELOCITY':
-            #         dp = pulse.copy().integrate()
-            #
-            # else:
-            #     dp =
-
-            # dp = pulse.copy()
+            dp = pulse.remove_sensitivity(inventory=inventory).integrate()
 
             # creating a signal containing only one for comparison
             tr_one = Trace(data=np.ones(len(pulse[0].data)))
@@ -1277,7 +1266,9 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
 
         mw = 2 / 3.0 * p_opt[0] - 6.02
         mu = 29.5e9
-        dmw = 2 / 3.0 * p_cov[0, 0] - 6.02
+        dnw1 = 2 / 3.0 * (p_opt[0] - p_cov[0, 0] / 2) - 6.02
+        dnw2 = 2 / 3.0 * (p_opt[0] + p_cov[0, 0] / 2) - 6.02
+        dmw = dnw2 - dnw1
         fc = p_opt[1]
 
         mag = event.Magnitude(mag=mw,
@@ -1293,6 +1284,6 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
         # mag.fc_errors = QuantityError(uncertainty=dfc)
         cat[0].magnitudes.append(mag)
         if origin.resource_id == cat[0].preferred_origin().resource_id:
-            cat[0].preferred_magnitude_id = mag.resource_id.id
+            cat[0].preferred_magnitude_id = mag.resource_id
 
     return cat
