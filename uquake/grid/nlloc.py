@@ -411,7 +411,7 @@ class ModelLayer:
         self.value_top = value_top
 
     def __repr__(self):
-        return f'top - {self.z_top:5d} | value - {self.value_top:5d}\n'
+        return f'top - {self.z_top:5.0f} | value - {self.value_top:5.0f}\n'
 
 
 class LayeredVelocityModel(object):
@@ -472,7 +472,7 @@ class LayeredVelocityModel(object):
         else:
             self.velocity_model_layers.append(layer)
 
-    def gen_1d_model(self, z_min, z_max, spacing):
+    def to_1d_model(self, z_min, z_max, spacing):
         # sort the layers to ensure the layers are properly ordered
         z = []
         v = []
@@ -502,11 +502,10 @@ class LayeredVelocityModel(object):
         z = z[i_sort]
         v = v[i_sort]
 
-        z_interp = np.arange(z_min, z_max, spacing[2])
+        z_interp = np.arange(z_min, z_max, spacing)
         kind = 'previous'
         if self.gradient:
             kind = 'linear'
-
 
         f_interp = interp1d(z, v, kind=kind)
 
@@ -514,23 +513,25 @@ class LayeredVelocityModel(object):
 
         return z_interp, v_interp
 
-    def gen_3d_grid(self, network_code, dims, origin, spacing):
+    def to_3d_grid(self, network_code, dims, origin, spacing):
         model_grid_3d = VelocityGrid3D.from_layered_model(self,
                                                           network_code,
                                                           dims, origin,
                                                           spacing)
         return model_grid_3d
 
-    def plot(self, z_min, z_max, spacing, *args, **kwargs):
+    def plot(self, z_min, z_max, spacing, invert_z_axis=True, *args, **kwargs):
         """
         Plot the 1D velocity model
         :param z_min: lower limit of the model
         :param z_max: upper limit of the model
         :param spacing: plotting resolution in z
+        :param invert_z_axis: whether the z axis is inverted or not
+        (default = True)
         :return: matplotlib axis
         """
 
-        z_interp, v_interp = self.gen_1d_model(z_min, z_max, spacing)
+        z_interp, v_interp = self.to_1d_model(z_min, z_max, spacing)
 
         x_label = None
         if self.phase == 'P':
@@ -548,6 +549,9 @@ class LayeredVelocityModel(object):
         ax.plot(v_interp, z_interp, *args, **kwargs)
         plt.xlabel(x_label)
         plt.ylabel(y_label)
+
+        if invert_z_axis:
+            ax.invert_yaxis()
 
         ax.set_aspect(2)
 
@@ -614,8 +618,8 @@ class VelocityGrid3D(NLLocGrid):
         z_min = origin[-1]
         z_max = z_min + spacing[-1] * dims[-1]
 
-        z_interp, v_interp = layered_model.gen_1d_model(z_min, z_max,
-                                                        spacing)
+        z_interp, v_interp = layered_model.to_1d_model(z_min, z_max,
+                                                        spacing[2])
 
         data = np.zeros(dims)
 

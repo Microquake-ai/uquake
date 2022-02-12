@@ -26,6 +26,7 @@ from pathlib import Path
 from scipy.ndimage.interpolation import map_coordinates
 from ..core.event import WaveformStreamID
 import matplotlib.pyplot as plt
+from scipy.ndimage.filters import gaussian_filter
 
 
 def read_grid(filename, format='PICKLE', **kwargs):
@@ -504,6 +505,9 @@ class Grid:
 
             plt.plot()
         plt.show()
+
+    def smooth(self, sigma: np.array):
+        self.data = gaussian_filter(self.data, sigma)
 
     @property
     def ndim(self):

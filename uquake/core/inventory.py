@@ -964,7 +964,7 @@ def read_inventory(path_or_file_object, format='STATIONXML',
 
     # del kwargs['xy_from_lat_lon']
 
-    obspy_inv = inventory.read_inventory(path_or_file_object,
+    obspy_inv = inventory.read_inventory(str(path_or_file_object),
                                          format=format,
                                          *args, **kwargs)
 
