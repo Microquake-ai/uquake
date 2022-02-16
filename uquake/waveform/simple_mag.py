@@ -1176,7 +1176,11 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
             pulse.attach_response(inventory)
 
             # filter the pulse using the corner frequency of the sensor
-            low_bp_freq = np.min(poles) / (2 * np.pi)
+
+            sensor_min_freq = np.min(poles) / (2 * np.pi)
+            window_min_freq = 1 / win_length
+
+            low_bp_freq = np.max([sensor_min_freq, window_min_freq])
             high_bp_freq = np.max(poles) / (2 * np.pi)
             if high_bp_freq > pulse[0].stats.sampling_rate / 2:
                 high_bp_freq = pulse[0].stats.sampling_rate / 2.5

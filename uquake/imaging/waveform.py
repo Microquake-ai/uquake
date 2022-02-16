@@ -438,10 +438,13 @@ class WaveformPlotting(object):
                         ax.axvline(time, ls='-',
                                    c=colors[pk.phase_hint.upper()])
                         if arrival.time_residual is not None:
-                            predicted_time = time - arrival.time_residual
-                            ax.axvline(predicted_time,
+                            # predicted_time = time - arrival.time_residual
+                            predicted_time = pk.time - \
+                                             arrival.time_residual
+                            ax.axvline(date2num(predicted_time),
                                        ls='--',
                                        c=colors[pk.phase_hint.upper()])
+                            # raspoutine
 
         # Set ticks.
         self.__plotSetXTicks()

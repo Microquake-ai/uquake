@@ -586,6 +586,8 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
 
     from uquake.core.event import Ray
 
+    interpolation_order = 1
+
     if grid_space:
         start = np.array(start)
         start = travel_time_grid.transform_from(start)
@@ -601,7 +603,8 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
 
     dist = np.linalg.norm(start - end)
     cloc = start  # initializing cloc "current location" to start
-    gamma = spacing / 2  # gamma is set to half the grid spacing. This
+    spacing = np.linalg.norm(spacing)
+    gamma = spacing / 2 # gamma is set to half the grid spacing. This
     # should be
     # sufficient. Note that gamma is fixed to reduce
     # processing time.
@@ -612,13 +615,23 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
         if iter_number > max_iter:
             break
 
-        if np.all(dist < spacing * 4):
-            gamma = np.min(spacing) / 4
+        # if dist < spacing * 4:
+        #     gamma = spacing / 4
 
         gvect = np.array([gd.interpolate(cloc, grid_space=False,
-                                         order=1)[0] for gd in gds])
+                                         order=interpolation_order)[0]
+                          for gd in gds])
 
-        cloc = cloc - gamma * gvect / (np.linalg.norm(gvect) + 1e-8)
+        if np.linalg.norm(gvect) == 0:
+            break
+
+        dr = gamma * gvect / (np.linalg.norm(gvect) + 1e-8)
+
+        if np.linalg.norm(dr) < gamma / 2:
+            dr = (dr / np.linalg.norm(dr)) * gamma / 2
+
+        cloc = cloc - dr
+
         nodes.append(cloc)
         dist = np.linalg.norm(cloc - end)
 
@@ -626,12 +639,13 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
 
     nodes.append(end)
 
-    tt = travel_time_grid.interpolate(start, grid_space=False, order=1)[0]
+    tt = travel_time_grid.interpolate(start, grid_space=False,
+                                      order=interpolation_order)[0]
 
     az = travel_time_grid.to_azimuth_point(start, grid_space=False,
-                                           order=1)
+                                           order=interpolation_order)
     toa = travel_time_grid.to_takeoff_point(start, grid_space=False,
-                                            order=1)
+                                            order=interpolation_order)
 
     ray = Ray(nodes=nodes, site_code=travel_time_grid.seed_label,
               arrival_id=arrival_id, phase=travel_time_grid.phase,
