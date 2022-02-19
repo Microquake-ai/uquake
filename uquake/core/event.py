@@ -490,8 +490,13 @@ class WaveformStreamID(obsevent.WaveformStreamID):
 
     @property
     def site_code(self):
-        site = self.station_code + self.location_code
-        return site
+        if self.station_code is not None:
+            if self.location_code is None:
+                return self.station_code
+            else:
+                return self.station_code + self.location_code
+
+        return
 
     @property
     def site(self):

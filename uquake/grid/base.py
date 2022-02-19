@@ -44,7 +44,7 @@ def read_grid(filename, format='PICKLE', **kwargs):
     return read_format(filename, **kwargs)
 
 
-class Grid:
+class Grid(object):
     """
     Object containing a regular grid
     """
@@ -283,6 +283,21 @@ class Grid:
         """
         self.data.fill(value)
 
+    def fill_random(self, mean, std, smooth_sigma, seed=None):
+        """
+        fill the model with random number with a mean of "mean".
+        :param mean: mean of the random number
+        :param std: standard deviation of the grid
+        :param sigma: gaussian smoothing parameter
+        :param seed: random seed
+        """
+
+        np.random.seed(seed)
+
+        self.data = np.random.randn(self.dims[0], self.dims[1], self.dims[2])
+        self.smooth(smooth_sigma)
+        self.data = self.data * std / np.std(self.data) + mean
+
     def generate_points(self, pt_spacing=None):
         """
         Generate points within the grid
@@ -292,19 +307,48 @@ class Grid:
 
         dimensions = np.array(self.shape) * self.spacing / ev_spacing
 
-        xe = np.arange(0, dimensions[0]) * ev_spacing + self.origin[0]
-        ye = np.arange(0, dimensions[1]) * ev_spacing + self.origin[1]
-        ze = np.arange(0, dimensions[2]) * ev_spacing + self.origin[2]
+        xe = np.arange(0, dimensions[0]) * ev_spacing[0] + self.origin[0]
+        ye = np.arange(0, dimensions[1]) * ev_spacing[1] + self.origin[1]
+        ze = np.arange(0, dimensions[2]) * ev_spacing[2] + self.origin[2]
 
         Xe, Ye, Ze = np.meshgrid(xe, ye, ze)
 
         Xe = Xe.reshape(np.prod(Xe.shape))
         Ye = Ye.reshape(np.prod(Ye.shape))
         Ze = Ze.reshape(np.prod(Ze.shape))
-        return Xe, Ye, Ze
+        data_e = self.data.reshape(np.prod(self.data.shape))
+        return Xe, Ye, Ze, data_e
+
+    def flattens(self):
+        return self.generate_points()
+
+    def rbf_interpolation_sensitivity(self, location, epsilon,
+                                      threshold=0.1):
+        """
+        calculate the sensitivity of each element given a location
+        :param location: location in model space at which the interpolation
+        occurs
+        :param epsilon: the standard deviation of the gaussian kernel
+        :param threshold: threshold relative to the maximum value below which
+        the weights are considered 0.
+        :rparam: the sensitivity matrix
+        """
+        x, y, z, v = self.flattens()
+
+        # calculating the distance between the location and every grid points
+
+        dist = np.linalg.norm([x - location[0], y - location[1],
+                               z - location[2]], axis=0)
+
+        sensitivity = np.exp(-(dist / epsilon) ** 2)
+        sensitivity[sensitivity < np.max(sensitivity) / 10] = 0
+        sensitivity = sensitivity / np.sum(sensitivity)
+
+        return sensitivity
 
     def generate_random_points_in_grid(self, n_points=1,
-                                       grid_space=False):
+                                       grid_space=False,
+                                       seed=None):
         """
         Generate a random set of points within the grid
         :param n_points: number of points to generate (default=1)
@@ -313,8 +357,11 @@ class Grid:
         grid coordinates (True) or model coordinates (False)
         (default: False)
         :type grid_space: bool
+        :param seed: random seed for reproducibility
         :return: an array of triplet
         """
+
+        np.random.seed(seed)
 
         points = np.random.rand(n_points, len(self.data.shape))
 

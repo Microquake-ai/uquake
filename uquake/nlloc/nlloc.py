@@ -776,6 +776,21 @@ class Observations:
 
         return lines
 
+    def __iter__(self):
+        self.__i__ = 0
+        return self
+
+    def __next__(self):
+        if self.__i__ < len(self):
+            pick = self.picks[self.__i__]
+            self.__i__ += 1
+            return pick
+        else:
+            raise StopIteration
+
+    def __len__(self):
+        return len(self.picks)
+
     def write(self, file_name, path='.'):
         with open(Path(path) / file_name, 'w') as file_out:
             file_out.write(str(self))
@@ -869,7 +884,7 @@ class Srces:
 
         >>> site = Site(label='test', x=1000, y=1000, z=1000, elev=0.0)
         >>> sites = [site]
-        >>> srces = Srces(srces)
+        >>> srces = Srces(sites)
 
         """
 
@@ -960,6 +975,21 @@ class Srces:
                     f'0.00\n'
 
         return line
+    
+    def __iter__(self):
+        self.__i__ = 0
+        return self
+    
+    def __next__(self):
+        if self.__i__ < len(self):
+            site = self.sites[self.__i__]
+            self.__i__ += 1
+            return site
+        else:
+            raise StopIteration
+    
+    def __len__(self):
+        return len(self.sites)
 
     @property
     def json(self):
