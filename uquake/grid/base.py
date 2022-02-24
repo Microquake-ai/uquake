@@ -341,7 +341,7 @@ class Grid(object):
                                z - location[2]], axis=0)
 
         sensitivity = np.exp(-(dist / epsilon) ** 2)
-        sensitivity[sensitivity < np.max(sensitivity) / 10] = 0
+        sensitivity[sensitivity < np.max(sensitivity) * threshold] = 0
         sensitivity = sensitivity / np.sum(sensitivity)
 
         return sensitivity
