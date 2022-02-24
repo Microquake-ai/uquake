@@ -655,13 +655,12 @@ class LocationMethod:
 class SimpleArrival:
     def __init__(self, time: UTCDateTime, site: str, phase: str,
                  polarity: str):
-
+        pass
 
 
 class Observations:
     def __init__(self, picks, p_pick_error=1e-3, s_pick_error=1e-3):
         """
-
         :param picks: a list of Pick object
         :type picks: list of uquake.core.event.Pick
         :param p_pick_error: p-wave picking error in second
@@ -777,6 +776,21 @@ class Observations:
 
         return lines
 
+    def __iter__(self):
+        self.__i__ = 0
+        return self
+
+    def __next__(self):
+        if self.__i__ < len(self):
+            pick = self.picks[self.__i__]
+            self.__i__ += 1
+            return pick
+        else:
+            raise StopIteration
+
+    def __len__(self):
+        return len(self.picks)
+
     def write(self, file_name, path='.'):
         with open(Path(path) / file_name, 'w') as file_out:
             file_out.write(str(self))
@@ -870,7 +884,7 @@ class Srces:
 
         >>> site = Site(label='test', x=1000, y=1000, z=1000, elev=0.0)
         >>> sites = [site]
-        >>> srces = Srces(srces)
+        >>> srces = Srces(sites)
 
         """
 
@@ -961,6 +975,21 @@ class Srces:
                     f'0.00\n'
 
         return line
+    
+    def __iter__(self):
+        self.__i__ = 0
+        return self
+    
+    def __next__(self):
+        if self.__i__ < len(self):
+            site = self.sites[self.__i__]
+            self.__i__ += 1
+            return site
+        else:
+            raise StopIteration
+    
+    def __len__(self):
+        return len(self.sites)
 
     @property
     def json(self):

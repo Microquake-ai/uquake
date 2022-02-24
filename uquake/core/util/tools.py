@@ -3,6 +3,15 @@ from datetime import datetime, timedelta
 import numpy as np
 from scipy.fftpack import fft, fftfreq, ifft
 from scipy.signal import iirfilter, sosfilt, zpk2sos
+import pyproj
+
+
+def lon_lat_x_y(input_projection, output_projection, longitude, latitude):
+    transformer = pyproj.Transformer.from_crs(input_projection,
+                                              output_projection,
+                                              always_xy=True)
+
+    return transformer.transform(longitude, latitude)
 
 
 def datetime_to_epoch_sec(dtime):

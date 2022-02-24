@@ -435,14 +435,16 @@ class WaveformPlotting(object):
                             & (pk.waveform_id.location_code ==
                                tr[0].stats.location):
                         time = date2num(pk.time.datetime)
-
-                        if arrival.time_residual is not None:
-                            predicted_time = time - arrival.time_residual
-                            ax.axvline(predicted_time,
-                                       ls='--',
-                                       c=colors[pk.phase_hint.upper()])
                         ax.axvline(time, ls='-',
                                    c=colors[pk.phase_hint.upper()])
+                        if arrival.time_residual is not None:
+                            # predicted_time = time - arrival.time_residual
+                            predicted_time = pk.time - \
+                                             arrival.time_residual
+                            ax.axvline(date2num(predicted_time),
+                                       ls='--',
+                                       c=colors[pk.phase_hint.upper()])
+                            # raspoutine
 
         # Set ticks.
         self.__plotSetXTicks()

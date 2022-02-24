@@ -17,6 +17,8 @@
     (http://www.gnu.org/copyleft/lesser.html)
 """
 import numpy as np
+import scipy.ndimage
+
 from .base import Grid
 from pathlib import Path
 from uuid import uuid4
@@ -29,6 +31,9 @@ from typing import Optional
 import h5py
 from .base import ray_tracer
 import shutil
+from uquake.grid import read_grid
+from .hdf5 import H5TTable, write_hdf5
+from scipy.interpolate import interp1d
 
 __cpu_count__ = cpu_count()
 
@@ -118,95 +123,6 @@ def validate(value, choices):
             msg += f'{choice}\n'
         raise ValueError(msg)
     return True
-
-
-def read_grid(base_name, path='.', float_type=__default_float_type__):
-    """
-    read two parts NLLoc files
-    :param base_name:
-    :param path: location of grid files
-    :param float_type: float type as defined in NLLoc grid documentation
-    """
-    header_file = Path(path) / f'{base_name}.hdr'
-    with open(header_file, 'r') as in_file:
-        line = in_file.readline()
-        line = line.split()
-        shape = tuple([int(line[0]), int(line[1]), int(line[2])])
-        origin = np.array([float(line[3]), float(line[4]),
-                           float(line[5])]) * 1000
-        spacing = np.array([float(line[6]), float(line[7]),
-                            float(line[8])]) * 1000
-
-        grid_type = line[9]
-        grid_unit = 'METER'
-
-        line = in_file.readline()
-
-        if grid_type in ['ANGLE', 'ANGLE2D', 'TIME', 'TIME2D']:
-            line = line.split()
-            seed_label = line[0]
-            seed = (float(line[1]) * 1000,
-                    float(line[2]) * 1000,
-                    float(line[3]) * 1000)
-
-        else:
-            seed_label = None
-            seed = None
-
-    buf_file = Path(path) / f'{base_name}.buf'
-    if float_type == 'FLOAT':
-        data = np.fromfile(buf_file,
-                           dtype=np.float32)
-    elif float_type == 'DOUBLE':
-        data = np.fromfile(buf_file,
-                           dtype=np.float64)
-    else:
-        msg = f'float_type = {float_type} is not valid\n' \
-              f'float_type should be one of the following valid float ' \
-              f'types:\n'
-        for valid_float_type in valid_float_types:
-            msg += f'{valid_float_type}\n'
-        raise ValueError(msg)
-
-    data = data.reshape(shape)
-
-    if '.P.' in base_name:
-        phase = 'P'
-    else:
-        phase = 'S'
-
-    # reading the model id file
-    mid_file = Path(path) / f'{base_name}.mid'
-    if mid_file.exists():
-        with open(mid_file, 'r') as mf:
-            model_id = mf.readline().strip()
-
-    else:
-        model_id = str(uuid4())
-
-        # (self, base_name, data_or_dims, origin, spacing, phase,
-        #  seed=None, seed_label=None, value=0,
-        #  grid_type='VELOCITY_METERS', grid_units='METER',
-        #  float_type="FLOAT", model_id=None):
-
-    network_code = base_name.split('.')[0]
-    if grid_type in ['VELOCITY', 'VELOCITY_METERS']:
-        return VelocityGrid3D(network_code, data, origin, spacing, phase=phase,
-                              model_id=model_id)
-
-    elif grid_type == 'TIME':
-        return TTGrid(network_code, data, origin, spacing, seed,
-                      seed_label, phase=phase, model_id=model_id)
-
-    elif grid_type == 'ANGLE':
-        return AngleGrid(network_code, data, origin, spacing, seed,
-                         seed_label, angle_type='AZIMUTH', phase=phase,
-                         model_id=model_id)
-
-    else:
-        return NLLocGrid(data, origin, spacing, phase,
-                         grid_type=grid_type, model_id=model_id,
-                         grid_units=grid_unit)
 
 
 class Seeds:
@@ -495,14 +411,15 @@ class ModelLayer:
         self.value_top = value_top
 
     def __repr__(self):
-        return f'top - {self.z_top:5d} | value - {self.value_top:5d}\n'
+        return f'top - {self.z_top:5.0f} | value - {self.value_top:5.0f}\n'
 
 
 class LayeredVelocityModel(object):
 
     def __init__(self, model_id=None, velocity_model_layers=None,
                  phase='P', grid_units='METER',
-                 float_type=__default_float_type__):
+                 float_type=__default_float_type__,
+                 gradient=False):
         """
         Initialize
         :param model_id: model id, if not set the model ID is set using UUID
@@ -532,6 +449,8 @@ class LayeredVelocityModel(object):
 
         self.model_id = model_id
 
+        self.gradient = gradient
+
     def __repr__(self):
         output = ''
         for i, layer in enumerate(self.velocity_model_layers):
@@ -553,7 +472,7 @@ class LayeredVelocityModel(object):
         else:
             self.velocity_model_layers.append(layer)
 
-    def gen_1d_model(self, z_min, z_max, spacing):
+    def to_1d_model(self, z_min, z_max, spacing):
         # sort the layers to ensure the layers are properly ordered
         z = []
         v = []
@@ -583,28 +502,36 @@ class LayeredVelocityModel(object):
         z = z[i_sort]
         v = v[i_sort]
 
-        z_interp = np.arange(z_min, z_max, spacing[2])
-        v_interp = np.interp(z_interp, z, v)
+        z_interp = np.arange(z_min, z_max, spacing)
+        kind = 'previous'
+        if self.gradient:
+            kind = 'linear'
+
+        f_interp = interp1d(z, v, kind=kind)
+
+        v_interp = f_interp(z_interp)
 
         return z_interp, v_interp
 
-    def gen_3d_grid(self, network_code, dims, origin, spacing):
+    def to_3d_grid(self, network_code, dims, origin, spacing):
         model_grid_3d = VelocityGrid3D.from_layered_model(self,
                                                           network_code,
                                                           dims, origin,
                                                           spacing)
         return model_grid_3d
 
-    def plot(self, z_min, z_max, spacing, *args, **kwargs):
+    def plot(self, z_min, z_max, spacing, invert_z_axis=True, *args, **kwargs):
         """
         Plot the 1D velocity model
         :param z_min: lower limit of the model
         :param z_max: upper limit of the model
         :param spacing: plotting resolution in z
+        :param invert_z_axis: whether the z axis is inverted or not
+        (default = True)
         :return: matplotlib axis
         """
 
-        z_interp, v_interp = self.gen_1d_model(z_min, z_max, spacing)
+        z_interp, v_interp = self.to_1d_model(z_min, z_max, spacing)
 
         x_label = None
         if self.phase == 'P':
@@ -622,6 +549,9 @@ class LayeredVelocityModel(object):
         ax.plot(v_interp, z_interp, *args, **kwargs)
         plt.xlabel(x_label)
         plt.ylabel(y_label)
+
+        if invert_z_axis:
+            ax.invert_yaxis()
 
         ax.set_aspect(2)
 
@@ -688,8 +618,8 @@ class VelocityGrid3D(NLLocGrid):
         z_min = origin[-1]
         z_max = z_min + spacing[-1] * dims[-1]
 
-        z_interp, v_interp = layered_model.gen_1d_model(z_min, z_max,
-                                                        spacing)
+        z_interp, v_interp = layered_model.to_1d_model(z_min, z_max,
+                                                        spacing[2])
 
         data = np.zeros(dims)
 
@@ -709,6 +639,13 @@ class VelocityGrid3D(NLLocGrid):
                          grid_units=self.grid_units,
                          float_type=self.float_type,
                          model_id=self.model_id)
+
+    @classmethod
+    def from_slow_len(cls, grid: NLLocGrid, network_code: str):
+        data = np.mean(grid.spacing) / grid.data
+        return cls(network_code, data, grid.origin, grid.spacing,
+                   phase=grid.phase, float_type=grid.float_type,
+                   model_id=grid.model_id)
 
     def to_time(self, seed, seed_label, sub_grid_resolution=0.1,
                 *args, **kwargs):
@@ -763,7 +700,7 @@ class VelocityGrid3D(NLLocGrid):
 
         coords = np.array([X_i.ravel(), Y_i.ravel(), Z_i.ravel()]).T
 
-        vel = self.interpolate(coords, grid_coordinate=False).reshape(
+        vel = self.interpolate(coords, grid_space=False).reshape(
             X_i.shape)
 
         phi = np.ones_like(X_i)
@@ -802,7 +739,8 @@ class VelocityGrid3D(NLLocGrid):
 
         X = np.array([Xe_grid, Ye_grid, Ze_grid]).T
 
-        tt_interp = tt_tmp_grid.interpolate(X, grid_coordinate=False, order=3)
+        tt_interp = tt_tmp_grid.interpolate(X, grid_space=False,
+                                            order=3)[0]
 
         bias = np.max(tt_interp)
 
@@ -825,8 +763,8 @@ class VelocityGrid3D(NLLocGrid):
                              grid_units=self.grid_units)
 
         tt_out_grid.data -= tt_out_grid.interpolate(seed.T,
-                                                    grid_coordinate=False,
-                                                    order=3)
+                                                    grid_space=False,
+                                                    order=3)[0]
 
         return tt_out_grid
 
@@ -1053,13 +991,13 @@ class TTGrid(SeededGrid):
                          phase=self.phase, float_type=self.float_type,
                          model_id=self.model_id, grid_units=self.grid_units)
 
-    def to_azimuth_point(self, coord, grid_coordinate=False, mode='nearest',
+    def to_azimuth_point(self, coord, grid_space=False, mode='nearest',
                          order=1, **kwargs):
         """
         calculate the azimuth angle at a particular point on the grid for a
         given seed location
         :param coord: coordinates at which to calculate the takeoff angle
-        :param grid_coordinate: true if the coordinates are expressed in
+        :param grid_space: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
         :param mode: interpolation mode
@@ -1068,16 +1006,17 @@ class TTGrid(SeededGrid):
         """
 
         return self.to_azimuth().interpolate(coord,
-                                             grid_coordinate=grid_coordinate,
-                                             mode=mode, order=order, **kwargs)
+                                             grid_space=grid_space,
+                                             mode=mode, order=order,
+                                             **kwargs)[0]
 
-    def to_takeoff_point(self, coord, grid_coordinate=False, mode='nearest',
+    def to_takeoff_point(self, coord, grid_space=False, mode='nearest',
                          order=1, **kwargs):
         """
         calculate the takeoff angle at a particular point on the grid for a
         given seed location
         :param coord: coordinates at which to calculate the takeoff angle
-        :param grid_coordinate: true if the coordinates are expressed in
+        :param grid_space: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
         :param mode: interpolation mode
@@ -1085,10 +1024,11 @@ class TTGrid(SeededGrid):
         :return: takeoff angle at the location coord
         """
         return self.to_takeoff().interpolate(coord,
-                                             grid_coordinate=grid_coordinate,
-                                             mode=mode, order=order, **kwargs)
+                                             grid_space=grid_space,
+                                             mode=mode, order=order,
+                                             **kwargs)[0]
 
-    def ray_tracer(self, start, grid_coordinate=False, max_iter=1000,
+    def ray_tracer(self, start, grid_space=False, max_iter=1000,
                    arrival_id=None):
         """
         This function calculates the ray between a starting point (start) and an
@@ -1096,7 +1036,7 @@ class TTGrid(SeededGrid):
         gradient descent method.
         :param start: the starting point (usually event location)
         :type start: tuple, list or numpy.array
-        :param grid_coordinate: true if the coordinates are expressed in
+        :param grid_space: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
         :param max_iter: maximum number of iteration
@@ -1105,13 +1045,14 @@ class TTGrid(SeededGrid):
         :rtype: numpy.array
         """
 
-        return ray_tracer(self, start, grid_coordinate=grid_coordinate,
+        return ray_tracer(self, start, grid_space=grid_space,
                           max_iter=max_iter, arrival_id=arrival_id,
-                          earth_model_id=self.model_id)
+                          earth_model_id=self.model_id,
+                          network=self.network_code)
 
     @classmethod
     def from_velocity(cls, seed, seed_label, velocity_grid):
-        return velocity_grid.eikonal(seed, seed_label)
+        return velocity_grid.to_time(seed, seed_label)
 
     def write(self, path='.'):
         return super().write(path=path)
@@ -1189,7 +1130,8 @@ class TravelTimeEnsemble:
         for fle in Path(path).glob('*time*.hdr'):
             path = fle.parent
             base_name = '.'.join(fle.name.split('.')[:-1])
-            tt_grid = read_grid(str(base_name), path=str(path),
+            fname = str(Path(path) / base_name)
+            tt_grid = read_grid(fname, format='NLLOC',
                                 float_type=__default_float_type__)
             tt_grids.append(tt_grid)
 
@@ -1223,7 +1165,7 @@ class TravelTimeEnsemble:
 
         return TravelTimeEnsemble(returned_grids)
 
-    def sort(self, ascending=True):
+    def sort(self, ascending:bool = True):
         """
         sorting the travel time grid by seed_label
         :param ascending: if true the grids are sorted in ascending order
@@ -1241,14 +1183,14 @@ class TravelTimeEnsemble:
 
         return TravelTimeEnsemble(sorted_tt_grids)
 
-    def travel_time(self, seed, grid_coordinate: bool = False,
+    def travel_time(self, seed, grid_space: bool = False,
                     seed_labels: Optional[list] = None,
                     phase: Optional[list] = None):
         """
         calculate the travel time at a specific point for a series of site
         ids
         :param seed: travel time seed
-        :param grid_coordinate: true if the coordinates are expressed in
+        :param grid_space: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
         :param seed_labels: a list of sites from which to calculate the
@@ -1261,11 +1203,11 @@ class TravelTimeEnsemble:
         if isinstance(seed, list):
             seed = np.array(seed)
 
+        if grid_space:
+            seed = self.travel_time_grids[0].transform_from(seed)
+
         if not self.travel_time_grids[0].in_grid(seed):
             raise ValueError('seed is outside the grid')
-
-        if grid_coordinate:
-            seed = self.travel_time_grids[0].transform_from(seed)
 
         tt_grids = self.select(seed_labels=seed_labels, phase=phase)
 
@@ -1274,7 +1216,8 @@ class TravelTimeEnsemble:
         phases = []
         for tt_grid in tt_grids:
             labels.append(tt_grid.seed_label)
-            tts.append(tt_grid.interpolate(seed.T, grid_coordinate=False)[0])
+            tts.append(tt_grid.interpolate(seed.T,
+                       grid_space=False)[0])
             phases.append(tt_grid.phase)
 
         tts_dict = {}
@@ -1286,13 +1229,72 @@ class TravelTimeEnsemble:
 
         return tts_dict
 
+    def angles(self, seed, grid_space: bool = False,
+                seed_labels: Optional[list] = None,
+                phase: Optional[list] = None, **kwargs):
+        """
+        calculate the azimuth at a specific point for a series of site
+        ids
+        :param seed: travel time seed
+        :param grid_space: true if the coordinates are expressed in
+        grid space (indices can be fractional) as opposed to model space
+        (x, y, z)
+        :param seed_labels: a list of sites from which to calculate the
+        travel time.
+        :param phase: a list of phases for which the travel time need to be
+        calculated
+        :return: a list of dictionary containing the azimuth and site id
+        """
+
+        if isinstance(seed, list):
+            seed = np.array(seed)
+
+        if grid_space:
+            seed = self.travel_time_grids[0].transform_from(seed)
+
+        if not self.travel_time_grids[0].in_grid(seed):
+            raise ValueError('seed is outside the grid')
+
+        tt_grids = self.select(seed_labels=seed_labels, phase=phase)
+
+        azimuths = []
+        takeoffs = []
+        labels = []
+        phases = []
+        for tt_grid in tt_grids:
+            labels.append(tt_grid.seed_label)
+            azimuths.append(tt_grid.to_azimuth_point(seed.T,
+                                                     grid_space=False,
+                                                     **kwargs))
+            takeoffs.append(tt_grid.to_takeoff_point(seed.T,
+                                                     grid_space=False,
+                                                     **kwargs))
+            phases.append(tt_grid.phase)
+
+        azimuth_dict = {}
+        takeoff_dict = {}
+        for phase in np.unique(phases):
+            azimuth_dict[phase] = {}
+            takeoff_dict[phase] = {}
+
+        for label, azimuth, takeoff, phase in zip(labels, azimuths, takeoffs,
+                                                  phases):
+            takeoff_dict[phase][label] = takeoff
+            azimuth_dict[phase][label] = azimuth
+
+        angle_dict = {}
+        angle_dict['takeoff'] = takeoff_dict
+        angle_dict['azimuth'] = azimuth_dict
+
+        return angle_dict
+
     def ray_tracer(self, start, seed_labels=None, multithreading=False,
-                   cpu_utilisation=0.9, grid_coordinate=False, max_iter=1000):
+                   cpu_utilisation=0.9, grid_space=False, max_iter=1000):
         """
 
         :param start: origin of the ray, usually the location of an event
         :param seed_labels: a list of seed labels
-        :param grid_coordinate: true if the coordinates are expressed in
+        :param grid_space: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
         :param multithreading: if True use multithreading
@@ -1306,10 +1308,10 @@ class TravelTimeEnsemble:
 
         travel_time_grids = self.select(seed_labels=seed_labels)
 
-        if multithreading:
+        kwargs = {'grid_space': grid_space,
+                  'max_iter': max_iter}
 
-            kwargs = {'grid_coordinate': grid_coordinate,
-                      'max_iter': max_iter}
+        if multithreading:
 
             ray_tracer_func = partial(ray_tracer, **kwargs)
 
@@ -1325,30 +1327,31 @@ class TravelTimeEnsemble:
             with Pool(num_threads) as pool:
                 results = pool.starmap(ray_tracer_func, data)
 
+            for result in results:
+                result.network = self.travel_time_grids[0].network_code
+
         else:
             results = []
             for travel_time_grid in travel_time_grids:
-                results.append(ray_tracer(travel_time_grid, start,
-                                          grid_coordinate=grid_coordinate,
-                                          max_iter=max_iter))
+                results.append(travel_time_grid.ray_tracer(start, **kwargs))
 
         return results
 
     @property
     def seeds(self):
         seeds = []
-        for grid in self.travel_time_grids:
-            seeds.append(grid.seed)
+        for seed_label in self.seed_labels:
+            seeds.append(self.select(seed_labels=seed_label)[0].seed)
 
         return np.array(seeds)
-
+    
     @property
     def seed_labels(self):
         seed_labels = []
         for grid in self.travel_time_grids:
             seed_labels.append(grid.seed_label)
 
-        return np.array(seed_labels)
+        return np.unique(np.array(seed_labels))
 
     @property
     def shape(self):
@@ -1367,38 +1370,11 @@ class TravelTimeEnsemble:
             travel_time_grid.write(path=path)
 
     def write_hdf5(self, file_name):
-        hf = h5py.File(file_name, 'w')
-
-        shape = self.shape
-        origin = self.origin
-        spacing = self.spacing
-        ngrid = np.product(shape)
-        gridlocs = gdef_to_points(shape, origin, spacing)
-        hf.create_dataset('grid_locs', data=gridlocs.astype(np.float32))
-
-        hf.attrs['shape'] = shape
-        hf.attrs['origin'] = origin
-        hf.attrs['spacing'] = spacing
-        for phase in ['P', 'S']:
-            sorted_tt_grids = self.travel_time_grids.select(phase=phase).sort()
-            seeds = sorted_tt_grids.seeds
-            seed_labels = np.array(sorted_tt_grids.seed_labels)
-            nsta = len(sorted_tt_grids)
-            tts = np.zeros((nsta, ngrid), dtype=np.float32)
-
-            for i, tt_grid in enumerate(sorted_tt_grids):
-                tts[i] = tt_grid.data.reshape(ngrid)
-
-            seeds = np.array(seeds).astype(np.float32)
-
-            hf.create_dataset(f'tt{phase.lower()}',
-                              data=tts)
-
-        hf.create_dataset('locations', data=seeds)
-        gdef = np.concatenate((shape, origin, [spacing])).astype(np.int32)
-        hf.create_dataset('grid_def', data=gdef)
-        hf.create_dataset('stations', data=seed_labels.astype('S4'))
-        hf.close()
+        write_hdf5(file_name, self)
+        
+    def to_hdf5(self, file_name):
+        self.write_hdf5(file_name)
+        return H5TTable(file_name)
 
 
 class AngleGrid(SeededGrid):
@@ -1413,20 +1389,3 @@ class AngleGrid(SeededGrid):
 
     def write(self, path='.'):
         pass
-
-
-def gdef_to_points(shape, origin, spacing):
-    maxes = origin + shape * spacing
-    x = np.arange(origin[0], maxes[0], spacing).astype(np.float32)
-    y = np.arange(origin[1], maxes[1], spacing).astype(np.float32)
-    z = np.arange(origin[2], maxes[2], spacing).astype(np.float32)
-    points = np.zeros((np.product(shape), 3), dtype=np.float32)
-    ix = 0
-
-    for xv in x:
-        for yv in y:
-            for zv in z:
-                points[ix] = [xv, yv, zv]
-                ix += 1
-
-    return points

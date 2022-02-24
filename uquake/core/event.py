@@ -32,9 +32,6 @@ import pickle
 from uquake.waveform.mag_utils import calc_static_stress_drop
 from .logging import logger
 from pathlib import Path
-from pydantic import BaseModel, validator, validate_arguments
-from typing import List, Optional, Union
-from enum import Enum
 
 debug = False
 
@@ -45,6 +42,7 @@ class Catalog(obsevent.Catalog):
     __doc__ = obsevent.Catalog.__doc__.replace('obspy', 'uquake')
 
     def __init__(self, obspy_obj=None, **kwargs):
+        # _init_handler(self, obspy_obj, **kwargs)
         if obspy_obj and len(kwargs) > 0:
             raise AttributeError("Initialize from either \
                                   obspy_obj or kwargs, not both")
@@ -165,8 +163,22 @@ class Event(obsevent.Event):
 
         if self.origins:
             og = self.preferred_origin() or self.origins[-1]
+
+            if og.x is None:
+                x = 0
+            else:
+                x = og.x
+            if og.y is None:
+                y = 0
+            else:
+                y = og.y
+            if og.z is None:
+                z = 0
+            else:
+                z = og.z
+
             out += '%s | %0.2f, %0.2f, %0.2f | %s' % (og.time,
-                                                      og.x, og.y, og.z,
+                                                      x, y, z,
                                                       og.evaluation_mode)
 
         if self.magnitudes:
@@ -198,8 +210,7 @@ class Event(obsevent.Event):
 class Origin(obsevent.Origin):
     __doc__ = obsevent.Origin.__doc__.replace('obspy', 'uquake')
     extra_keys = ['x', 'y', 'z', 'x_error', 'y_error', 'z_error', 'scatter',
-                  'interloc_vmax', 'interloc_time', '__encoded_rays__',
-                  'author']
+                  '__encoded_rays__', 'author']
 
     def __init__(self, obspy_obj=None, **kwargs):
         _init_handler(self, obspy_obj, **kwargs)
@@ -208,6 +219,8 @@ class Origin(obsevent.Origin):
 
         if name == 'rays':
             self.__encoded_rays__ = self.__encode_rays__(self, value)
+        # elif name == 'encoded_rays':
+        #     self.__encoded_rays__ = value
         else:
             _set_attr_handler(self, name, value)
 
@@ -230,8 +243,11 @@ class Origin(obsevent.Origin):
     def __decode_rays__(self):
         if self.__encoded_rays__ is None:
             return
-
-        return pickle.loads(b64decode(self.__encoded_rays__))
+        try:
+            return pickle.loads(b64decode(self.__encoded_rays__))
+        except Exception as e:
+            self.__encoded_rays__ = eval(self.__encoded_rays__)
+            return pickle.loads(b64decode(self.__encoded_rays__))
 
     def get_arrival_id(self, phase, station_code):
         arrival_id = None
@@ -260,10 +276,12 @@ class Origin(obsevent.Origin):
         return np.array([self.x, self.y, self.z])
 
     @property
-    def uncertainty(self):
+    def location_uncertainty(self):
         if self.origin_uncertainty is None:
             return None
         else:
+            if self.origin_uncertainty.confidence_ellipsoid is None:
+                return None
             return self.origin_uncertainty.confidence_ellipsoid \
                 .semi_major_axis_length
 
@@ -282,13 +300,14 @@ class Origin(obsevent.Origin):
         return magnitudes
 
     def __str__(self, **kwargs):
+
         string = f"""
        resource_id: {self.resource_id}
          time(UTC): {self.time}
-                 x: {self.x:>10.2f}
-                 y: {self.y:>10.2f}
-                 z: {self.z:>10.2f}
-       uncertainty: {self.uncertainty:>10.2f} (m)
+                 x: {self.x}
+                 y: {self.y}
+                 z: {self.z}
+       uncertainty: {self.location_uncertainty} (m)
    evaluation_mode: {self.evaluation_mode}
  evaluation_status: {self.evaluation_status}
                 ---------
@@ -395,31 +414,28 @@ class Magnitude(obsevent.Magnitude):
         if self.energy_p_joule and self.energy_s_joule:
             es_ep = self.energy_s_joule / self.energy_p_joule
 
-        string = """
-             resource_id: {}     
-               Magnitude: {}
-          Magnitude type: {}
-   Corner frequency (Hz): {}
- Radiated Energy (joule): {}
-                   Es/Ep: {}
-          Seismic moment: {}
-       Source volume(m3): {}
-Static stress drop (MPa): {}
-     Apparent stress(Pa): {}
-         evaluation_mode: {}
-        """.format(self.resource_id.id, self.mag,
-                   self.magnitude_type, self.corner_frequency_hz,
-                   self.energy_joule, es_ep, self.seismic_moment,
-                   self.potency_m3,
-                   self.static_stress_drop_mpa, self.apparent_stress,
-                   self.evaluation_mode)
+        string = f"""
+             resource_id: {self.resource_id.id}     
+               Magnitude: {self.mag}
+          Magnitude type: {self.magnitude_type}
+   Corner frequency (Hz): {self.corner_frequency_hz}
+ Radiated Energy (joule): {self.energy_joule}
+                   Es/Ep: {es_ep}
+          Seismic moment: {self.seismic_moment}
+       Source volume(m3): {self.potency_m3}
+Static stress drop (MPa): {self.static_stress_drop_mpa}
+     Apparent stress(Pa): {self.apparent_stress}
+         evaluation mode: {self.evaluation_mode}
+       evaluation status: {self.evaluation_status}
+        """
 
         return string
 
 
 class Pick(obsevent.Pick):
     __doc__ = obsevent.Pick.__doc__.replace('obspy', 'uquake')
-    extra_keys = ['method', 'snr', 'trace_id', 'author']
+    extra_keys = ['method', 'snr', 'trace_id', 'author', 'linearity',
+                  'planarity', 'azimuth', 'dip']
 
     def __init__(self, obspy_obj=None, **kwargs):
         _init_handler(self, obspy_obj, **kwargs)
@@ -449,9 +465,6 @@ class Pick(obsevent.Pick):
                     self.evaluation_status, self.resource_id)
         return string
 
-    def to_dict(self):
-        return vars(self)
-
     def get_sta(self):
         if self.waveform_id is not None:
             return self.waveform_id.station_code
@@ -477,8 +490,13 @@ class WaveformStreamID(obsevent.WaveformStreamID):
 
     @property
     def site_code(self):
-        site = self.station_code + self.location_code
-        return site
+        if self.station_code is not None:
+            if self.location_code is None:
+                return self.station_code
+            else:
+                return self.station_code + self.location_code
+
+        return
 
     @property
     def site(self):
@@ -517,11 +535,11 @@ class Arrival(obsevent.Arrival):
        resource_id: {self.resource_id}
            pick_id: {self.get_pick().resource_id}
              phase: {self.phase}
-           azimuth: {self.azimuth:0.2f} (deg)
-          distance: {self.distance:0.2f} (m)
-     takeoff_angle: {self.takeoff_angle:0.2f} (deg)
-     time_residual: {self.time_residual * 1000:0.2f} (ms)
-       time_weight: {self.time_weight:0.1f}
+           azimuth: {self.azimuth} (deg)
+          distance: {self.distance} (m)
+     takeoff_angle: {self.takeoff_angle} (deg)
+     time_residual: {self.time_residual * 1000} (ms)
+       time_weight: {self.time_weight}
         """
         return out_str
 
@@ -592,11 +610,6 @@ def read_events(filename, **kwargs):
     cat = obsevent.read_events(filename, **kwargs)
     mq_catalog = Catalog(obspy_obj=cat)
 
-    if mq_catalog[0].preferred_origin():
-        if mq_catalog[0].preferred_origin().__encoded_rays__:
-            mq_catalog[0].preferred_origin().__encoded_rays__ = eval(
-                mq_catalog[0].preferred_origin().__encoded_rays__)
-
     return mq_catalog
 
 
@@ -619,6 +632,11 @@ def _init_handler(self, obspy_obj, **kwargs):
 
     if obspy_obj:
         _init_from_obspy_object(self, obspy_obj)
+
+        if 'resource_id' in obspy_obj.__dict__.keys():
+            rid = obspy_obj.resource_id.id
+            self.resource_id = ResourceIdentifier(id=rid,
+                                                  referred_object=self)
     else:
         extra_kwargs = pop_keys_matching(kwargs, self.extra_keys)
         super(type(self), self).__init__(**kwargs)  # init obspy_origin args
@@ -633,7 +651,8 @@ def _init_from_obspy_object(uquake_obj, obspy_obj):
     converts them to equivalent uquake objects.
     """
 
-    class_equiv = {obsevent.Pick: Pick,
+    class_equiv = {obsevent.event: Event,
+                   obsevent.Pick: Pick,
                    obsevent.Arrival: Arrival,
                    obsevent.Origin: Origin,
                    obsevent.Magnitude: Magnitude,
@@ -671,6 +690,8 @@ def _set_attr_handler(self, name, value, namespace='UQUAKE'):
     #  use obspy default setattr for default keys
     if name in self.defaults.keys():
         self.__dict__[name] = value
+        if isinstance(self.__dict__[name], ResourceIdentifier):
+            self.__dict__[name] = ResourceIdentifier(id=value.id)
         # super(type(self), self).__setattr__(name, value)
     elif name in self.extra_keys:
         with warnings.catch_warnings():
@@ -802,72 +823,40 @@ class RayCollection:
         self.rays = self.rays + [item]
 
 
-class Phases(str, Enum):
-    P = 'P'
-    S = 'S'
+class Ray(object):
 
+    def __init__(self, nodes: list = [], site_code: str = None,
+                 arrival_id: ResourceIdentifier = None,
+                 phase: str = None, azimuth: float = None,
+                 takeoff_angle: float = None,
+                 travel_time: float = None,
+                 earth_model_id: ResourceIdentifier = None,
+                 network: str = None):
+        """
+        :param nodes: ray nodes
+        :param site_code: site code
+        :param arrival_id: the ResourceIdentifier of the arrival associated to
+        the ray
+        :param phase: seismic phase ("P" or "S")
+        :param azimuth: Azimuth in degrees
+        :param takeoff_angle: takeoff angle in degrees
+        :param travel_time: travel time between the source and the site in
+        second
+        :param earth_model_id: velocity model ResourceIdentifier
+        :param network:
+        :type network: str
+        """
 
-class Ray(BaseModel):
-
-    nodes: List[List[float]]
-    site_code: Optional[str]
-    arrival_id: Optional[str]
-    phase: Optional[Phases]
-    azimuth: Optional[float]
-    takeoff_angle: Optional[float]
-    travel_time: Optional[float]
-    earth_model_id: Optional[str]
-
-    @validator('nodes')
-    @classmethod
-    def parse_nodes(cls, value):
-        if isinstance(value, np.ndarray):
-            return value.tolist()
-        elif isinstance(value, list):
-            return value
-        else:
-            raise TypeError
-
-    @validator('arrival_id', 'earth_model_id', pre=True)
-    @classmethod
-    def parse_nodes(cls, value):
-        return ResourceIdentifier(value)
-        # else:
-        #     raise TypeError
-
-
-
-
-    # @validator(nodes)
-
-    # def __init__(self, nodes: list = [], site_code: str = None,
-    #              arrival_id: ResourceIdentifier = None,
-    #              phase: str = None, azimuth: float = None,
-    #              takeoff_angle: float = None,
-    #              travel_time: float = None,
-    #              earth_model_id: ResourceIdentifier = None):
-    #     """
-    #     :param nodes: ray nodes
-    #     :param site_code: site code
-    #     :param arrival_id: the ResourceIdentifier of the arrival associated to
-    #     the ray
-    #     :param phase: seismic phase ("P" or "S")
-    #     :param azimuth: Azimuth in degrees
-    #     :param takeoff_angle: takeoff angle in degrees
-    #     :param travel_time: travel time between the source and the site in
-    #     second
-    #     :param earth_model_id: velocity model ResourceIdentifier
-    #     """
-    #
-    #     self.nodes = np.array(nodes)
-    #     self.site_code = site_code
-    #     self.arrival_id = arrival_id
-    #     self.phase = phase
-    #     self.azimuth = azimuth
-    #     self.takeoff_angle = takeoff_angle
-    #     self.travel_time = travel_time
-    #     self.resource_id = obsevent.ResourceIdentifier()
-    #     self.earth_model_id = earth_model_id
+        self.nodes = np.array(nodes)
+        self.site_code = site_code
+        self.arrival_id = arrival_id
+        self.phase = phase
+        self.azimuth = azimuth
+        self.takeoff_angle = takeoff_angle
+        self.travel_time = travel_time
+        self.resource_id = obsevent.ResourceIdentifier()
+        self.earth_model_id = earth_model_id
+        self.network = network
 
     def __setattr__(self, key, value):
         if key == 'phase':
@@ -880,26 +869,32 @@ class Ray(BaseModel):
 
     @property
     def length(self):
-        nodes = np.array(self.nodes)
-        if len(nodes) < 2:
+        if len(self.nodes) < 2:
             return 0
 
         length = 0
-        for k, node1 in enumerate(nodes[0:-1]):
-            node2 = nodes[k + 1]
+        for k, node1 in enumerate(self.nodes[0:-1]):
+            node2 = self.nodes[k + 1]
             length += np.linalg.norm(node1 - node2)
 
         return length
 
     @property
     def baz(self):
-        nodes = np.array(self.nodes)
         # back_azimuth
         baz = None
-        if len(nodes) > 2:
-            v = nodes[-2] - nodes[-1]
+        if len(self.nodes) > 2:
+            v = self.nodes[-2] - self.nodes[-1]
             baz = np.arctan2(v[0], v[1]) * 180 / np.pi
         return baz
+
+    @property
+    def station(self):
+        return self.site_code[0:4]
+
+    @property
+    def location(self):
+        return self.site_code[4:]
 
     @property
     def back_azimuth(self):
@@ -907,21 +902,37 @@ class Ray(BaseModel):
 
     @property
     def incidence_angle(self):
-        nodes = np.array(self.nodes)
         ia = None
-        if len(nodes) > 2:
-            v = nodes[-2] - nodes[-1]
+        if len(self.nodes) > 2:
+            v = self.nodes[-2] - self.nodes[-1]
             h = np.sqrt(v[0] ** 2 + v[1] ** 2)
             ia = np.arctan2(h, v[2]) * 180 / np.pi
         return ia
+
+    def to_pick(self, origin_time):
+        time = origin_time + self.travel_time
+        waveform_id = WaveformStreamID(network_code=self.network,
+                                       station_code=self.station,
+                                       location_code=self.location)
+
+        method_id = ResourceIdentifier('predicted from rays')
+        return Pick(time=time, waveform_id=waveform_id, method_id=method_id,
+                    back_azimuth=self.back_azimuth, phase_hint=self.phase,
+                    evaluation_mode='automatic',
+                    evaluation_status='preliminary')
+
 
     def __len__(self):
         return len(self.nodes)
 
     def __str__(self):
+
+        site_code = f'{self.network}.{self.site_code[0:4]}.' \
+                    f'{self.site_code[4:]}'
+
         txt = \
             f"""
-         site code: {self.site_code}
+       site code: {site_code}
         arrival id: {self.arrival_id}
              phase: {self.phase}
         length (m): {self.length}

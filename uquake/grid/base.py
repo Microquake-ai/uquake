@@ -24,6 +24,9 @@ from pkg_resources import load_entry_point
 from ..core.util import ENTRY_POINTS
 from pathlib import Path
 from scipy.ndimage.interpolation import map_coordinates
+from ..core.event import WaveformStreamID
+import matplotlib.pyplot as plt
+from scipy.ndimage.filters import gaussian_filter
 
 
 def read_grid(filename, format='PICKLE', **kwargs):
@@ -41,7 +44,7 @@ def read_grid(filename, format='PICKLE', **kwargs):
     return read_format(filename, **kwargs)
 
 
-class Grid:
+class Grid(object):
     """
     Object containing a regular grid
     """
@@ -280,6 +283,21 @@ class Grid:
         """
         self.data.fill(value)
 
+    def fill_random(self, mean, std, smooth_sigma, seed=None):
+        """
+        fill the model with random number with a mean of "mean".
+        :param mean: mean of the random number
+        :param std: standard deviation of the grid
+        :param sigma: gaussian smoothing parameter
+        :param seed: random seed
+        """
+
+        np.random.seed(seed)
+
+        self.data = np.random.randn(self.dims[0], self.dims[1], self.dims[2])
+        self.smooth(smooth_sigma)
+        self.data = self.data * std / np.std(self.data) + mean
+
     def generate_points(self, pt_spacing=None):
         """
         Generate points within the grid
@@ -289,36 +307,68 @@ class Grid:
 
         dimensions = np.array(self.shape) * self.spacing / ev_spacing
 
-        xe = np.arange(0, dimensions[0]) * ev_spacing + self.origin[0]
-        ye = np.arange(0, dimensions[1]) * ev_spacing + self.origin[1]
-        ze = np.arange(0, dimensions[2]) * ev_spacing + self.origin[2]
+        xe = np.arange(0, dimensions[0]) * ev_spacing[0] + self.origin[0]
+        ye = np.arange(0, dimensions[1]) * ev_spacing[1] + self.origin[1]
+        ze = np.arange(0, dimensions[2]) * ev_spacing[2] + self.origin[2]
 
         Xe, Ye, Ze = np.meshgrid(xe, ye, ze)
 
         Xe = Xe.reshape(np.prod(Xe.shape))
         Ye = Ye.reshape(np.prod(Ye.shape))
         Ze = Ze.reshape(np.prod(Ze.shape))
-        return Xe, Ye, Ze
+        data_e = self.data.reshape(np.prod(self.data.shape))
+        return Xe, Ye, Ze, data_e
+
+    def flattens(self):
+        return self.generate_points()
+
+    def rbf_interpolation_sensitivity(self, location, epsilon,
+                                      threshold=0.1):
+        """
+        calculate the sensitivity of each element given a location
+        :param location: location in model space at which the interpolation
+        occurs
+        :param epsilon: the standard deviation of the gaussian kernel
+        :param threshold: threshold relative to the maximum value below which
+        the weights are considered 0.
+        :rparam: the sensitivity matrix
+        """
+        x, y, z, v = self.flattens()
+
+        # calculating the distance between the location and every grid points
+
+        dist = np.linalg.norm([x - location[0], y - location[1],
+                               z - location[2]], axis=0)
+
+        sensitivity = np.exp(-(dist / epsilon) ** 2)
+        sensitivity[sensitivity < np.max(sensitivity) * threshold] = 0
+        sensitivity = sensitivity / np.sum(sensitivity)
+
+        return sensitivity
 
     def generate_random_points_in_grid(self, n_points=1,
-                                       grid_coordinates=False):
+                                       grid_space=False,
+                                       seed=None):
         """
         Generate a random set of points within the grid
         :param n_points: number of points to generate (default=1)
         :type n_points: int
-        :param grid_coordinates: whether the output is expressed in
+        :param grid_space: whether the output is expressed in
         grid coordinates (True) or model coordinates (False)
         (default: False)
-        :type grid_coordinates: bool
+        :type grid_space: bool
+        :param seed: random seed for reproducibility
         :return: an array of triplet
         """
+
+        np.random.seed(seed)
 
         points = np.random.rand(n_points, len(self.data.shape))
 
         for i in range(n_points):
             points[i] = points[i] * self.dimensions
 
-        if not grid_coordinates:
+        if not grid_space:
             return self.transform_from_grid(points)
 
         return points
@@ -344,7 +394,7 @@ class Grid:
 
         write_format(self, filename, **kwargs)
 
-    def interpolate(self, coord, grid_coordinate=True, mode='nearest',
+    def interpolate(self, coord, grid_space=True, mode='nearest',
                     order=1, **kwargs):
         """
         This function interpolate the values at a given point expressed
@@ -352,7 +402,7 @@ class Grid:
         :param coord: Coordinate of the point(s) at which to interpolate
         either in grid or absolute coordinates
         :type coord: list, tuple, numpy.array
-        :param grid_coordinate: true if the coordinates are expressed in
+        :param grid_space: true if the coordinates are expressed in
         grid space (indices can be float) as opposed to model space
         :param mode: {'reflect', 'constant', 'nearest', 'mirror', 'wrap'},
         optional
@@ -384,13 +434,13 @@ class Grid:
             The order has to be in the range 0-5.
         :type order: int
 
-        :type grid_coordinate: bool
+        :type grid_space: bool
         :rtype: numpy.array
         """
 
         coord = np.array(coord)
 
-        if not grid_coordinate:
+        if not grid_space:
             coord = self.transform_to(coord)
 
         if len(coord.shape) < 2:
@@ -461,6 +511,51 @@ class Grid:
 
         return write_format(self, filename, **kwargs)
 
+    def plot_1D(self, x, y, z_resolution, grid_space=False,
+                inventory=None, reverse_y=True):
+        """
+
+        :param x: x location
+        :param y: y location
+        :param z_resolution_m: z resolution in grid units
+        :param grid_space:
+        :return:
+        """
+
+        if not grid_space:
+            x, y, z = self.transform_from([x, y, 0])
+
+        zs = np.arange(self.origin[2], self.corner[2], z_resolution)
+
+        coords = []
+        for z in zs:
+            coords.append(np.array([x, y, z]))
+
+        values = self.interpolate(coords, grid_space=grid_space)
+
+        plt.plot(values, zs)
+        if reverse_y:
+            plt.gca().invert_yaxis()
+
+        if (inventory):
+            z_stas = []
+            for network in inventory:
+                for station in network:
+                    loc = station.loc
+                    z_stas.append(loc[2])
+
+            plt.plot([np.mean(values)] * len(z_stas), z_stas, 'kv')
+
+
+
+            plt.plot()
+
+            plt.plot()
+        plt.show()
+
+    def smooth(self, sigma: np.array):
+        self.data = gaussian_filter(self.data, sigma)
+
     @property
     def ndim(self):
         return self.data.ndim
@@ -476,6 +571,11 @@ class Grid:
     @property
     def dimensions(self):
         return self.shape
+
+    @property
+    def corner(self):
+        return np.array(self.origin) + np.array(self.shape) * \
+               np.array(self.spacing)
 
 
 def angles(travel_time_grid):
@@ -506,8 +606,9 @@ def angles(travel_time_grid):
     return azimuth, takeoff
 
 
-def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
-               arrival_id=None, earth_model_id=None):
+def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
+               arrival_id=None, earth_model_id=None,
+               network: str=None):
     """
     This function calculates the ray between a starting point (start) and an
     end point, which should be the seed of the travel_time grid, using the
@@ -516,7 +617,7 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
     :type travel_time_grid: TTGrid
     :param start: the starting point (usually event location)
     :type start: tuple, list or numpy.array
-    :param grid_coordinate: true if the coordinates are expressed in
+    :param grid_space: true if the coordinates are expressed in
     grid space (indices can be fractional) as opposed to model space
     (x, y, z)
     :param max_iter: maximum number of iteration
@@ -525,12 +626,16 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
     :type arrival_id: uquake.core.event.ResourceIdentifier
     :param earth_model_id: velocity/earth model id.
     :type earth_model_id: uquake.core.event.ResourceIdentifier
+    :param network: network information
+    :type network: str
     :rtype: numpy.array
     """
 
     from uquake.core.event import Ray
 
-    if grid_coordinate:
+    interpolation_order = 1
+
+    if grid_space:
         start = np.array(start)
         start = travel_time_grid.transform_from(start)
 
@@ -545,7 +650,8 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
 
     dist = np.linalg.norm(start - end)
     cloc = start  # initializing cloc "current location" to start
-    gamma = spacing / 2  # gamma is set to half the grid spacing. This
+    spacing = np.linalg.norm(spacing)
+    gamma = spacing / 2 # gamma is set to half the grid spacing. This
     # should be
     # sufficient. Note that gamma is fixed to reduce
     # processing time.
@@ -556,13 +662,23 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
         if iter_number > max_iter:
             break
 
-        if np.all(dist < spacing * 4):
-            gamma = np.min(spacing) / 4
+        # if dist < spacing * 4:
+        #     gamma = spacing / 4
 
-        gvect = np.array([gd.interpolate(cloc, grid_coordinate=False,
-                                         order=1)[0] for gd in gds])
+        gvect = np.array([gd.interpolate(cloc, grid_space=False,
+                                         order=interpolation_order)[0]
+                          for gd in gds])
 
-        cloc = cloc - gamma * gvect / np.linalg.norm(gvect)
+        if np.linalg.norm(gvect) == 0:
+            break
+
+        dr = gamma * gvect / (np.linalg.norm(gvect) + 1e-8)
+
+        if np.linalg.norm(dr) < gamma / 2:
+            dr = (dr / np.linalg.norm(dr)) * gamma / 2
+
+        cloc = cloc - dr
+
         nodes.append(cloc)
         dist = np.linalg.norm(cloc - end)
 
@@ -570,16 +686,17 @@ def ray_tracer(travel_time_grid, start, grid_coordinate=False, max_iter=1000,
 
     nodes.append(end)
 
-    tt = travel_time_grid.interpolate(start, grid_coordinate=False, order=1)[0]
+    tt = travel_time_grid.interpolate(start, grid_space=False,
+                                      order=interpolation_order)[0]
 
-    az = travel_time_grid.to_azimuth_point(start, grid_coordinate=False,
-                                           order=1)
-    toa = travel_time_grid.to_takeoff_point(start, grid_coordinate=False,
-                                            order=1)
+    az = travel_time_grid.to_azimuth_point(start, grid_space=False,
+                                           order=interpolation_order)
+    toa = travel_time_grid.to_takeoff_point(start, grid_space=False,
+                                            order=interpolation_order)
 
-    ray = Ray(nodes=nodes.tolist(), site_code=travel_time_grid.seed_label,
+    ray = Ray(nodes=nodes, site_code=travel_time_grid.seed_label,
               arrival_id=arrival_id, phase=travel_time_grid.phase,
               azimuth=az, takeoff_angle=toa, travel_time=tt,
-              earth_model_id=earth_model_id)
+              earth_model_id=earth_model_id, network=network)
 
     return ray

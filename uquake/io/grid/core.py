@@ -18,6 +18,11 @@ plugin for reading and writing GridData object into various format
 """
 
 import numpy as np
+from pathlib import Path
+from uuid import uuid4
+from ...grid.nlloc import (valid_float_types, VelocityGrid3D, TTGrid,
+                           AngleGrid, NLLocGrid, __default_float_type__)
+import os
 
 
 def read_pickle(filename, protocol=-1, **kwargs):
@@ -163,3 +168,102 @@ def write_vtk(grid, filename, **kwargs):
 
 def read_vtk(filename, *args, **kwargs):
     pass
+
+
+def read_nlloc(filename, float_type=__default_float_type__):
+    """
+    read two parts NLLoc files
+    :param filename: filename
+    :param float_type: float type as defined in NLLoc grid documentation
+    """
+
+    if filename.split('.')[-1] in ['hdr', 'buf', 'mid']:
+        filename = filename[:-4]
+
+    header_file = Path(f'{filename}.hdr')
+    # header_file = Path(path) / f'{base_name}.hdr'
+    with open(header_file, 'r') as in_file:
+        line = in_file.readline()
+        line = line.split()
+        shape = tuple([int(line[0]), int(line[1]), int(line[2])])
+        origin = np.array([float(line[3]), float(line[4]),
+                           float(line[5])]) * 1000
+        spacing = np.array([float(line[6]), float(line[7]),
+                            float(line[8])]) * 1000
+
+        grid_type = line[9]
+        grid_unit = 'METER'
+
+        line = in_file.readline()
+
+        if grid_type in ['ANGLE', 'ANGLE2D', 'TIME', 'TIME2D']:
+            line = line.split()
+            seed_label = line[0]
+            seed = (float(line[1]) * 1000,
+                    float(line[2]) * 1000,
+                    float(line[3]) * 1000)
+
+        else:
+            seed_label = None
+            seed = None
+
+    buf_file = Path(f'{filename}.buf')
+    # buf_file = Path(path) / f'{base_name}.buf'
+    if float_type == 'FLOAT':
+        data = np.fromfile(buf_file,
+                           dtype=np.float32)
+    elif float_type == 'DOUBLE':
+        data = np.fromfile(buf_file,
+                           dtype=np.float64)
+    else:
+        msg = f'float_type = {float_type} is not valid\n' \
+              f'float_type should be one of the following valid float ' \
+              f'types:\n'
+        for valid_float_type in valid_float_types:
+            msg += f'{valid_float_type}\n'
+        raise ValueError(msg)
+
+    data = data.reshape(shape)
+
+    if '.P.' in filename:
+        phase = 'P'
+    else:
+        phase = 'S'
+
+    # reading the model id file
+    mid_file = Path(f'{filename}.mid')
+    if mid_file.exists():
+        with open(mid_file, 'r') as mf:
+            model_id = mf.readline().strip()
+
+    else:
+        model_id = str(uuid4())
+
+        # (self, base_name, data_or_dims, origin, spacing, phase,
+        #  seed=None, seed_label=None, value=0,
+        #  grid_type='VELOCITY_METERS', grid_units='METER',
+        #  float_type="FLOAT", model_id=None):
+
+    network_code = filename.split(os.path.sep)[-1].split('.')[0]
+    if grid_type in ['VELOCITY', 'VELOCITY_METERS']:
+        return VelocityGrid3D(network_code, data, origin, spacing, phase=phase,
+                              model_id=model_id)
+
+    elif grid_type == 'TIME':
+        return TTGrid(network_code, data, origin, spacing, seed,
+                      seed_label, phase=phase, model_id=model_id)
+
+    elif grid_type == 'ANGLE':
+        return AngleGrid(network_code, data, origin, spacing, seed,
+                         seed_label, angle_type='AZIMUTH', phase=phase,
+                         model_id=model_id)
+
+    else:
+        grid = NLLocGrid(data, origin, spacing, phase,
+                         grid_type=grid_type, model_id=model_id,
+                         grid_units=grid_unit)
+
+        if grid_type == 'SLOW_LEN':
+            return VelocityGrid3D.from_slow_len(grid, network_code)
+
+        return grid

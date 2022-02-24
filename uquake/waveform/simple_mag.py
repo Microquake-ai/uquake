@@ -2,13 +2,11 @@ import numpy as np
 from numpy.fft import fft
 from scipy.optimize import curve_fit
 from scipy.ndimage.interpolation import map_coordinates
-from uquake.helpers.logging import logger
+from uquake.core.logging import logger
 from obspy.core.trace import Stats
 from uquake.core.stream import Trace, Stream
-from uquake.core.data import GridData
+from uquake.grid.base import Grid
 from uquake.core import event
-from uquake.waveform.mag_utils import calc_static_stress_drop
-from uquake.core.util.cli import ProgressBar
 
 
 ########################################################################################
@@ -38,9 +36,9 @@ def anelastic_scattering_attenuation(raypath_or_distance, velocity, quality,
     :param raypath_or_distance: raypath or distance
     :type raypath_or_distance: a list of point along the raypath or a float
     :param velocity: velocity along the raypath
-    :type: uquake.core.data.grid.GridData or float
+    :type: uquake.core.data.grid.Grid or float
     :param quality: Seismic quality factor
-    :type quality: uquake.core.data.grid.GridData or float
+    :type quality: uquake.core.data.grid.Grid or float
     :param seismogram: displacement waveform
     :type seismogram: uquake.core.Trace
     :return: attenuated seismogram
@@ -135,8 +133,7 @@ def calculate_attenuation(raypath, velocity, quality=None, Mw=-1):
 
 def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
                                triaxial=True,
-                               orientation=(0, 0, 1), pwave=True,
-                               progress=True, buf=0,
+                               orientation=(0, 0, 1), pwave=True, buf=0,
                                traveltime=None, eventSeed=False, Mw=-1.,
                                tt=None, return_tt=False,
                                homogeneous=True):
@@ -144,7 +141,7 @@ def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
     :param seed: seed (often receiver) location
     :type seed: tuple with same dimension as the grid
     :param velocity: velocity grid
-    :type velocity: uquake.core.data.GridData
+    :type velocity: uquake.core.data.Grid
     :param locations: 2-D grid containing the coordinates at which the
     attenuation is calculated
     for instance [[x1,y1,z1],[x2,y2,z2],...,[xn,yn,zn]].
@@ -161,7 +158,7 @@ def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
     :param progress: show progress bar if true
     :type progress: bool
     :param traveltime: precalculated traveltime grid (for MapReduce)
-    :type traveltime: uquake.core.data.GridData
+    :type traveltime: uquake.core.data.Grid
     :param eventSeed: True if seed is an event
     :type eventSeed: bool
     :param Mw: Moment magnitude
@@ -215,9 +212,6 @@ def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
     c2 = velocity.origin + (np.array(velocity.shape) - \
                             np.array([1, 1, 1])) * velocity.spacing
 
-    if progress:
-        pb = ProgressBar(max=NoNode)
-
     for k, coord in enumerate(locations):
         pb()
 
@@ -264,13 +258,13 @@ def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
 
         import scipy.ndimage as ndimage
 
-        tt_out = GridData(
+        tt_out = Grid(
             ndimage.map_coordinates(tt.data, tt.transform_to(locations).T),
             spacing=velocity.shape, origin=velocity.origin)
-        return GridData(tmp, spacing=velocity.shape,
+        return Grid(tmp, spacing=velocity.shape,
                         origin=velocity.origin), tt_out
     else:
-        return GridData(tmp, spacing=velocity.shape, origin=velocity.origin)
+        return Grid(tmp, spacing=velocity.shape, origin=velocity.origin)
 
 
 def Mw2M0(Mw):
@@ -446,11 +440,11 @@ def detection_level_sta_lta_grid(attenuationGrid, VpGrid, VsGrid,
     with the same dimensions as the attenuation grid.
 
     :param attenuationGrid: Attenuation grid
-    :type attenuationGrid: uquake.core.data.GridData
+    :type attenuationGrid: uquake.core.data.Grid
     :param VpGrid: P-wave velocity grid
-    :type VpGrid: uquake.core.data.GridData
+    :type VpGrid: uquake.core.data.Grid
     :param VsGrid: S-wave velocity grid
-    :type VsGrid: uquake.core.data.GridData
+    :type VsGrid: uquake.core.data.Grid
     :param noise_level: Level of noise to add to the seismogram
     :type noise_level: float
     :param acceleration: if True use acceleration if false use velocity
@@ -469,7 +463,7 @@ def detection_level_sta_lta_grid(attenuationGrid, VpGrid, VsGrid,
     :type magResolution: float
     :param pwave: True if it is a P-wave
     :type pwave: bool
-    :rtype: uquake.core.data.GridData
+    :rtype: uquake.core.data.Grid
     """
 
     Sensitivity = attenuationGrid.copy()
@@ -1057,9 +1051,9 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
     :param inventory: network information (contains stations information)
     :type inventory: uquake.station.Site
     :param vp: P-wave velocity
-    :type vp: float or uquake.core.data.GridData
+    :type vp: float or uquake.core.data.Grid
     :param vs: S-wave velocity
-    :type vs: float or uquake.core.data.GridData
+    :type vs: float or uquake.core.data.Grid
     :param only_triaxial: whether only triaxial sensor are used in the
     magnitude calculation (optional) (not yet implemented)
     :type only_triaxial: bool
@@ -1102,8 +1096,8 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
         ev_loc = np.array([origin.x, origin.y, origin.z])
 
         if not ((type(vp) == np.float) or (type(vp) == np.int)):
-            vp_src = vp.interpolate(ev_loc, grid_coordinate=False)
-            vs_src = vs.interpolate(ev_loc, grid_coordinate=False)
+            vp_src = vp.interpolate(ev_loc, grid_space=False)
+            vs_src = vs.interpolate(ev_loc, grid_space=False)
         else:
             vp_src = vp
             vs_src = vs
@@ -1117,7 +1111,9 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
         indices = []
         for k, arr in enumerate(origin.arrivals):
             pick = arr.get_pick()
-            sta_code = pick.get_sta()
+            network_code = pick.waveform_id.network_code
+            station_code = pick.waveform_id.station_code
+            location_code = pick.waveform_id.location_code
             travel_time = arr.get_pick().time - origin.time
             # ensuring backward compatibility
             if not pick:
@@ -1125,15 +1121,35 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
             at = pick.time
             phase = pick.phase_hint
 
-            sensor_response = inventory.select(sta_code)
-            st_loc = sensor_response.loc
-            if not sensor_response:
-                logger.warning(f'sensor response not found for sensor '
-                               f'{sta_code}')
+            sensor_response = inventory.select(network=network_code,
+                                               station=station_code,
+                                               location=location_code)
+
+            if sensor_response is None:
+                logger.warning(f'no response was found in the inventory for '
+                               f'sensor '
+                               f'{network_code}.{station_code}.'
+                               f'{location_code}')
                 continue
 
-            poles = np.abs(sensor_response[0].response.get_paz().poles)
-            st_trs = stream.select(station=sta_code)
+            if sensor_response[0][0][0].response is None:
+                logger.warning(f'no response was found in the inventory for '
+                               f'sensor '
+                               f'{network_code}.{station_code}.'
+                               f'{location_code}')
+                continue
+
+            st_loc = sensor_response[0][0][0].loc
+            if not sensor_response:
+                logger.warning(f'sensor response not found for sensor '
+                               f'{network_code}.{station_code}'
+                               f'.{location_code}')
+                continue
+
+            poles = np.abs(sensor_response[0][0][0].response.get_paz().poles)
+            st_trs = stream.select(network=network_code,
+                                   station=station_code,
+                                   location=location_code)
 
             if len(st_trs) == 0:
                 continue
@@ -1157,30 +1173,30 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
                 continue
 
             pulse = st_trs.copy()
+            pulse.attach_response(inventory)
 
             # filter the pulse using the corner frequency of the sensor
-            low_bp_freq = np.min(poles) / (2 * np.pi)
+
+            sensor_min_freq = np.min(poles) / (2 * np.pi)
+            window_min_freq = 1 / win_length
+
+            low_bp_freq = np.max([sensor_min_freq, window_min_freq])
             high_bp_freq = np.max(poles) / (2 * np.pi)
             if high_bp_freq > pulse[0].stats.sampling_rate / 2:
-                high_bp_freq = pulse[0].stats.sampling_rate / 2
-
-            # ideally the sensor signal should be deconvolved and a larger
-            # portion of the spectrum should be used. It is possible to get
-            # to frequency lower than the corner frequency of the sensor
-            # down the the noise floor. This would be a bit more
-            # complicated. The max frequency could also be found looking at
-            # the noise floor.
+                high_bp_freq = pulse[0].stats.sampling_rate / 2.5
 
             high_bp_freq = max_frequency
-            pulse.filter('bandpass', freqmin=low_bp_freq, freqmax=high_bp_freq)
             pulse = pulse.taper(max_percentage=0.05, type='cosine')
+            pulse.filter('bandpass', freqmin=low_bp_freq, freqmax=high_bp_freq)
+            low_bp_freq1 = 10 ** (np.log10(low_bp_freq) - 0.2)
+            low_bp_freq2 = low_bp_freq
+            high_bp_freq1 = high_bp_freq
+            high_bp_freq2 = 10 ** (np.log10(high_bp_freq) + 0.2)
+            pre_filt = [low_bp_freq1, low_bp_freq2, high_bp_freq1,
+                        high_bp_freq2]
+            # dp = pulse.remove_response(output='DISP', pre_filt=pre_filt)
 
-            if sensor_response.motion == 'ACCELERATION':
-                dp = pulse.copy().integrate().integrate()
-            elif sensor_response.motion == 'VELOCITY':
-                dp = pulse.copy().integrate()
-
-            # dp = pulse.copy()
+            dp = pulse.remove_sensitivity(inventory=inventory).integrate()
 
             # creating a signal containing only one for comparison
             tr_one = Trace(data=np.ones(len(pulse[0].data)))
@@ -1192,20 +1208,20 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
                           side='left')
 
             # applying the same operation to the one signal
-            st_one_trimmed = st_one.trim(starttime=at - 0.01,
-                                         endtime=at + 2 * win_length)
-            st_one_taper = st_one_trimmed.taper(type='cosine',
-                                                max_percentage=0.5,
-                                                max_length=0.08,
-                                                side='left')
-
+            # st_one_trimmed = st_one.trim(starttime=at - 0.01,
+            #                              endtime=at + 2 * win_length)
+            # st_one_taper = st_one_trimmed.taper(type='cosine',
+            #                                     max_percentage=0.5,
+            #                                     max_length=0.08,
+            #                                     side='left')
+            #
             dp_spectrum = np.zeros(len_spectrum)
             water_level = 1e-15
             for tr in dp:
                 dp_spectrum += np.abs(np.fft.fft(tr.data, n=len_spectrum))
-            one_spectrum = np.fft.fft(st_one_taper[0].data, n=len_spectrum)
+            # one_spectrum = np.fft.fft(st_one_taper[0].data, n=len_spectrum)
 
-            dp_spectrum_scaled = dp_spectrum / (one_spectrum + water_level)
+            # dp_spectrum_scaled = dp_spectrum # / (one_spectrum + water_level)
 
             if arr.distance is not None:
                 hypo_dist = arr.distance
@@ -1241,7 +1257,10 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
 
         if not spectrum_norm_matrix:
             continue
+
+        st_count = len(spectrum_norm_matrix)
         spectrum_norm = np.nanmedian(spectrum_norm_matrix, axis=0)
+        f = np.median(frequencies, axis=0)
         fi = np.nonzero((np.isnan(spectrum_norm) == False) & (f > 0))[0]
 
         p_opt, p_cov = curve_fit(spectral_function, f[fi],
@@ -1251,7 +1270,9 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
 
         mw = 2 / 3.0 * p_opt[0] - 6.02
         mu = 29.5e9
-        dmw = 2 / 3.0 * p_cov[0, 0] - 6.02
+        dnw1 = 2 / 3.0 * (p_opt[0] - p_cov[0, 0] / 2) - 6.02
+        dnw2 = 2 / 3.0 * (p_opt[0] + p_cov[0, 0] / 2) - 6.02
+        dmw = dnw2 - dnw1
         fc = p_opt[1]
 
         mag = event.Magnitude(mag=mw,
@@ -1267,6 +1288,6 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
         # mag.fc_errors = QuantityError(uncertainty=dfc)
         cat[0].magnitudes.append(mag)
         if origin.resource_id == cat[0].preferred_origin().resource_id:
-            cat[0].preferred_magnitude_id = mag.resource_id.id
+            cat[0].preferred_magnitude_id = mag.resource_id
 
     return cat
