@@ -859,14 +859,19 @@ class GridTimeMode:
 
 class Site:
 
-    def __init__(self, label, x, y, z, elev=None):
+    def __init__(self, label, x, y, z, elev=None, time_correction=0):
         self.label = label
         self.x = x
         self.y = y
         self.z = z
         self.elev = elev
+        self.time_correction = 0
         if elev is None:
             self.elev = z
+
+    @property
+    def loc(self):
+        return np.array([self.x, self.y, self.z])
 
 
 class Srces:
