@@ -8,7 +8,7 @@ license = "MIT"
 # poetry config virtualenvs.create false; poetry env info
 
 [tool.poetry.dependencies]
-python = ">=3.8,<3.10"
+python = ">=3.9,<3.10"
 numpy = "^1.18.0"
 loguru = "^0.5.3"
 pandas = "^1.2.1"
