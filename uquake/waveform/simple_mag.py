@@ -48,8 +48,7 @@ def anelastic_scattering_attenuation(raypath_or_distance, velocity, quality,
     freq_coeff, _ = interpolate_Fc_Mw()
     freq_corner = FcMw(Mw, freq_coeff[0], freq_coeff[1])
 
-    f = np.arange(0,
-                  1000) / 1000.0 * freq_corner  # calculating the
+    f = np.arange(0, 1000) / 1000.0 * freq_corner  # calculating the
     # attenuation up to the corner frequency
     Aq = np.exp(- np.pi * f)
 
@@ -1194,9 +1193,18 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
             high_bp_freq2 = 10 ** (np.log10(high_bp_freq) + 0.2)
             pre_filt = [low_bp_freq1, low_bp_freq2, high_bp_freq1,
                         high_bp_freq2]
-            # dp = pulse.remove_response(output='DISP', pre_filt=pre_filt)
+            pulse.attach_response(inventory)
+            # try:
+            dp_trs = []
+            for tr in pulse:
+                try:
+                    dp_trs = tr.remove_response(inventory=inventory,
+                                                output='DISP',
+                                                pre_filt=pre_filt)
+                except Exception as e:
+                    logger.error(e)
 
-            dp = pulse.remove_sensitivity(inventory=inventory).integrate()
+            dp = Stream(traces=dp_trs)
 
             # creating a signal containing only one for comparison
             tr_one = Trace(data=np.ones(len(pulse[0].data)))
