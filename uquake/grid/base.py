@@ -553,8 +553,12 @@ class Grid(object):
             plt.plot()
         plt.show()
 
-    def smooth(self, sigma: np.array):
+    def smooth(self, sigma: np.array, grid_space=False):
+        if not grid_space:
+            sigma = sigma / self.spacing
+
         self.data = gaussian_filter(self.data, sigma)
+
 
     @property
     def ndim(self):
