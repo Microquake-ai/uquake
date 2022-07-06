@@ -644,7 +644,7 @@ use_chardet_on_py3 = ["chardet (>=3.0.2,<5)"]
 
 [[package]]
 name = "scikit-fmm"
-version = "2021.2.2"
+version = "2022.3.26"
 description = "An extension module implementing the fast marching method"
 category = "main"
 optional = false
@@ -859,8 +859,8 @@ multidict = ">=4.0"
 
 [metadata]
 lock-version = "1.1"
-python-versions = ">=3.8,<3.10"
-content-hash = "b233f9d01bae3b3d850462366c54cb6b3279aeac2bc4605eea3ea3be5a8000e9"
+python-versions = ">=3.9,<3.10"
+content-hash = "e478fbf729cddc3a2bba03b83321e10c7aba4433a62634cb21c286c640979dd8"
 
 [metadata.files]
 aiohttp = [
@@ -1607,10 +1607,10 @@ requests = [
     {file = "requests-2.27.1.tar.gz", hash = "sha256:68d7c56fd5a8999887728ef304a6d12edc7be74f1cfa47714fc8b414525c9a61"},
 ]
 scikit-fmm = [
-    {file = "scikit-fmm-2021.2.2.tar.gz", hash = "sha256:809e20016e6341e4de29b6be4befc477b7002cfd5e2a11b80deae16005f35670"},
-    {file = "scikit_fmm-2021.2.2-cp36-cp36m-win_amd64.whl", hash = "sha256:5121fed255cdaf5df466825af1a5fa9d99684ae4242151b05af43e0dea2e318f"},
-    {file = "scikit_fmm-2021.2.2-cp37-cp37m-win_amd64.whl", hash = "sha256:df0c1f12919a5239a4f0e047d7b749e651b0ded3501a46c407d74d77d3b2f629"},
-    {file = "scikit_fmm-2021.2.2-cp38-cp38-win_amd64.whl", hash = "sha256:645392a5093252ad7cf56a3191b215b8cc20f2350dd2cde8987292fa21f02129"},
+    {file = "scikit-fmm-2022.3.26.tar.gz", hash = "sha256:c3155f96d733dea8791514b709762c61d2f7cfde31ed8d2b8c26ca167356de8e"},
+    {file = "scikit_fmm-2022.3.26-cp36-cp36m-win_amd64.whl", hash = "sha256:656d61f4301833900aaac33e6c17a5e9b19ac476d7a92590ac71ed3a62dc20ba"},
+    {file = "scikit_fmm-2022.3.26-cp37-cp37m-win_amd64.whl", hash = "sha256:19336f0e03bb65111de7fd33f3a0e15e25d1d4688b94c6c8e5e76d3f724564b5"},
+    {file = "scikit_fmm-2022.3.26-cp38-cp38-win_amd64.whl", hash = "sha256:b2d5489ec0711672432989ce53c620245c7a7b14af6857ef68b6c6ef063925e4"},
 ]
 scipy = [
     {file = "scipy-1.7.3-1-cp310-cp310-macosx_12_0_arm64.whl", hash = "sha256:c9e04d7e9b03a8a6ac2045f7c5ef741be86727d8f49c45db45f244bdd2bcff17"},
