@@ -1,12 +1,13 @@
 # README #
 
-uquake is an open source package licensed under the [GNU general Public License, version 3 (GPLv3)](http://www.gnu.org/licenses/gpl-3.0.html). uquake is an extension of Obspy for the processing of microseismic data
+&mu;Quake is an open source package licensed under the [GNU general Public License, version 3 (GPLv3)](http://www.gnu.org/licenses/gpl-3.0.html). &mu;Quake is an extension of Obspy for the processing of microseismic data
 
 ### Development
 
+We recommend the use of Poetry for development purposes.
+
 ```
 pip install poetry
-poetry config http-basic.uquake {user} {password}
 poetry install
 ```
 
@@ -16,16 +17,6 @@ Running tests
 poetry run pytest
 ```
 
-### How to release a new version
-
-```
-poetry version
-git add pyproject.toml
-git commit -m "bump version"
-git tag newversion
-git push --tags
-git push
-```
 
 ### Automatic tagging and releasing
 
@@ -42,14 +33,8 @@ git config --global alias.major '!poetry version major && version=$(poetry versi
 After running the above command you may release a new version with:
 
 ```
-git bump
-```
-
-### System prerequisites
-
-To run the interloc module the FFTw library must be installed on the system. To install the library, simply run
-
-```
-sudo apt-get install libfftw3-3
+git patch
+git minor
+git major
 ```
 

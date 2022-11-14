@@ -893,41 +893,6 @@ class VelocityGridEnsemble:
 
         return tt_grid_ensemble
 
-    def to_time(self, seeds, seed_labels, multi_threaded=False,
-                sub_grid_resolution=0.1, *args, **kwargs):
-        """
-        Convert the velocity grids to travel-time
-        :param seeds: a list of seeds usually represents site location
-        :type seeds: numpy.array
-        :param seed_labels: a list of seed labels, usually represents site
-        codes
-        :type seed_labels: list
-        :param multi_threaded: if true, the travel-time grid will used
-        multithreading
-        :param sub_grid_resolution: sub grid resolution for near source
-        solution in fraction of grid resolution
-        :param args:
-        :param kwargs:
-        :return: Travel time grid ensemble
-        :rtype: ~uquake.grid.nlloc.TTGridEnsemble
-        """
-        if multi_threaded:
-            return self.to_time_multi_threaded(seeds, seed_labels,
-                                               sub_grid_resolution=
-                                               sub_grid_resolution,
-                                               *args, **kwargs)
-
-        travel_time_grids = []
-        for seed, seed_label in zip(seeds, seed_labels):
-            for key in self.keys():
-                tg = self[key].to_time(seed, seed_label,
-                                       sub_grid_resolution
-                                       =sub_grid_resolution,
-                                       *args, **kwargs)
-                travel_time_grids.append(tg)
-
-        return TravelTimeEnsemble(travel_time_grids)
-
 
 class SeededGrid(NLLocGrid):
     """
