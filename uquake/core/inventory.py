@@ -274,11 +274,37 @@ class Station(inventory.Station):
     extra_keys = ['x', 'y', 'z']
 
     def __init__(self, *args, **kwargs):
+
+        self.extra = AttribDict()
+
+        if 'latitude' not in kwargs.keys():
+            kwargs['latitude'] = 0
+        if 'longitude' not in kwargs.keys():
+            kwargs['longitude'] = 0
+        if 'elevation' not in kwargs.keys():
+            kwargs['elevation'] = 0
+
+        kwargs_with_extra = kwargs.copy()
+
+        for key in self.extra_keys:
+            kwargs.pop(key, None)
+
         super(Station, self).__init__(*args, **kwargs)
+        [self.__setattr__(key, 0) for key in self.extra_keys]
+
+        for key in self.extra_keys:
+            if not hasattr(self, 'extra'):
+                self.extra = AttribDict()
+
+            self.extra[key] = AttribDict({'value': 0, 'namespace': ns})
+
+        for key in kwargs_with_extra:
+            if key in self.extra_keys:
+                self.extra[key] = AttribDict({'value': kwargs_with_extra[key],
+                                              'namespace': ns})
+
         if not hasattr(self, 'extra'):
             self.extra = AttribDict()
-
-        [self.__setattr__(key, 0) for key in self.extra_keys]
 
     # def __setattr__(self, name, value):
     #     _set_attr_handler(self, name, value)
@@ -478,16 +504,17 @@ class Station(inventory.Station):
     def __str__(self):
         contents = self.get_contents()
 
-        x = self.latitude
-        y = self.longitude
-        z = self.elevation
+        x = self.x
+        y = self.y
+        z = self.z
+
         site_count = len(self.sites)
         channel_count = len(self.channels)
         ret = (f"\tStation {self.historical_code}\n"
                f"\tStation Code: {self.code}\n"
                f"\tSite Count: {site_count}\n"
                f"\tChannel Count: {channel_count}\n"
-               f"\t{self.start_date} - {self.end_date}\n"
+               f"\tDate range: {self.start_date} - {self.end_date}\n"
                f"\tx: {x:.0f}, y: {y:.0f}, z: {z:.0f} m\n")
 
         if getattr(self, 'extra', None):
@@ -498,15 +525,17 @@ class Station(inventory.Station):
                 z = self.z
                 ret = ("Station {station_name}\n"
                        "\tStation Code: {station_code}\n"
+                       "\tSite Count: {site_count}\n"
                        "\tChannel Count: {selected}/{total}"
                        " (Selected/Total)\n"
-                       "\t{start_date} - {end_date}\n"
+                       "\tDate range: {start_date} - {end_date}\n"
                        "\tEasting [x]: {x:.0f} m, Northing [y] m: {y:.0f}, "
                        "Elevation [z]: {z:.0f} m\n")
 
         ret = ret.format(
             station_name=contents["stations"][0],
             station_code=self.code,
+            site_count=len(self.sites),
             selected=self.selected_number_of_channels,
             total=self.total_number_of_channels,
             start_date=str(self.start_date),
@@ -524,6 +553,9 @@ class Station(inventory.Station):
             expand_tabs=False))
 
         return ret
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class Site:
@@ -616,6 +648,21 @@ class Channel(inventory.Channel):
     __doc__ = inventory.Channel.__doc__.replace('obspy', ns)
 
     def __init__(self, *args, **kwargs):
+        self.extra = AttribDict()
+        if 'latitude' not in kwargs.keys():
+            kwargs['latitude'] = 0
+        if 'longitude' not in kwargs.keys():
+            kwargs['longitude'] = 0
+        if 'elevation' not in kwargs.keys():
+            kwargs['elevation'] = 0
+        if 'depth' not in kwargs.keys():
+            kwargs['depth'] = 0
+
+        kwargs_with_extra = kwargs.copy()
+
+        for key in self.extra_keys:
+            kwargs.pop(key, None)
+
         super().__init__(*args, **kwargs)
 
         for key in self.extra_keys:
@@ -623,6 +670,11 @@ class Channel(inventory.Channel):
                 self.extra = AttribDict()
 
             self.extra[key] = {'value': 0, 'namespace': ns}
+
+        for key in kwargs_with_extra:
+            if key in self.extra_keys:
+                self.extra[key] = {'value': kwargs_with_extra[key],
+                                   'namespace': ns}
 
     @classmethod
     def from_obspy_channel(cls, obspy_channel, xy_from_lat_lon=False,
@@ -702,10 +754,9 @@ class Channel(inventory.Channel):
 
         azimuth = np.arctan2(east, north) * 180 / np.pi
         if azimuth < 0:
-            self.azimuth = 360 + self.azimuth
-        else:
-            self.azimuth = azimuth
+            azimuth = 360 + azimuth
 
+        self.azimuth = azimuth
         self.dip = np.arctan2(-up, horizontal_length) * 180 / np.pi
 
     @property
@@ -723,8 +774,8 @@ class Channel(inventory.Channel):
     def x(self):
         if self.extra:
             if self.extra.get('x', None):
-                return float(
-                    self.extra.x.value)  # obspy inv_read converts everything in extra to str
+                # obspy inv_read converts everything in extra to str
+                return float(self.extra.x.value)
             else:
                 raise AttributeError
         else:
@@ -734,8 +785,8 @@ class Channel(inventory.Channel):
     def y(self):
         if self.extra:
             if self.extra.get('y', None):
-                return float(
-                    self.extra.y.value)  # obspy inv_read converts everything in extra to str
+                # obspy inv_read converts everything in extra to str
+                return float(self.extra.y.value)
             else:
                 raise AttributeError
         else:
@@ -745,8 +796,8 @@ class Channel(inventory.Channel):
     def z(self):
         if self.extra:
             if self.extra.get('z', None):
-                return float(
-                    self.extra.z.value)  # obspy inv_read converts everything in extra to str
+                # obspy inv_read converts everything in extra to str
+                return float(self.extra.z.value)
             else:
                 raise AttributeError
         else:
@@ -760,7 +811,8 @@ class Channel(inventory.Channel):
     def alternative_code(self):
         if self.extra:
             if self.extra.get('alternative_code', None):
-                return self.extra.alternative_code.value  # obspy inv_read converts everything in extra to str
+                # obspy inv_read converts everything in extra to str
+                return self.extra.alternative_code.value
             else:
                 raise AttributeError
         else:
