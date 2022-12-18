@@ -330,8 +330,9 @@ class Station(inventory.Station):
 
         #     cls(*params) is same as calling Station(*params):
 
-        stn = cls(obspy_station.code, obspy_station.latitude,
-                  obspy_station.longitude, obspy_station.elevation)
+        stn = cls(obspy_station.code, latitude=obspy_station.latitude,
+                  longitude=obspy_station.longitude,
+                  elevation=obspy_station.elevation)
         for key in obspy_station.__dict__.keys():
             try:
                 stn.__dict__[key] = obspy_station.__dict__[key]
@@ -695,8 +696,10 @@ class Channel(inventory.Channel):
                            output_projection=None, input_projection=4326):
 
         cha = cls(obspy_channel.code, obspy_channel.location_code,
-                  obspy_channel.latitude, obspy_channel.longitude,
-                  obspy_channel.elevation, obspy_channel.depth)
+                  latitude=obspy_channel.latitude,
+                  longitude=obspy_channel.longitude,
+                  elevation=obspy_channel.elevation,
+                  depth=obspy_channel.depth)
 
         if hasattr(obspy_channel, 'extra'):
             for key in cha.extra_keys:
