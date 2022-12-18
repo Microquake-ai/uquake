@@ -267,6 +267,20 @@ class Network(inventory.Network):
     def station_coordinates(self):
         return np.array([station.loc for station in self.stations])
 
+    @property
+    def sites(self):
+        sites = []
+        for station in self.stations:
+            for site in station.sites:
+                sites.append(site)
+        return sites
+
+    @property
+    def site_coordinates(self):
+        coordinates = []
+        for site in self.sites:
+            coordinates.append(site.loc)
+
 
 class Station(inventory.Station):
     __doc__ = inventory.Station.__doc__.replace('obspy', ns)
