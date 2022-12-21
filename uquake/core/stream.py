@@ -443,7 +443,7 @@ def read(filename, format='MSEED', **kwargs):
     if format in ENTRY_POINTS['waveform'].keys():
         format_ep = ENTRY_POINTS['waveform'][format]
         read_format = load_entry_point(format_ep.dist.key,
-                                       'obspy.plugin.waveform.%s' %
+                                       'uquake.io.waveform.%s' %
                                        format_ep.name, 'readFormat')
 
         st = Stream(stream=read_format(filename, **kwargs))

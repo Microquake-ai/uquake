@@ -21,7 +21,7 @@ from obspy.core import inventory, AttribDict, UTCDateTime
 from obspy.core.inventory import Network
 from obspy.signal.invsim import corn_freq_2_paz
 from obspy.core.inventory import (Response, InstrumentSensitivity,
-                                  PolesZerosResponseStage)
+                                  PolesZerosResponseStage, ResponseStage)
 import numpy as np
 from obspy.core.inventory.util import (Equipment, Operator, Person,
                                        PhoneNumber, Site, _textwrap,
@@ -36,13 +36,84 @@ import pandas as pd
 from io import BytesIO
 from .util.tools import lon_lat_x_y
 
+from typing import List
+from .util import ENTRY_POINTS
+from pkg_resources import load_entry_point
+
 nrl = NRL()
+
+
+class SystemResponse(object):
+    def __init__(self, sensitivity=1, frequency=1):
+        self.stage_sequence_number = 0
+        self.response_stages = []
+        self.sensitivity = sensitivity
+        self.frequency = frequency
+
+    def add_geophone(self, resonance_frequency, gain, damping=0.707,
+                     output_resistance=np.inf,
+                     cable_length=np.inf, cable_capacitance=np.inf):
+
+        resp = geophone_response(resonance_frequency, gain, damping=damping,
+                                 output_resistance=output_resistance,
+                                 cable_length=cable_length,
+                                 cable_capacitance=cable_capacitance,
+                                 stage_sequence_number=
+                                 self.stage_sequence_number)
+
+        self.stage_sequence_number += 1
+
+        self.response_stages.append(resp)
+
+    def add_accelerometer(self, resonance_frequency, gain, sensitivity=1,
+                          damping=0.707):
+
+        resp = accelerometer_response(resonance_frequency, gain,
+                                      sensitivity=sensitivity,
+                                      stage_sequence_number=
+                                      self.stage_sequence_number,
+                                      damping=damping)
+
+        self.stage_sequence_number += 1
+
+        self.response_stages.append(resp)
+
+    def add_digitizer(self, max_voltage=2.5, resolution_bit=24,
+                      stage_gain_frequency=1, digitizer_name=None):
+
+        stage_gain = 2 ** resolution_bit / max_voltage
+        resp = ResponseStage(self.stage_sequence_number, stage_gain,
+                             stage_gain_frequency,
+                             input_units='V', output_units='COUNT',
+                             input_units_description='voltage',
+                             output_units_description='ADC Count',
+                             name=digitizer_name)
+        self.stage_sequence_number += 1
+
+        self.response_stages.append(resp)
+
+    @property
+    def response(self):
+        if len(self.response_stages) == 0:
+            return
+
+        input_units = self.response_stages[0].input_units
+        i_s = InstrumentSensitivity(self.sensitivity,
+                                    self.frequency,
+                                    input_units=input_units,
+                                    output_units='COUNT',
+                                    input_units_description='Velocity',
+                                    output_units_description='ADC Count')
+
+        return Response(instrument_sensitivity=i_s,
+                        response_stages=self.response_stages)
 
 
 def geophone_response(resonance_frequency, gain, damping=0.707,
                       output_resistance=np.inf,
                       cable_length=np.inf, cable_capacitance=np.inf,
-                      sensitivity=1, stage_sequence_number=1):
+                      stage_sequence_number=0):
+
     paz = corn_freq_2_paz(resonance_frequency,
                           damp=damping)
 
@@ -54,24 +125,26 @@ def geophone_response(resonance_frequency, gain, damping=0.707,
         pole_cable = -1 / (R * l * C)
         paz['poles'].append(pole_cable)
 
-    i_s = InstrumentSensitivity(sensitivity, resonance_frequency,
-                                input_units='M/S',
-                                output_units='M/S',
-                                input_units_description='velocity',
-                                output_units_description='velocity')
+    # i_s = InstrumentSensitivity(sensitivity, resonance_frequency,
+    #                             input_units='M/S',
+    #                             output_units='COUNT',
+    #                             input_units_description='Velocity',
+    #                             output_units_description='ADC Count')
 
     pzr = PolesZerosResponseStage(stage_sequence_number, gain,
-                                  resonance_frequency, 'M/S', 'M/S',
+                                  resonance_frequency, 'M/S', 'V',
                                   'LAPLACE (RADIANT/SECOND)',
                                   resonance_frequency, paz['zeros'],
                                   paz['poles'])
 
-    return Response(instrument_sensitivity=i_s,
-                    response_stages=[pzr])
+    return pzr
+
+    # return Response(instrument_sensitivity=i_s,
+    #                 response_stages=[pzr])
 
 
 def accelerometer_response(resonance_frequency, gain, sensitivity=1,
-                           stage_sequence_number=1, damping=0.707):
+                           stage_sequence_number=0, damping=0.707):
     i_s = InstrumentSensitivity(sensitivity, resonance_frequency,
                                 input_units='M/S/S', output_units='M/S/S',
                                 input_units_description='acceleration',
@@ -81,13 +154,15 @@ def accelerometer_response(resonance_frequency, gain, sensitivity=1,
 
     paz['zeros'] = []
 
-    pzr = PolesZerosResponseStage(1, 1, 14, 'M/S/S', 'M/S',
+    pzr = PolesZerosResponseStage(stage_sequence_number, 1, 14, 'M/S/S', 'V',
                                   'LAPLACE (RADIANT/SECOND)',
                                   1, [],
                                   paz['poles'])
 
-    return Response(instrument_sensitivity=i_s,
-                    response_stages=[pzr])
+    return pzr
+
+    # return Response(instrument_sensitivity=i_s,
+    #                 response_stages=[pzr])
 
 
 def get_response_from_nrl(datalogger_keys, sensor_keys):
@@ -1033,14 +1108,45 @@ def read_inventory(path_or_file_object, format='STATIONXML',
 
     # del kwargs['xy_from_lat_lon']
 
-    obspy_inv = inventory.read_inventory(str(path_or_file_object),
-                                         format=format,
-                                         *args, **kwargs)
+    if format in ENTRY_POINTS['inventory'].keys():
+        format_ep = ENTRY_POINTS['inventory'][format]
+        read_format = load_entry_point(format_ep.dist.key,
+                                       'uquake.io.inventory.%s' %
+                                       format_ep.name, 'readFormat')
 
-    return Inventory.from_obspy_inventory_object(obspy_inv,
-                    xy_from_lat_lon=xy_from_lat_lon,
-                    output_projection=output_projection,
-                    input_projection=input_projection)
+        # kwargs_obspy = kwargs.copy()
+        # kwargs_obspy.pop('xy_from_lat_lon')
+        # kwargs_obspy.pop('input_projection')
+        # kwargs_obspy.pop('output_projection')
+
+        return read_format(str(path_or_file_object), **kwargs)
+
+    else:
+        obspy_inv = inventory.read_inventory(str(path_or_file_object),
+                                             format=format,
+                                             *args, **kwargs)
+
+        return Inventory.from_obspy_inventory_object(obspy_inv,
+                        xy_from_lat_lon=xy_from_lat_lon,
+                        output_projection=output_projection,
+                        input_projection=input_projection)
+
+
+# def read_inventory(filename, format='STATIONXML', **kwargs):
+#     if isinstance(filename, Path):
+#         filename = str(filename)
+#
+#     if format in ENTRY_POINTS['inventory'].keys():
+#         format_ep = ENTRY_POINTS['inventory'][format]
+#         read_format = load_entry_point(format_ep.dist.key,
+#                                        'obspy.plugin.inventory.%s' %
+#                                        format_ep.name, 'readFormat')
+#
+#         return Inventory(inventory=read_format(filename, **kwargs))
+#
+#     else:
+#         return inventory.read_inventory(filename, format=format,
+#                                                **kwargs)
 
 
 read_inventory.__doc__ = inventory.read_inventory.__doc__.replace(

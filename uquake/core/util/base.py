@@ -9,7 +9,7 @@ ENTRY_POINTS['grid_write'] = _get_entry_points('uquake.io.grid',
                                                'writeFormat')
 
 gfr_entry_points = _get_entry_points('uquake.io.waveform', 'readFormat')
-gfw_entry_points = _get_entry_points('uquake.io.waveform', 'writeformat')
+gfw_entry_points = _get_entry_points('uquake.io.waveform', 'writeFormat')
 
 wf_entry_points = _get_entry_points('uquake.io.waveform', 'readFormat')
 
@@ -25,6 +25,10 @@ evt_entry_points = _get_entry_points('uquake.io.event', 'readFormat')
 
 for key in evt_entry_points.keys():
     ENTRY_POINTS['event'][key] = evt_entry_points[key]
+
+invr_entry_points = _get_entry_points('uquake.io.inventory', 'readFormat')
+for key in invr_entry_points.keys():
+    ENTRY_POINTS['inventory'][key] = invr_entry_points[key]
 
 
 def proc(cmd, cwd='.', silent=True):
@@ -60,11 +64,11 @@ def np_array(arr):
 
     for i, el in enumerate(arr):
         new_arr[i] = el
-
+    plugin_
     return new_arr
 
 
-def _read_from_plugin(plugin_type, filename, format=None, **kwargs):
+def _read_from_plugin(type, filename, format=None, **kwargs):
     """
     Reads a single file from a plug-in's readFormat function.
     """

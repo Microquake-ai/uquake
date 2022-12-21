@@ -921,7 +921,6 @@ class Ray(object):
                     evaluation_mode='automatic',
                     evaluation_status='preliminary')
 
-
     def __len__(self):
         return len(self.nodes)
 

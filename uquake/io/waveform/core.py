@@ -119,80 +119,90 @@ def read_IMS_ASCII(path, net='', **kwargs):
     return Stream(traces=traces)
 
 
+# def write_ims_ascii(stream, filename, **kwargs):
+#     """
+#     write IMS ASCII format
+#     :param stream: data stream
+#     :type stream: ~uquake.core.Stream.stream
+#     :param filename: filename/path
+#     :type filename: str
+#     """
+#
+#
+#     for tr in stream:
+#
+#         decimated_sampling = tr.stats.sampling_rate
+#         sampling_rate = tr.stats.sampling_rate
+#         decimation_factor = 0
+#         trigger_time = tr.stats.starttime.datetime.timestamp
+#         trigger_time_second = np.floor(trigger_time)
+#         trigger_time_usecond = (trigger_time - trigger_time_second) * 1e6
+#
+#     header_line = f'x_24,{decimated_sampling},{sampling_rate},' \
+#                   f'{decimation_factor},100.0,{trigger_time_second},' \
+#                   f'{trigger_time_usecond},0,}'
+#
+#
+#
+
+
 @uncompress
-def read_ESG_SEGY(fname, site=None, **kwargs):
+def read_ESG_SEGY(fname, inventory, **kwargs):
     """
     read data produced by ESG and turn them into a valid stream with network,
     station and component information properly filled
     :param fname: the filename
-    :param site: a site object containing site information
-    :type site: ~uquake.core.station.Site
+    :param inventory: a site object containing site information
+    :type inventory: ~uquake.core.inventory.Inventory
     :return: ~uquake.core.stream.Stream
     """
 
-    if not site:
-        logger.warning('A site object should be provided for the information '
-                       'on the system to be properly added to the traces '
-                       'header. The file will be read but information such as '
-                       'the site, network, station or component information '
-                       'will not be appended')
+    st = read(fname, format='SEGY', unpack_trace_headers=True, **kwargs)
 
-        return read(fname, format='SEGY', unpack_trace_headers=True)
+    trs = []
+    missed_traces = 0
+    for tr in st:
+        tr_y = tr.stats.segy.trace_header.group_coordinate_x
+        tr_x = tr.stats.segy.trace_header.group_coordinate_y
 
-    st = read(fname, format='SEGY', unpack_trace_headers=True)
+        h_distances = []
+        sites = inventory.networks[0].sites
 
-    stations = site.stations()
-    traces = []
+        component = np.abs(tr.stats.segy.trace_header.trace_identification_code
+                           - 14)
 
-    for k, tr in enumerate(st):
-        x = tr.stats.segy.trace_header.group_coordinate_x
-        y = tr.stats.segy.trace_header.group_coordinate_y
+        if component == 13:
+            component = 0
 
-        hdist_min = 1e10
-        station = None
-        network = None
-
-        for net in site:
-            for sta in net:
-                hdist = np.linalg.norm([sta.x - x, sta.y - y])
-
-                if hdist < hdist_min:
-                    hdist_min = hdist
-                    station = sta
-                    network = net
-
-        tr.stats.station = station.code
-        tr.stats.network = network.code
-        traces.append(Trace(trace=tr))
-
-    st2 = Stream(traces=traces)
-    traces = []
-
-    for station in site.stations():
-        if np.all(station.loc == [1000, 1000, 1000]):
+        for site in inventory.networks[0].sites:
+            h_distance = np.linalg.norm([site.x - tr_x, site.y - tr_y])
+            h_distances.append(h_distance)
+        if np.min(h_distances) > 1:
+            missed_traces += 1
             continue
-        sttmp = st2.copy().select(station=station.code)
 
-        for k, tr in enumerate(sttmp):
-            if k == 0:
-                if len(sttmp) == 3:
-                    tr.stats.channel = 'X'
-                else:
-                    tr.stats.channel = 'Z'
-            elif k == 1:
-                tr.stats.channel = 'Y'
-            else:
-                tr.stats.channel = 'Z'
+        i = np.argmin(h_distances)
+        site = sites[i]
 
-            msec_starttime = tr.stats.segy.trace_header.lag_time_A
-            usec_starttime = tr.stats.segy.trace_header.lag_time_B
+        channel_code = f'{site.channels[0].code[0:2]}{component:0.0f}'
 
-            usecs = msec_starttime / 1000. + usec_starttime / 1.0e6
-            tr.stats.starttime = tr.stats.starttime + usecs
+        tr_stats = Stats()
+        tr_stats.network = network
+        tr_stats.station = site.station.code
+        tr_stats.location = site.location_code
+        tr_stats.channel = channel_code
+        tr_stats.sampling_rate = tr.stats.sampling_rate
 
-            traces.append(Trace(trace=tr))
+        msec_starttime = tr.stats.segy.trace_header.lag_time_A
+        usec_starttime = tr.stats.segy.trace_header.lag_time_B
 
-    return Stream(traces=traces)
+        usecs = msec_starttime / 1000. + usec_starttime / 1.0e6
+        tr_stats.starttime = tr.stats.starttime + usecs
+        tr_stats.npts = len(tr.data)
+
+        trs.append(Trace(data=tr.data, header=tr_stats))
+
+    return Stream(traces=trs)
 
 
 @uncompress
