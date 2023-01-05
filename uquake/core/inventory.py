@@ -1108,10 +1108,23 @@ def read_inventory(path_or_file_object, format='STATIONXML',
 
     # del kwargs['xy_from_lat_lon']
 
-    if format in ENTRY_POINTS['inventory'].keys():
+    if (format not in ENTRY_POINTS['inventory'].keys()) or \
+            (format.upper() == 'STATIONXML'):
+
+        obspy_inv = inventory.read_inventory(str(path_or_file_object),
+                                             format=format,
+                                             *args, **kwargs)
+
+        return Inventory.from_obspy_inventory_object(obspy_inv,
+                                        xy_from_lat_lon=xy_from_lat_lon,
+                                        output_projection=output_projection,
+                                        input_projection=input_projection)
+
+    else:
         format_ep = ENTRY_POINTS['inventory'][format]
+
         read_format = load_entry_point(format_ep.dist.key,
-                                       'uquake.io.inventory.%s' %
+                                       'obspy.io.%s' %
                                        format_ep.name, 'readFormat')
 
         # kwargs_obspy = kwargs.copy()
@@ -1121,15 +1134,7 @@ def read_inventory(path_or_file_object, format='STATIONXML',
 
         return read_format(str(path_or_file_object), **kwargs)
 
-    else:
-        obspy_inv = inventory.read_inventory(str(path_or_file_object),
-                                             format=format,
-                                             *args, **kwargs)
-
-        return Inventory.from_obspy_inventory_object(obspy_inv,
-                        xy_from_lat_lon=xy_from_lat_lon,
-                        output_projection=output_projection,
-                        input_projection=input_projection)
+    # else:
 
 
 # def read_inventory(filename, format='STATIONXML', **kwargs):

@@ -54,8 +54,10 @@ def create_sensor_dictionary(column_name_line: List, sensor_lines: List) \
         for i, column in enumerate(columns):
             if column == 'Description':
                 try:
-                    sensor_dict['location_code'].append(int(line_elements[i]
-                                                            [-3:]) - 1)
+                    location_code = int(line_elements[i][-3:] - 1)
+                    if location_code < 0:
+                        location_code = 0
+                    sensor_dict['location_code'].append(location_code)
                     sensor_dict['station_code'].append(line_elements[i][:-4])
                 except Exception as e:
                     sensor_dict['location_code'].append(0)

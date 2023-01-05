@@ -442,9 +442,13 @@ def read(filename, format='MSEED', **kwargs):
 
     if format in ENTRY_POINTS['waveform'].keys():
         format_ep = ENTRY_POINTS['waveform'][format]
-        read_format = load_entry_point(format_ep.dist.key,
-                                       'uquake.io.waveform.%s' %
-                                       format_ep.name, 'readFormat')
+        try:
+            read_format = load_entry_point(format_ep.dist.key,
+                                           'uquake.io.waveform.%s' %
+                                           format_ep.name, 'readFormat')
+        except Exception as e:
+            return Stream(
+                stream=obsstream.read(filename, format=format, **kwargs))
 
         st = Stream(stream=read_format(filename, **kwargs))
 

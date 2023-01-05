@@ -147,7 +147,7 @@ def read_IMS_ASCII(path, net='', **kwargs):
 
 
 @uncompress
-def read_ESG_SEGY(fname, inventory, **kwargs):
+def read_ESG_SEGY(fname, inventory=None, **kwargs):
     """
     read data produced by ESG and turn them into a valid stream with network,
     station and component information properly filled
@@ -156,6 +156,9 @@ def read_ESG_SEGY(fname, inventory, **kwargs):
     :type inventory: ~uquake.core.inventory.Inventory
     :return: ~uquake.core.stream.Stream
     """
+
+    if inventory is None:
+        return
 
     st = read(fname, format='SEGY', unpack_trace_headers=True, **kwargs)
 
