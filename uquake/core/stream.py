@@ -430,6 +430,8 @@ def composite_traces(st_in):
         ch = st_in.traces[0].stats.channel
         if len(ch) > 1:
             prefix = ch[:-1]
+        else:
+            prefix = 'XX'
         stats.channel = f'{prefix}C'
         trsout.append(Trace(data=buf.copy(), header=stats))
 

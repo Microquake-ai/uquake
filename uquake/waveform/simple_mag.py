@@ -180,7 +180,7 @@ def calculate_attenuation_grid(seed, velocity, quality=None, locations=None,
         location = [coord for coord in zip(X, Y, Z)], where X, Y, and Z are
         vectors
 
-    The script works both in 2D and 3D.
+    The scripts works both in 2D and 3D.
 
     .. example::
 
