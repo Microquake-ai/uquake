@@ -28,7 +28,6 @@ from obspy.core.inventory.util import (Equipment, Operator, Person,
                                        _unified_content_strings)
 from pathlib import Path
 
-from obspy.clients.nrl import NRL
 from .logging import logger
 from uquake import __package_name__ as ns
 
@@ -39,8 +38,6 @@ from .util.tools import lon_lat_x_y
 from typing import List
 from .util import ENTRY_POINTS
 from pkg_resources import load_entry_point
-
-nrl = NRL()
 
 
 class SystemResponse(object):
@@ -441,79 +438,6 @@ class Station(inventory.Station):
                                                            output_projection))
 
         return stn
-
-    @classmethod
-    def from_station_dict(cls, station_dict, site):
-        stn = station_dict
-
-        equipments = []
-        if 'manufacturer_sensor' in stn:
-            equipments = [Equipment(type='Site',
-                                    manufacturer=stn['manufacturer_sensor'],
-                                    model=stn['model'])]
-
-        sta = cls(stn['station_code'], latitude=0., longitude=0.,
-                  elevation=0., site=Site(name=site),
-                  equipments=equipments,
-                  historical_code=stn['long_name'],
-                  creation_date=UTCDateTime("2015-12-31T12:23:34.5"),
-                  start_date=UTCDateTime("2015-12-31T12:23:34.5"),
-                  end_date=UTCDateTime("2599-12-31T12:23:34.5"))
-
-        non_extras_keys = {'code', 'long_name', 'channels', 'start_date',
-                           'end_date'}
-
-        sta.channels = []
-
-        for cha in stn['channels']:
-
-            response = None
-            if stn['nrl_sensor_keys']:
-                sensor_keys = [key.strip() for key in
-                               stn['nrl_sensor_keys'].split(',')]
-                response = nrl.get_sensor_response(sensor_keys)
-
-            elif stn['motion'].upper() == 'ACCELERATION':
-                response = accelerometer_response(stn['resonance_frequency'],
-                                                  stn['gain'])
-
-            elif stn['motion'].upper() == 'VELOCITY':
-                response = geophone_response(stn['resonance_frequency'],
-                                             stn['gain'],
-                                             damping=stn['damping'],
-                                             output_resistance=stn[
-                                                 'coil_resistance'],
-                                             cable_length=stn['cable_length'],
-                                             cable_capacitance=stn['c'])
-            else:
-                print("Unknown motion=[%s]" % stn['motion'])
-                exit()
-
-            channel_code = f'{stn["channel_base_code"].upper()}' \
-                           f'{cha["cmp"].upper()}'
-
-            channel = Channel(code=channel_code,  # required
-                              location_code=f'{stn["location_code"]:02d}',
-                              # required
-                              latitude=0.,  # required
-                              longitude=0.,  # required
-                              elevation=0.,  # required
-                              depth=0.,  # required
-                              start_date=UTCDateTime("1999-12-31T12:23:34.5"),
-                              end_date=UTCDateTime("2599-12-31T12:23:34.5"),
-                              azimuth=0,
-                              dip=0,
-                              response=response)
-
-            sta.channels.append(channel)
-
-            channel.x = cha['x']
-            channel.y = cha['y']
-            channel.z = cha['z']
-            channel.set_orientation(cha['orientation'])
-            channel.alternative_code = stn['code']
-
-        return sta
 
     def __setattr__(self, key, value):
         if key in self.extra_keys:

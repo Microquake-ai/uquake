@@ -893,6 +893,23 @@ class VelocityGridEnsemble:
 
         return tt_grid_ensemble
 
+    def to_time(self, seeds, seed_labels, multi_threaded=False, *args, **kwargs):
+        if multi_threaded:
+            return self.to_time_multi_threaded(seeds, seed_labels)
+
+        else:
+            tt_grid_ensemble = TravelTimeEnsemble([])
+            for key in self.keys():
+                for seed, seed_labels in zip(seeds, seed_labels):
+                    tt_grid_ensemble += self[key].to_time(seed, seed_label)
+
+
+    @property
+    def p(self):
+        return self['p']
+
+    def s(self):
+        return self['s']
 
 class SeededGrid(NLLocGrid):
     """
