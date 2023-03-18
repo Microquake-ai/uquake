@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 from matplotlib.text import Text
 from matplotlib.transforms import offset_copy
 from uquake.core import event
+from datetime import timedelta
+from matplotlib.ticker import ScalarFormatter
 
 from uquake.core.logging import logger
 
@@ -31,7 +33,13 @@ def guttenberg_richter(magnitudes, dates, bin_size=0.05, b_range=[-2.0, -0.5],
     mag = np.array(magnitudes)
 
     wdt = 15
-    num_years = (np.max(dates) - np.min(dates)) / (24 * 3600 * 365.25)
+    delta = (np.max(dates) - np.min(dates))
+    if isinstance(delta, np.timedelta64):
+        total_seconds = delta.item() * 1e-9
+    else:
+        total_seconds = delta.total_seconds()
+    total_days = total_seconds / (24 * 60 * 60)
+    num_years = total_days / 365.25
 
     bins = np.arange(xlim[0], xlim[1], bin_size)
     hist = np.histogram(mag, bins=bins)
@@ -58,12 +66,15 @@ def guttenberg_richter(magnitudes, dates, bin_size=0.05, b_range=[-2.0, -0.5],
     fitmg = b * mg + a
 
     # Tracer()()
-    plt.semilogy(bins, new_cum_yearly_rate, 'k.', **kwargs)
-    plt.semilogy(mg, 10 ** fitmg, 'k--',
+    plt.clf()
+    fig, ax = plt.subplots()
+    ax.semilogy(bins, new_cum_yearly_rate, 'k.', **kwargs)
+    ax.semilogy(mg, 10 ** fitmg, 'k--',
                  label='best fit ($%0.1f\,M_w + %0.1f$)' % (b, a), **kwargs)
     plt.xlabel('%s' % magnitude_type)
     plt.ylabel('Number of events/year')
     plt.xlim(xlim)
+    ax.yaxis.set_major_formatter(ScalarFormatter())
     plt.legend()
 
 
