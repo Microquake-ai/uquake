@@ -1181,12 +1181,12 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
 
             low_bp_freq = np.max([sensor_min_freq, window_min_freq])
             high_bp_freq = np.max(poles) / (2 * np.pi)
-            if high_bp_freq > pulse[0].stats.sampling_rate / 2:
-                high_bp_freq = pulse[0].stats.sampling_rate / 2.5
+            # if high_bp_freq > pulse[0].stats.sampling_rate / 2:
+            #     high_bp_freq = pulse[0].stats.sampling_rate / 2.5
 
             high_bp_freq = max_frequency
             pulse = pulse.taper(max_percentage=0.05, type='cosine')
-            pulse.filter('bandpass', freqmin=low_bp_freq, freqmax=high_bp_freq)
+            # pulse.filter('bandpass', freqmin=low_bp_freq, freqmax=high_bp_freq)
             low_bp_freq1 = 10 ** (np.log10(low_bp_freq) - 0.2)
             low_bp_freq2 = low_bp_freq
             high_bp_freq1 = high_bp_freq

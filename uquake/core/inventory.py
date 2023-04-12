@@ -144,8 +144,8 @@ def accelerometer_response(resonance_frequency, gain, sensitivity=1,
                            stage_sequence_number=0, damping=0.707):
     i_s = InstrumentSensitivity(sensitivity, resonance_frequency,
                                 input_units='M/S/S', output_units='M/S/S',
-                                input_units_description='acceleration',
-                                output_units_description='acceleration')
+                                input_units_description='ACC',
+                                output_units_description='ACC')
 
     paz = corn_freq_2_paz(resonance_frequency, damp=damping)
 
