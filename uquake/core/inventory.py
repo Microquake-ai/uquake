@@ -319,7 +319,8 @@ class Network(inventory.Network):
 
         min = np.min(coordinates, axis=0)
         max = np.max(coordinates, axis=0)
-        center = min + (max - min) / 2
+        # center = min + (max - min) / 2
+        center = (min + max) / 2
         d = (max - min) * (1 + padding_fraction)
 
         c1 = center - d / 2

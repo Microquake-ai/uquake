@@ -125,7 +125,7 @@ class Grid(object):
         """
 
         data = np.ones(tuple(dimensions)) * val
-        cls.grid = cls.__init__(data, spacing=spacing, origin=origin)
+        cls.grid = cls(data, spacing=spacing, origin=origin)
 
     @classmethod
     def from_ocs(cls, origin, corner, spacing, val=0):
@@ -143,12 +143,12 @@ class Grid(object):
         origin2 = origin
         corner2 = corner
 
-        gshape = tuple([int(np.ceil((c - o) / spacing))
-                        for o, c in zip(origin2, corner2)])
+        gshape = tuple([int(np.ceil((c - o) / s))
+                        for o, c, s in zip(origin2, corner2, spacing)])
         data = np.ones(gshape) * val
-        cls.__init__(data, spacing=spacing, origin=origin)
-        cls.fill_homogeneous(val)
-        return cls
+        out = cls(data, spacing=spacing, origin=origin)
+        out.fill_homogeneous(val)
+        return out
 
     @classmethod
     def from_ocd(cls, origin, corner, dimensions, val=0):
@@ -163,7 +163,7 @@ class Grid(object):
 
         data = np.ones(dimensions) * val
         spacing = (corner - origin) / (dimensions - 1)
-        cls.__init__(data, spacing, spacing=spacing, origin=origin)
+        cls(data, spacing, spacing=spacing, origin=origin)
         return cls
 
     def __repr__(self):
@@ -558,7 +558,6 @@ class Grid(object):
             sigma = sigma / self.spacing
 
         self.data = gaussian_filter(self.data, sigma)
-
 
     @property
     def ndim(self):

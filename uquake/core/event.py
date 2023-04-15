@@ -391,7 +391,7 @@ class Magnitude(obsevent.Magnitude):
     def seismic_moment(self):
         seismic_moment = None
         if self.magnitude_type == 'Mw':
-            seismic_moment = 10 ** (3 * (self.mag + 6.02) / 2)
+            seismic_moment = 10 ** (3 * (self.mag + 6.03) / 2)
         return seismic_moment
 
     # @seismic_moment.setter

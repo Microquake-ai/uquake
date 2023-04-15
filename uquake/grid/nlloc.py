@@ -275,7 +275,7 @@ class NLLocGrid(Grid):
                  float_type="FLOAT", model_id=None):
         """
         :param data_or_dims: data or data dimensions. If dimensions are
-        provided the a homogeneous gris is created with value=value
+        provided the a homogeneous grid is created with value=value
         :param origin: origin of the grid
         :type origin: list
         :param spacing: the spacing between grid nodes
@@ -391,6 +391,21 @@ class NLLocGrid(Grid):
         for ext in self.extensions:
             shutil.move(f'{origin}/{base_name}.{ext}',
                         f'{destination}/{base_name}.{ext}')
+
+    @classmethod
+    def from_ods(cls, origin, dimensions, spacing, phase, val=0):
+        grid = super().from_ods(origin, dimensions, spacing, val=val)
+        return cls_(grid.data, origin, spacing, phase)
+
+    @classmethod
+    def from_ocs(cls, origin, corner, spacing, phase, val=0):
+        grid = super().from_ocs(origin, corner, spacing, val=val)
+        return cls_(grid.data, grid.origin, grid.spacing, phase)
+
+    @classmethod
+    def from_ocd(cls, origin, corner, dimensions, phase, val=0):
+        grid = super().from_ocd(origin, corner, dimensions, val=val)
+        return cls_(grid.data, grid.origin, grid.spacing, phase)
 
     @property
     def model_id(self):
