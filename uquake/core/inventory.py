@@ -38,6 +38,11 @@ from .util.tools import lon_lat_x_y
 from typing import List
 from .util import ENTRY_POINTS
 from pkg_resources import load_entry_point
+import requests
+from tqdm import tqdm
+from tempfile import NamedTemporaryFile
+import os
+from .util.requests import download_file_from_url
 
 
 class SystemResponse(object):
@@ -199,6 +204,35 @@ class Inventory(inventory.Inventory):
                                                            output_projection))
 
         return inv
+
+
+    @staticmethod
+    def from_url(url):
+        """
+        Load an ObsPy inventory object from a URL.
+
+        :param url: The URL to download the inventory file from.
+        :type url: str
+        :return: The loaded ObsPy inventory object.
+        :rtype: obspy.core.inventory.Inventory
+        """
+        # Download the inventory file from the URL
+
+        inventory_data = download_file_from_url(url)
+
+        # Save the inventory data to a temporary file
+        with NamedTemporaryFile(delete=False) as temp_file:
+            temp_file.write(inventory_data.read())
+            temp_file.flush()
+
+            # Load the inventory from the temporary file
+            file_format = 'STATIONXML'  # Replace with the correct format
+            inventory = read_inventory(temp_file.name, format=file_format)
+
+        # Remove the temporary file after reading the inventory
+        os.remove(temp_file.name)
+
+        return inventory
 
     @staticmethod
     def from_bytes(byte_string):
