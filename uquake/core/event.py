@@ -568,6 +568,26 @@ class Arrival(obsevent.Arrival):
     def site(self):
         return self.pick.site
 
+    @property
+    def time(self):
+        return self.pick.time
+
+    @property
+    def channel(self):
+        return self.pick.waveform_id.channel_code
+
+    @property
+    def location(self):
+        return self.pick.waveform_id.location_code
+
+    @property
+    def station(self):
+        return self.pick.waveform_id.station_code
+
+    @property
+    def network(self):
+        return self.pick.waveform_id.network_code
+
     def get_pick(self):
         if self.pick_id is not None:
             return self.pick_id.get_referred_object()
