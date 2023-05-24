@@ -160,7 +160,7 @@ class EventTypeLookup(object):
                              'calibration blast': 'controlled explosion',
                              'other blast/slashing': 'experimental explosion',
                              'mid-shift blast/slash blast': 'industrial explosion',
-                             'raised bore': 'hydroacoustic event',
+                             'raise bore': 'hydroacoustic event',
                              'crusher noise': 'road cut',
                              'orepass noise': 'collapse',
                              'drilling noise': 'acoustic noise',
