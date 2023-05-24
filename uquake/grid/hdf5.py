@@ -3,6 +3,7 @@ from glob import glob
 import numpy as np
 import h5py
 
+
 class H5TTable(object):
     """docstring for H5TTable"""
 
@@ -87,6 +88,7 @@ def gdef_to_points(shape, origin, spacing):
                 ix += 1
 
     return points
+
 
 def array_from_travel_time_ensemble(tt_grids):
 

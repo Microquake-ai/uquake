@@ -272,46 +272,6 @@ def snr_repicker(st, picks, start_search_window, end_search_window,
     return snrs, o_picks
 
 
-def linearity_ensemble_re_picker(st, picks, start_search_window,
-                                 end_search_window,
-                                 start_refined_search_window,
-                                 end_refinde_search_window,
-                                 refined_window_search_resolution,
-                                 linearity_calc_window_len):
-    """
-        Function to improve the picks based on the linearity or planarity
-        for an ensemble of traces.
-        :param st: waveforms containing a seismic event
-        :type st: :py:class:`uquake.core.stream.Stream`
-        :param picks: list of :class:`uquake.core.event.Pick` object
-        picks
-        :type picks: list of :py:class:`uquake.core.event.Pick`
-        :param start_search_window: start of the search window relative to
-        provided picks in seconds
-        :type start_search_window: float
-        :param end_search_window: end of the search window relative to the
-        provided picks in seconds
-        :param start_refined_search_window: start of the refined search
-        window in seconds
-        :type: float
-        :param end_refined_search_window: end of the refined search window in
-        seconds
-        :type: float
-        :type end_search_window: float
-        :param refined_window_search_resolution: resolution of the search
-        space in seconds
-        :type refined_window_search_resolution: float
-        :param linearity_calc_window_len: length of the window after the
-        presumed pick used to calculate the linearity
-        :param trace_padding: buffer from trace start and end time excluded
-        from search window
-        :returns:  Tuple comprising 1) a :py:class:`uquake.core.event.Catalog`
-        a new catalog containing a single event with a list of picks and 2)
-        the SNR
-        """
-
-
-
 def snr_ensemble_re_picker(st, picks, start_search_window, end_search_window,
                            start_refined_search_window,
                            end_refined_search_window,
@@ -488,7 +448,6 @@ def extract_trace_segment(st: Stream, pick_time: UTCDateTime,
     return np.array(waveforms)
 
 
-
 def measure_linearity(st: Stream, pick_time: UTCDateTime,
                       window_length: float):
     """
@@ -502,9 +461,6 @@ def measure_linearity(st: Stream, pick_time: UTCDateTime,
     :return: the linearity between 0 and 1. 1 representing a perfect linearity
     :rtype: float
     """
-
-
-
 
     pass
 

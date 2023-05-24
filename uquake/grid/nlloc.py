@@ -918,13 +918,13 @@ class VelocityGridEnsemble:
                 for seed, seed_labels in zip(seeds, seed_labels):
                     tt_grid_ensemble += self[key].to_time(seed, seed_label)
 
-
     @property
     def p(self):
         return self['p']
 
     def s(self):
         return self['s']
+
 
 class SeededGrid(NLLocGrid):
     """

@@ -373,27 +373,6 @@ class Grid(object):
 
         return points
 
-    def write(self, filename, format='PICKLE', **kwargs):
-        """
-        write the grid to disk
-        :param filename: full path to the file to be written
-        :type filename: str
-        :param format: output file format
-        :type format: str
-        """
-        format = format.upper()
-        if format not in ENTRY_POINTS['grid'].keys():
-            logger.error('format %s is not currently supported for Grid '
-                         'objects' % format)
-            return
-
-        format_ep = ENTRY_POINTS['grid'][format]
-        write_format = load_entry_point(format_ep.dist.key,
-                                        'uquake.plugin.grid.%s'
-                                        % format_ep.name, 'writeFormat')
-
-        write_format(self, filename, **kwargs)
-
     def interpolate(self, coord, grid_space=True, mode='nearest',
                     order=1, **kwargs):
         """
