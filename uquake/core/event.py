@@ -146,15 +146,19 @@ class EventTypeLookup(object):
     def __init__(self):
         self.lookup_table = {'earthquake/large event': 'earthquake',
                              'seismic event': 'induced or triggered event',
+                             'offsite event': 'atmospheric event',
+                             'low quality event': 'cavity collapse',
                              'rock burst': 'rock burst',
                              'fall of ground/rockfall': 'mine collapse',
                              'blast': 'explosion',
+                             'blast sequence': 'accidental explosion',
                              'development blast': 'industrial explosion',
                              'production blast': 'mining explosion',
                              'far away blast/open pit blast': 'quarry blast',
+                             'offsite blast': 'nuclear explosion',
                              'paste firing': 'chemical explosion',
                              'calibration blast': 'controlled explosion',
-                             'other blast': 'experimental explosion',
+                             'other blast/slashing': 'experimental explosion',
                              'mid-shift blast/slash blast': 'industrial explosion',
                              'raised bore': 'hydroacoustic event',
                              'crusher noise': 'road cut',
@@ -166,7 +170,8 @@ class EventTypeLookup(object):
                              'test pulse': 'sonic boom',
                              'unidentified noise/other noise': 'other event',
                              'duplicate': 'boat crash',
-                             'unknown': 'plane crash'}
+                             'unknown': 'plane crash',
+                             'tap test/test': 'avalanche'}
 
     @property
     def inverse_lookup_table(self):
