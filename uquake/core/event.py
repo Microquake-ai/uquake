@@ -51,9 +51,14 @@ class Catalog(obsevent.Catalog):
 
             for key in obspy_obj.__dict__.keys():
                 if key == 'events':
+                    event_type_lookup = EventTypeLookup()
                     events = []
                     for event in obspy_obj:
-                        events.append(Event(obspy_obj=event))
+                        uquake_event = Event(obspy_obj=event)
+                        if event_type_lookup.is_valid_quakeml(uquake_event.event_type):
+                            uquake_event.event_type = \
+                                event_type_lookup.inverse_lookup_table[event.event_type]
+                        events.append(uquake_event)
                     self.events = events
                 else:
                     self.__dict__[key] = obspy_obj.__dict__[key]
@@ -66,7 +71,11 @@ class Catalog(obsevent.Catalog):
         super(type(self), self).__setattr__(name, value)
 
     def write(self, fileobj, format='quakeml', **kwargs):
+        event_type_lookup = EventTypeLookup()
+        type_lookup = event_type_lookup.lookup_table
         for event in self.events:
+            if event_type_lookup.is_valid_uquakeml(event.event_type):
+                event.event_type = type_lookup[event.event_type]
             for ori in event.origins:
                 for ar in ori.arrivals:
                     if 'extra' in ar.keys():
@@ -132,7 +141,63 @@ class Catalog(obsevent.Catalog):
         return deepcopy(self)
 
 
+class EventTypeLookup(object):
+
+    def __init__(self):
+        self.lookup_table = {'earthquake': 'earthquake',
+                             'seismic event': 'induced or triggered event',
+                             'rock burst': 'rock burst',
+                             'fall of ground/rock fall': 'mine collapse',
+                             'development blast': 'mining explosion',
+                             'production blast': 'explosion',
+                             'far away blast/open pit blast': 'quarry blast',
+                             'paste firing': 'chemical explosion',
+                             'calibration blast': 'controlled explosion',
+                             'spurious blast': 'experimental explosion',
+                             'mid-shift blast/slash blast': 'industrial explosion',
+                             'raised bore': 'hydroacoustic event',
+                             'crusher noise': 'road cut',
+                             'orepass noise': 'collapse',
+                             'drilling noise': 'acoustic noise',
+                             'electrical noise': 'thunder',
+                             'scaling noise': 'anthropogenic event',
+                             'mechanical noise': 'crash',
+                             'test pulse': 'sonic boom',
+                             'unidentified noise': 'other event'}
+
+    @property
+    def inverse_lookup_table(self):
+        inverse_lookup_table = {}
+        lookup_table = self.lookup_table
+        for key in lookup_table.keys():
+            inverse_lookup_table[lookup_table[key]] = key
+
+        return inverse_lookup_table
+
+    def convert_from_quakeml(self, quakeml_type):
+        return self.lookup_table[quakeml_type]
+
+    def convert_to_quakeml(self, uquakem_type):
+        return self.inverse_lookup_table[uquakem_type]
+
+    @property
+    def valid_quakeml_types(self):
+        return self.inverse_lookup_table.keys()
+
+    @property
+    def valid_uquakeml_types(self):
+        return self.lookup_table.keys()
+
+    def is_valid_quakeml(self, event_type):
+        return event_type in self.valid_quakeml_types
+
+    def is_valid_uquakeml(self, event_type):
+        return event_type in self.valid_uquakeml_types
+
+
+
 class Event(obsevent.Event):
+
     # _format keyword is actualy a missing obspy default
     extra_keys = ['_format', 'ACCEPTED', 'ASSOC_SEISMOGRAM_NAMES',
                   'AUTO_PROCESSED',
