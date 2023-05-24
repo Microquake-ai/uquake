@@ -144,12 +144,13 @@ class Catalog(obsevent.Catalog):
 class EventTypeLookup(object):
 
     def __init__(self):
-        self.lookup_table = {'earthquake': 'earthquake',
+        self.lookup_table = {'earthquake/large event': 'earthquake',
                              'seismic event': 'induced or triggered event',
                              'rock burst': 'rock burst',
                              'fall of ground/rock fall': 'mine collapse',
-                             'development blast': 'mining explosion',
-                             'production blast': 'explosion',
+                             'blast': 'explosion',
+                             'development blast': 'industrial explosion',
+                             'production blast': 'mining explosion',
                              'far away blast/open pit blast': 'quarry blast',
                              'paste firing': 'chemical explosion',
                              'calibration blast': 'controlled explosion',
@@ -163,7 +164,8 @@ class EventTypeLookup(object):
                              'scaling noise': 'anthropogenic event',
                              'mechanical noise': 'crash',
                              'test pulse': 'sonic boom',
-                             'unidentified noise': 'other event'}
+                             'unidentified noise': 'other event',
+                             'duplicate': 'boat crash'}
 
     @property
     def inverse_lookup_table(self):
