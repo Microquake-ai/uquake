@@ -165,7 +165,8 @@ class EventTypeLookup(object):
                              'mechanical noise': 'crash',
                              'test pulse': 'sonic boom',
                              'unidentified noise': 'other event',
-                             'duplicate': 'boat crash'}
+                             'duplicate': 'boat crash',
+                             'unknown': 'plane crash'}
 
     @property
     def inverse_lookup_table(self):
