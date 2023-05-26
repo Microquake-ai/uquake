@@ -1,6 +1,7 @@
 from uquake.core.stream import Stream
 from uquake.core.event import Catalog
 from uquake.core.inventory import Inventory
+from pathlib import Path
 
 
 class SeismicDataEnsemble(object):
