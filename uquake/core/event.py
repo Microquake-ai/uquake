@@ -545,8 +545,7 @@ class Pick(obsevent.Pick):
     @property
     def site(self):
         if self.waveform_id is not None:
-            site = self.waveform_id.station_code + \
-                   self.waveform_id.location_code
+            site = f'{self.waveform_id.station_code}.{self.waveform_id.location_code}
             return site
 
     @property
@@ -567,7 +566,7 @@ class WaveformStreamID(obsevent.WaveformStreamID):
             if self.location_code is None:
                 return self.station_code
             else:
-                return self.station_code + self.location_code
+                return f'{self.station_code}.{self.location_code}'
 
         return
 
@@ -983,11 +982,11 @@ class Ray(object):
 
     @property
     def station(self):
-        return self.site_code[0:4]
+        return self.site_code.split('.')[0]
 
     @property
     def location(self):
-        return self.site_code[4:]
+        return self.site_code.split('.')[1]
 
     @property
     def back_azimuth(self):

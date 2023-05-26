@@ -678,7 +678,7 @@ class Site:
 
     @property
     def code(self):
-        return f'{self.station_code}{self.location_code}'
+        return f'{self.station_code}.{self.location_code}'
 
     @property
     def sensor_type_code(self):
@@ -686,8 +686,7 @@ class Site:
 
     @property
     def site_code(self):
-        return f'{self.station_code}.{self.location_code}.' \
-               f'{self.sensor_type_code}'
+        return f'{self.station_code}.{self.location_code}'
 
 
 class Channel(inventory.Channel):
