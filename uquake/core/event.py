@@ -545,7 +545,7 @@ class Pick(obsevent.Pick):
     @property
     def site(self):
         if self.waveform_id is not None:
-            site = f'{self.waveform_id.station_code}.{self.waveform_id.location_code}
+            site = f'{self.waveform_id.station_code}.{self.waveform_id.location_code}'
             return site
 
     @property
