@@ -91,43 +91,6 @@ class SeismicDataEnsemble(object):
 
         return cls(out_stream, catalog, inventory)
 
-    def patch_using_catalog(self, catalogue_line, network):
-        event_type = event.uquake_event_from_letter_id(
-            catalogue_line['EvtType'], network)
-        self.catalog[0].event_type = event_type
-        if catalogue_line['WF_Modified']:
-            evaluation_mode = 'manual'
-            if catalogue_line['Rejected']:
-                evaluation_status = 'rejected'
-            else:
-                evaluation_status = 'final'
-        else:
-            evaluation_mode = 'automatic'
-            if catalogue_line['MultiProc']:
-                if catalogue_line['Rejected']:
-                    evaluation_status = 'rejected'
-                else:
-                    evaluation_status = 'confirmed'
-            elif catalogue_line['RemoteProc']:
-                if catalogue_line['Rejected']:
-                    evaluation_status = 'rejected'
-                else:
-                    evaluation_status = 'preliminary'
-
-        for pick in self.catalog[0].picks:
-            pick.evaluation_mode = evaluation_mode
-            pick.evaluation_status = evaluation_status
-
-        self.catalog[0].preferred_origin().evaluation_mode = evaluation_mode
-        self.catalog[0].preferred_origin().evaluation_status = evaluation_status
-
-        self.catalog[0].preferred_magnitude().evaluation_mode = evaluation_mode
-        self.catalog[0].preferred_magnitude().evaluation_status = evaluation_status
-
-        trg_id = catalogue_line['TrgID']
-
-        self.catalog[0].resource_id.id = f'esg:/{network}/{trg_id}'
-
 
 def generate_unique_names(n):
     """
