@@ -38,7 +38,9 @@ class Stats(ObspyStats, ABC):
             for item in stats.__dict__.keys():
                 self.__dict__[item] = stats.__dict__[item]
 
-            self.site = f'{self.station}{self.location}'
+    @property
+    def site(self):
+        return f'{self.station}.{self.location}'
 
     def __str__(self):
         """
@@ -48,20 +50,6 @@ class Stats(ObspyStats, ABC):
                           'starttime', 'endtime', 'sampling_rate', 'delta',
                           'npts', 'calib']
         return self._pretty_str(priorized_keys)
-
-
-# class Trace(obsstream.Trace, ABC):
-#     __doc__ = obsstream.Trace.__doc__.replace('obspy', 'uquake')
-#
-#     def __init__(self, trace=None, **kwargs):
-#         super(Trace, self).__init__(**kwargs)
-#
-#         if trace:
-#             self.stats = Stats(stats=trace.stats)
-#             self.data = trace.data
-#
-#         if 'header' in kwargs.keys():
-#             self.stats = Stats(stats=kwargs['header'])
 
 
 class Trace(ObspyTrace, ABC):
