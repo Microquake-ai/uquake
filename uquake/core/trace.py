@@ -46,7 +46,7 @@ class Stats(ObspyStats, ABC):
         """
         Return better readable string representation of Stats object.
         """
-        priorized_keys = ['network', 'station', 'site', 'location', 'channel',
+        priorized_keys = ['network', 'station', 'location', 'channel',
                           'starttime', 'endtime', 'sampling_rate', 'delta',
                           'npts', 'calib']
         return self._pretty_str(priorized_keys)
@@ -60,11 +60,14 @@ class Trace(ObspyTrace, ABC):
             self.stats = Stats(stats=trace.stats)
             self.data = trace.data
 
-        if 'header' in kwargs.keys():
+        elif 'header' in kwargs.keys():
             self.stats = Stats(stats=kwargs['header'])
 
-        if 'stats' in kwargs.keys():
+        elif 'stats' in kwargs.keys():
             self.stats = Stats(stats=kwargs['stats'])
+
+        else:
+            self.stats = Stats()
 
     @property
     def sr(self):
