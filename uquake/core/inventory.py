@@ -100,11 +100,19 @@ class SystemResponse(object):
             return
 
         input_units = self.response_stages[0].input_units
+
+        if input_units == 'M/S':
+            input_units_description = 'Velocity'
+        elif input_units == 'M/S/S':
+            input_units_description = 'Acceleration'
+        elif input_units == 'M':
+            input_units_description = 'Displacement'
+
         i_s = InstrumentSensitivity(self.sensitivity,
                                     self.frequency,
                                     input_units=input_units,
                                     output_units='COUNT',
-                                    input_units_description='Velocity',
+                                    input_units_description=input_units_description,
                                     output_units_description='ADC Count')
 
         return Response(instrument_sensitivity=i_s,

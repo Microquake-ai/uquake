@@ -29,6 +29,8 @@ from ..core.event import (Catalog)
 from uuid import uuid4
 from pathlib import Path
 import json
+import secrets
+import string
 
 test_station_code = 'STN'
 
@@ -912,7 +914,7 @@ class Srces:
         return cls(sites)
 
     @classmethod
-    def generate_random_srces_in_grid(cls, gd, n_srces=1):
+    def generate_random_srces_in_grid(cls, gd, n_srces=1, label_root='sta'):
         """
         generate n_srces random srces inside the grid provided. This function
         is mainly used for testing purposes
@@ -931,7 +933,6 @@ class Srces:
         """
 
         srces = []
-        label_root = test_station_code
         for i, point in enumerate(gd.generate_random_points_in_grid(
                 n_points=n_srces)):
             label = f'{label_root}{i:02d}'
@@ -962,8 +963,6 @@ class Srces:
         """
 
         validate(units.upper(), self.__valid_measurement_units__)
-
-        self.sites.append(Site(label, x, y, z, elev=elev))
 
         self.units = units.upper()
 
