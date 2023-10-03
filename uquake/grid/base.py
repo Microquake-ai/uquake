@@ -633,7 +633,7 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
     dist = np.linalg.norm(start - end)
     cloc = start  # initializing cloc "current location" to start
     spacing = np.linalg.norm(spacing)
-    gamma = spacing / 2 # gamma is set to half the grid spacing. This
+    gamma = spacing / 2  # gamma is set to half the grid spacing. This
     # should be
     # sufficient. Note that gamma is fixed to reduce
     # processing time.

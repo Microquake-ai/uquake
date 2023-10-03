@@ -220,7 +220,7 @@ class Seeds:
         >>> seeds = Seeds.generate_random_seeds_in_grid(grid, n_seeds=10)
         """
 
-        seeds = cls.__init__()
+        seeds = cls()
         label_root = 'seed'
         for i, point in enumerate(grid.generate_random_points_in_grid(
                 n_points=n_seeds)):
