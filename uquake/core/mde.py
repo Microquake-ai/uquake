@@ -10,7 +10,7 @@ import tempfile
 import string
 
 
-class SeismicDataEnsemble(object):
+class MicroseismicDataExchange(object):
     def __init__(self, stream: Stream, catalog: Catalog, inventory: Inventory):
         self.stream = stream
         self.catalog = catalog
@@ -38,7 +38,7 @@ class SeismicDataEnsemble(object):
 
         st = Stream(traces=traces)
 
-        with tarfile.open(filepath.with_suffix('.uqe'), 'w:gz') as tar:
+        with tarfile.open(filepath.with_suffix('.mde'), 'w:gz') as tar:
 
             catalog_bytes = BytesIO()
             self.catalog.write(catalog_bytes, format='quakeml')
@@ -65,7 +65,7 @@ class SeismicDataEnsemble(object):
 
     @classmethod
     def read(cls, file_path):
-        file_path = Path(file_path).with_suffix('.uqe')
+        file_path = Path(file_path).with_suffix('.mde')
         catalog = None
         stream = None
         inventory = None
@@ -97,6 +97,57 @@ class SeismicDataEnsemble(object):
         out_stream = Stream(traces=traces)
 
         return cls(out_stream, catalog, inventory)
+
+
+def read_mde(file_path):
+    return MicroseismicDataExchange.read(file_path)
+
+
+def validate_mde(filepath: str) -> dict:
+    """
+    Validates the contents of an .mde file.
+
+    :param filepath: Path to the .mde file to be validated.
+    :return: A dictionary containing the validation results.
+    """
+    validation_report = {
+        'catalog': False,
+        'stream': False,
+        'inventory': False
+    }
+
+    # Open and extract files from the tarball
+    with tarfile.open(filepath, 'r:gz') as tar:
+        # Check for necessary files
+        if 'catalog.xml' not in tar.getnames():
+            raise ValueError("Missing catalog.xml in the .mde file!")
+        if 'stream.mseed' not in tar.getnames():
+            raise ValueError("Missing stream.mseed in the .mde file!")
+        if 'inventory.xml' not in tar.getnames():
+            raise ValueError("Missing inventory.xml in the .mde file!")
+
+        # Validate catalog
+        with tar.extractfile('catalog.xml') as f:
+            catalog_bytes = f.read()
+            catalog = read_events(BytesIO(catalog_bytes), format='quakeml')
+            # ... perform more in-depth validation if necessary
+            validation_report['catalog'] = True
+
+        # Validate stream
+        with tar.extractfile('stream.mseed') as f:
+            stream_bytes = f.read()
+            stream = read(BytesIO(stream_bytes), format='MSEED')
+            # ... perform more in-depth validation if necessary
+            validation_report['stream'] = True
+
+        # Validate inventory
+        with tar.extractfile('inventory.xml') as f:
+            inventory_bytes = f.read()
+            inventory = read_inventory(BytesIO(inventory_bytes), format='stationxml')
+            # ... perform more in-depth validation if necessary
+            validation_report['inventory'] = True
+
+    return validation_report
 
 
 def generate_unique_names(n):
