@@ -147,9 +147,8 @@ class EventTypeLookup(object):
         self.lookup_table = {'earthquake/large event': 'earthquake',
                              'seismic event': 'induced or triggered event',
                              'offsite event': 'atmospheric event',
-                             'low quality event': 'cavity collapse',
                              'rock burst': 'rock burst',
-                             'fall of ground/rockfall': 'mine collapse',
+                             'fall of ground/rockfall': 'cavity collapse',
                              'blast': 'explosion',
                              'blast sequence': 'accidental explosion',
                              'development blast': 'industrial explosion',
@@ -201,7 +200,6 @@ class EventTypeLookup(object):
 
     def is_valid_uquakeml(self, event_type):
         return event_type in self.valid_uquakeml_types
-
 
 
 class Event(obsevent.Event):

@@ -149,6 +149,9 @@ class Seeds:
 
         self.sites = sites
 
+    def __len__(self):
+        return len(self.sites)
+
     @classmethod
     def from_inventory(cls, inventory):
         """
@@ -1320,12 +1323,12 @@ class TravelTimeEnsemble:
 
         return angle_dict
 
-    def ray_tracer(self, start, seed_labels=None, multithreading=False,
+    def ray_tracer(self, starts, seed_label=None, multithreading=False,
                    cpu_utilisation=0.9, grid_space=False, max_iter=1000):
         """
 
-        :param start: origin of the ray, usually the location of an event
-        :param seed_labels: a list of seed labels
+        :param starts: origin of the ray, usually the location of the events
+        :param seed_label: a list of seed labels
         :param grid_space: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
@@ -1334,11 +1337,11 @@ class TravelTimeEnsemble:
         :param cpu_utilisation: fraction of core to use, between 0 and 1.
         The number of core to be use is bound between 1 and the total number of
         cores
-        :return: a list of ray
+        :return: a list of rays
         :rtype: list
         """
 
-        travel_time_grids = self.select(seed_labels=seed_labels)
+        travel_time_grid = self.select(seed_labels=[seed_label])
 
         kwargs = {'grid_space': grid_space,
                   'max_iter': max_iter}
@@ -1353,7 +1356,7 @@ class TravelTimeEnsemble:
             num_threads = np.max([np.min([num_threads, __cpu_count__]), 1])
 
             data = []
-            for travel_time_grid in travel_time_grids:
+            for start in starts:
                 data.append((travel_time_grid, start))
 
             with Pool(num_threads) as pool:
@@ -1364,7 +1367,7 @@ class TravelTimeEnsemble:
 
         else:
             results = []
-            for travel_time_grid in travel_time_grids:
+            for start in starts:
                 results.append(travel_time_grid.ray_tracer(start, **kwargs))
 
         return results
