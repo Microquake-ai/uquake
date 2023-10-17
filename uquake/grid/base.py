@@ -363,7 +363,7 @@ class Grid(object):
 
         np.random.seed(seed)
 
-        points = np.random.rand(n_points, len(self.data.shape))
+        points = np.random.uniform(0, 1, (n_points, len(self.data.shape)))
 
         for i in range(n_points):
             points[i] = points[i] * self.dimensions
@@ -489,6 +489,10 @@ class Grid(object):
                                         'writeFormat')
 
         return write_format(self, filename, **kwargs)
+
+    @classmethod
+    def read(cls, filename, format='PICKLE'):
+        read_grid(filename, format=format)
 
     def plot_1D(self, x, y, z_resolution, grid_space=False,
                 inventory=None, reverse_y=True):
