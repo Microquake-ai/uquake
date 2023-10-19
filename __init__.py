@@ -1,5 +1,6 @@
 # insert supported read/write format plugin lists dynamically in docstrings
 from obspy.core.util.base import _add_format_plugin_table
+from uquake.core import read, read_events, read_inventory
 
 
 _add_format_plugin_table(read, "waveform", "read", numspaces=4)

@@ -244,6 +244,20 @@ files = [
 ]
 
 [[package]]
+name = "dill"
+version = "0.3.7"
+description = "serialize all of Python"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "dill-0.3.7-py3-none-any.whl", hash = "sha256:76b122c08ef4ce2eedcd4d1abd8e641114bfc6c2867f49f3c41facf65bf19f5e"},
+    {file = "dill-0.3.7.tar.gz", hash = "sha256:cc1c8b182eb3013e24bd475ff2e9295af86c1a38eb1aff128dac8962a9ce3c03"},
+]
+
+[package.extras]
+graph = ["objgraph (>=1.7.2)"]
+
+[[package]]
 name = "dynaconf"
 version = "3.2.0"
 description = "The dynamic configurator for your Python Project"
@@ -570,6 +584,20 @@ parallel = ["ipyparallel"]
 qtconsole = ["qtconsole"]
 test = ["pytest (<7.1)", "pytest-asyncio", "testpath"]
 test-extra = ["curio", "matplotlib (!=3.2.0)", "nbformat", "numpy (>=1.21)", "pandas", "pytest (<7.1)", "pytest-asyncio", "testpath", "trio"]
+
+[[package]]
+name = "isodate"
+version = "0.6.1"
+description = "An ISO 8601 date/time/duration parser and formatter"
+optional = false
+python-versions = "*"
+files = [
+    {file = "isodate-0.6.1-py2.py3-none-any.whl", hash = "sha256:0751eece944162659049d35f4f549ed815792b38793f07cf73381c1c87cbed96"},
+    {file = "isodate-0.6.1.tar.gz", hash = "sha256:48c5881de7e8b0a0d648cb024c8062dc84e7b840ed81e864c7614fd3c127bde9"},
+]
+
+[package.dependencies]
+six = "*"
 
 [[package]]
 name = "jedi"
@@ -903,6 +931,24 @@ files = [
 traitlets = "*"
 
 [[package]]
+name = "networkx"
+version = "3.1"
+description = "Python package for creating and manipulating graphs and networks"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "networkx-3.1-py3-none-any.whl", hash = "sha256:4f33f68cb2afcf86f28a45f43efc27a9386b535d567d2127f8f61d51dec58d36"},
+    {file = "networkx-3.1.tar.gz", hash = "sha256:de346335408f84de0eada6ff9fafafff9bcda11f0a0dfaa931133debb146ab61"},
+]
+
+[package.extras]
+default = ["matplotlib (>=3.4)", "numpy (>=1.20)", "pandas (>=1.3)", "scipy (>=1.8)"]
+developer = ["mypy (>=1.1)", "pre-commit (>=3.2)"]
+doc = ["nb2plots (>=0.6)", "numpydoc (>=1.5)", "pillow (>=9.4)", "pydata-sphinx-theme (>=0.13)", "sphinx (>=6.1)", "sphinx-gallery (>=0.12)", "texext (>=0.6.7)"]
+extra = ["lxml (>=4.6)", "pydot (>=1.4.2)", "pygraphviz (>=1.10)", "sympy (>=1.10)"]
+test = ["codecov (>=2.1)", "pytest (>=7.2)", "pytest-cov (>=4.0)"]
+
+[[package]]
 name = "numpy"
 version = "1.25.1"
 description = "Fundamental package for array computing in Python"
@@ -1185,6 +1231,26 @@ files = [
 wcwidth = "*"
 
 [[package]]
+name = "prov"
+version = "2.0.0"
+description = "A library for W3C Provenance Data Model supporting PROV-JSON, PROV-XML and PROV-O (RDF)"
+optional = false
+python-versions = ">=3.6, <4"
+files = [
+    {file = "prov-2.0.0-py3-none-any.whl", hash = "sha256:aaccc7c6ad6ec662fd1561c872991f13cd7df368d6dcab9cbac19fccc491d970"},
+    {file = "prov-2.0.0.tar.gz", hash = "sha256:b6438f2195ecb9f6e8279b58971e02bc51814599b5d5383366eef91d867422ee"},
+]
+
+[package.dependencies]
+lxml = ">=3.3.5"
+networkx = ">=2.0"
+python-dateutil = ">=2.2"
+rdflib = ">=4.2.1"
+
+[package.extras]
+dot = ["pydot (>=1.2.0)"]
+
+[[package]]
 name = "ptyprocess"
 version = "0.7.0"
 description = "Run a subprocess in a pseudo terminal"
@@ -1208,6 +1274,26 @@ files = [
 
 [package.extras]
 tests = ["pytest"]
+
+[[package]]
+name = "pyasdf"
+version = "0.8.1"
+description = "Python module for the Adaptable Seismic Data Format (ASDF)."
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "pyasdf-0.8.1-py3-none-any.whl", hash = "sha256:ccddd07df8f4c575427df1e66a6f9b37fab4c086a735194ab11773cd04e4cc3b"},
+    {file = "pyasdf-0.8.1.tar.gz", hash = "sha256:3b9ff6001ef63ec4bac77d3f6b613f3d829a80d56c884f59b35aeaddd9e4dc12"},
+]
+
+[package.dependencies]
+colorama = "*"
+dill = "*"
+h5py = "*"
+numpy = "*"
+obspy = ">=1.2.1"
+packaging = "*"
+prov = "*"
 
 [[package]]
 name = "pydantic"
@@ -1345,13 +1431,13 @@ wheel = "*"
 
 [[package]]
 name = "pytest"
-version = "7.4.0"
+version = "7.4.2"
 description = "pytest: simple powerful testing with Python"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "pytest-7.4.0-py3-none-any.whl", hash = "sha256:78bf16451a2eb8c7a2ea98e32dc119fd2aa758f1d5d66dbf0a59d69a3969df32"},
-    {file = "pytest-7.4.0.tar.gz", hash = "sha256:b4bf8c45bd59934ed84001ad51e11b4ee40d40a1229d2c79f9c592b0a3f6bd8a"},
+    {file = "pytest-7.4.2-py3-none-any.whl", hash = "sha256:1d881c6124e08ff0a1bb75ba3ec0bfd8b5354a01c194ddd5a0a870a48d99b002"},
+    {file = "pytest-7.4.2.tar.gz", hash = "sha256:a766259cfab564a2ad52cb1aae1b881a75c3eb7e34ca3779697c23ed47c47069"},
 ]
 
 [package.dependencies]
@@ -1407,6 +1493,27 @@ files = [
     {file = "pytz-2023.3-py2.py3-none-any.whl", hash = "sha256:a151b3abb88eda1d4e34a9814df37de2a80e301e68ba0fd856fb9b46bfbbbffb"},
     {file = "pytz-2023.3.tar.gz", hash = "sha256:1d8ce29db189191fb55338ee6d0387d82ab59f3d00eac103412d64e0ebd0c588"},
 ]
+
+[[package]]
+name = "rdflib"
+version = "7.0.0"
+description = "RDFLib is a Python library for working with RDF, a simple yet powerful language for representing information."
+optional = false
+python-versions = ">=3.8.1,<4.0.0"
+files = [
+    {file = "rdflib-7.0.0-py3-none-any.whl", hash = "sha256:0438920912a642c866a513de6fe8a0001bd86ef975057d6962c79ce4771687cd"},
+    {file = "rdflib-7.0.0.tar.gz", hash = "sha256:9995eb8569428059b8c1affd26b25eac510d64f5043d9ce8c84e0d0036e995ae"},
+]
+
+[package.dependencies]
+isodate = ">=0.6.0,<0.7.0"
+pyparsing = ">=2.1.0,<4"
+
+[package.extras]
+berkeleydb = ["berkeleydb (>=18.1.0,<19.0.0)"]
+html = ["html5lib (>=1.0,<2.0)"]
+lxml = ["lxml (>=4.3.0,<5.0.0)"]
+networkx = ["networkx (>=2.0.0,<3.0.0)"]
 
 [[package]]
 name = "referencing"
@@ -1908,4 +2015,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.9"
-content-hash = "eeae4f98e50daf9d8429dfd2e04cacec135b628f601acdc88175e2181c430aac"
+content-hash = "5920fa09907f976df6b16d4bdf41d9948d646e0ee28df01dce7412923a9cc784"

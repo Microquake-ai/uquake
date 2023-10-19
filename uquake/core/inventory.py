@@ -26,6 +26,7 @@ import numpy as np
 from obspy.core.inventory.util import (Equipment, Operator, Person,
                                        PhoneNumber, Site, _textwrap,
                                        _unified_content_strings)
+from uquake.core.util.decorator import expand_input_format_compatibility
 from pathlib import Path
 
 from .logging import logger
@@ -35,11 +36,8 @@ import pandas as pd
 from io import BytesIO
 from .util.tools import lon_lat_x_y
 
-from typing import List
 from .util import ENTRY_POINTS
 from pkg_resources import load_entry_point
-import requests
-from tqdm import tqdm
 from tempfile import NamedTemporaryFile
 import os
 from .util.requests import download_file_from_url
@@ -250,8 +248,7 @@ class Inventory(inventory.Inventory):
         return read_inventory(file_in)
 
     def write(self, path_or_file_obj, format='stationxml', *args, **kwargs):
-        return super().write(path_or_file_obj, format, nsmap={ns: ns},
-                             *args, **kwargs)
+        return super().write(path_or_file_obj, format, *args, **kwargs)
 
     def get_station(self, sta):
         return self.select(sta)
@@ -259,10 +256,10 @@ class Inventory(inventory.Inventory):
     def get_channel(self, sta=None, cha=None):
         return self.select(sta, cha_code=cha)
 
-    def select(self, network=None, station=None, location=None, channel=None):
-
-        return super().select(network=network, station=station,
-                              location=location, channel=channel)
+    # def select(self, network=None, station=None, location=None, channel=None, **kwargs):
+    #
+    #     return super().select(network=network, station=station,
+    #                           location=location, channel=channel, **kwargs)
 
     def select_site(self, sites=None):
         if isinstance(sites, list):
@@ -1046,6 +1043,7 @@ def load_from_excel(file_name) -> Inventory:
     return inventory
 
 
+@expand_input_format_compatibility
 def read_inventory(path_or_file_object, format='STATIONXML',
                    xy_from_lat_lon=False, input_projection=4326,
                    output_projection=None, *args, **kwargs) -> Inventory:
@@ -1056,7 +1054,7 @@ def read_inventory(path_or_file_object, format='STATIONXML',
     :param xy_from_lat_lon: if True convert populate the XY field by converting
     the latitude and longitude to UTM
     :param input_projection: The input projection. Applicable if
-    xy_from_lat_lon is True (default=4326 for for latitude longitude)
+    xy_from_lat_lon is True (default=4326 for latitude longitude)
     :param output_projection: The output projection. Has to be specified if
     xy_from_lat_lon is True. Default=None
     :param args: see obspy.core.inventory.read_inventory for more information
@@ -1077,9 +1075,9 @@ def read_inventory(path_or_file_object, format='STATIONXML',
     if (format not in ENTRY_POINTS['inventory'].keys()) or \
             (format.upper() == 'STATIONXML'):
 
-        obspy_inv = inventory.read_inventory(str(path_or_file_object),
-                                             format=format,
-                                             *args, **kwargs)
+        obspy_inv = inventory.read_inventory(path_or_file_object,
+                                     format=format,
+                                     *args, **kwargs)
 
         return Inventory.from_obspy_inventory_object(obspy_inv,
                                         xy_from_lat_lon=xy_from_lat_lon,
@@ -1098,7 +1096,8 @@ def read_inventory(path_or_file_object, format='STATIONXML',
         # kwargs_obspy.pop('input_projection')
         # kwargs_obspy.pop('output_projection')
 
-        return read_format(str(path_or_file_object), **kwargs)
+        return expand_input_format_compatibility(
+            read_format(path_or_file_object, **kwargs))
 
     # else:
 

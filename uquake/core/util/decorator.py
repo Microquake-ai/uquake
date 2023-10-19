@@ -5,13 +5,63 @@
 import os
 import time
 from functools import wraps
-
+from io import BytesIO
+from pathlib import Path
 import numpy
 
 from ..logging import logger
 
 
-def compressFile(func):
+def expand_input_format_compatibility(func):
+    """
+    Decorator to enhance the compatibility of a function that expects a file path
+    string or a file-like object as its first argument.
+
+    If the first argument is provided as bytes, it is wrapped in a BytesIO. If it
+    is provided as a pathlib.Path instance, it is converted to a string representation
+    of the path.
+
+    Parameters
+    ----------
+    func : callable
+        The function to be decorated. It is expected that the function's first argument
+        is a file path string or a file-like object.
+
+    Returns
+    -------
+    callable
+        The decorated function with enhanced input compatibility.
+
+    Example
+    -------
+    @expand_input_format_compatibility
+    def read_data(file):
+        pass
+
+    read_data(b"some_bytes_data")  # Bytes are wrapped into BytesIO
+    read_data(Path("/path/to/file"))  # Path is converted to string
+
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # Assuming the first argument to the function is the input in question
+        input_data = args[0]
+
+        # Check if input is bytes, if yes, wrap it in BytesIO
+        if isinstance(input_data, bytes):
+            args = (BytesIO(input_data),) + args[1:]
+
+        # Check if input is a Path instance, if yes, convert to string
+        elif isinstance(input_data, Path):
+            args = (str(input_data),) + args[1:]
+
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+
+def compress_file(func):
     """
     Decorator used to write compressed file to disk using gz or bz2 protocols
     """

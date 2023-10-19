@@ -1,106 +1,169 @@
-from uquake.core.stream import Stream
+from uquake.core.stream import Stream, Trace
 from uquake.core.event import Catalog
 from uquake.core.inventory import Inventory
 from uquake.core import read, read_events, read_inventory
 from pathlib import Path
 import random
 import tarfile
-from io import BytesIO
+from io import BytesIO, StringIO
 import tempfile
 import string
+import pyasdf
 
 
 class MicroseismicDataExchange(object):
-    def __init__(self, stream: Stream, catalog: Catalog, inventory: Inventory):
+    """
+    A class to handle the exchange of microseismic data (stream, catalog, and inventory) using the Zarr format.
+
+    :ivar stream: The ObsPy/uQuake Stream object representing the seismic waveform data.
+    :type stream: Stream, optional
+    :ivar catalog: The ObsPy/uQuake Catalog object representing the event data.
+    :type catalog: Catalog, optional
+    :ivar inventory: The ObsPy/uQuake Inventory object representing the station and channel metadata.
+    :type inventory: Inventory, optional
+    """
+
+    def __init__(self, stream: Stream = None, catalog: Catalog = None,
+                 inventory: Inventory = None):
+        """
+        Initializes the MicroseismicDataExchange object.
+
+        :param stream: The ObsPy/uQuake Stream object representing the seismic waveform data.
+        :type stream: Stream, optional
+        :param catalog: The ObsPy/uQuake Catalog object representing the event data.
+        :type catalog: Catalog, optional
+        :param inventory: The ObsPy/uQuake Inventory object representing the station and channel metadata.
+        :type inventory: Inventory, optional
+        """
         self.stream = stream
         self.catalog = catalog
         self.inventory = inventory
 
-    def write(self, filepath):
-        filepath = Path(filepath)
+    def write(self, file_path: str, waveform_tag):
+        """
+        Writes the stream, catalog, and inventory data to a Zarr file.
 
-        traces = []
-
-        if len(self.inventory[0].code) > 2:
-            self.inventory[0].alternate_code = self.inventory[0].code[:2]
-        else:
-            self.inventory[0].alternate_code = self.inventory[0].code
-
-        alternate_station_codes = generate_unique_names(len(self.inventory[0].stations))
-        for station, asc in zip(self.inventory[0].stations, alternate_station_codes):
-            station.alternate_code = asc
-
-            st = self.stream.copy().select(station=station.code)
-            for tr in st:
-                tr.stats.station = station.alternate_code
-                tr.stats.network = self.inventory[0].alternate_code
-                traces.append(tr)
-
-        st = Stream(traces=traces)
-
-        with tarfile.open(filepath.with_suffix('.mde'), 'w:gz') as tar:
-
-            catalog_bytes = BytesIO()
-            self.catalog.write(catalog_bytes, format='quakeml')
-            catalog_bytes.seek(0)
-            tarinfo = tarfile.TarInfo('catalog.xml')
-            tarinfo.size = len(catalog_bytes.getvalue())
-            tar.addfile(tarinfo, catalog_bytes)
-
-            stream_bytes = BytesIO()
-            st.write(stream_bytes, format='MSEED', encodings='STEIM2')
-            stream_bytes.seek(0)
-            tarinfo = tarfile.TarInfo('stream.mseed')
-            tarinfo.size = len(stream_bytes.getvalue())
-            tar.addfile(tarinfo, stream_bytes)
-
-            inventory_bytes = BytesIO()
-            self.inventory.write(inventory_bytes, format='stationxml')
-            inventory_bytes.seek(0)
-            tarinfo = tarfile.TarInfo('inventory.xml')
-            tarinfo.size = len(inventory_bytes.getvalue())
-            tar.addfile(tarinfo, inventory_bytes)
-
-        return None
+        :param file_path: The path to the Zarr file where the data will be written.
+        :type file_path: str
+        """
+        asdf_handler = ASDFHandler(file_path)
+        asdf_handler.add_catalog(self.catalog)
+        asdf_handler.add_inventory(self.inventory)
+        asdf_handler.add_waveforms(self.stream, waveform_tag)
 
     @classmethod
-    def read(cls, file_path):
-        file_path = Path(file_path).with_suffix('.mde')
-        catalog = None
-        stream = None
-        inventory = None
+    def read(cls, file_path: str) -> 'MicroseismicDataExchange':
+        """
+        Reads the stream, catalog, and inventory data from a Zarr file.
 
-        with tarfile.open(file_path, 'r:gz') as tar:
-            for member in tar.getmembers():
-                if member.isfile():
-                    file_bytes = tar.extractfile(member).read()
-                    file_name = member.name
+        :param file_path: The path to the Zarr file from which the data will be read.
+        :type file_path: str
+        :return: An instance of the MicroseismicDataExchange class with the read data.
+        :rtype: MicroseismicDataExchange
+        """
+        asdf_handler = ASDFHandler(file_path)
+        stream = asdf_handler.get_stream()
+        catalog = asdf_handler.get_catalog()
+        inventory = asdf_handler.get_inventory()
 
-                    if file_name == 'catalog.xml':
-                        catalog = read_events(BytesIO(file_bytes), format='quakeml')
-                    elif file_name == 'stream.mseed':
-                        stream = read(BytesIO(file_bytes), format='MSEED')
-                    elif file_name == 'inventory.xml':
-                        with tempfile.NamedTemporaryFile(delete=True) as tmpfile:
-                            tmpfile.write(file_bytes)
-                            inventory = read_inventory(tmpfile.name, format='stationxml')
+        return cls(stream=stream, catalog=catalog, inventory=inventory)
 
-        traces = []
-        if inventory and stream:
-            for station in inventory[0].stations:
-                st2 = stream.select(station=station.alternate_code)
-                for tr in st2:
-                    tr.stats.station = station.code
-                    tr.stats.network = inventory[0].code
-                    traces.append(tr)
 
-        out_stream = Stream(traces=traces)
+class ASDFHandler:
+    def __init__(self, asdf_file_path):
+        """
+        Initialize the ASDFHandler with a given ASDF file path.
+        :param asdf_file_path: Path to the ASDF file.
+        """
+        self.asdf_file_path = asdf_file_path
+        self.ds = pyasdf.ASDFDataSet(self.asdf_file_path, mode='a')
 
-        return cls(out_stream, catalog, inventory)
+    def add_catalog(self, catalog):
+        """
+        Add a seismic catalog to the ASDF dataset.
+        :param catalog: ObsPy Catalog object
+        """
+        self.ds.add_quakeml(catalog)
+
+    def get_catalog(self):
+        """
+        Retrieve the seismic catalog from the ASDF dataset.
+        :return: ObsPy Catalog object
+        """
+        return self.ds.events
+
+    def add_inventory(self, inventory):
+        """
+        Add a seismic inventory to the ASDF dataset.
+        :param inventory: ObsPy Inventory object
+        """
+        self.ds.add_stationxml(inventory)
+
+    def get_inventory(self):
+        """
+        Retrieve the seismic inventory from the ASDF dataset.
+        :return: ObsPy Inventory object
+        """
+        return self.ds.waveforms[self.ds.waveforms.list()[0]].StationXML
+
+    def add_waveforms(self, stream, tag):
+        """
+        Add a seismic stream to the ASDF dataset.
+        :param stream: ObsPy Stream object
+        :param tag: Tag describing the waveforms
+        """
+        for tr in stream:
+            self.ds.add_waveforms(tr, tag)
+
+    def get_waveforms(self, network, station, location, channel, starttime, endtime,
+                      tag):
+        """
+        Retrieve specific waveforms from the ASDF dataset.
+        :return: ObsPy Stream object
+        """
+        return self.ds.get_waveforms(network, station, location, channel, starttime,
+                                     endtime, tag=tag)
+
+# Note: Other functions (e.g., select_traces) can be added as needed. However, with ASDF and ObsPy's capabilities,
+# the need for manual traversal, as seen in the Zarr example, is greatly reduced.
 
 
 def read_mde(file_path):
     return MicroseismicDataExchange.read(file_path)
+
+
+def stream_to_zarr_group(stream, zarr_group_path):
+    """
+    Converts an ObsPy/uQuake stream to a Zarr group.
+    Each trace is stored as a separate Zarr array with its associated metadata.
+    :param stream: ObsPy/uQuake Stream object
+    :param zarr_group_path: Path to create/save the Zarr group
+    """
+
+    # Create or open a Zarr group
+    root_group = zarr.open_group(zarr_group_path, mode='a')
+
+    for tr in stream:
+        # Get metadata values
+        network = tr.stats.network_code
+        station = tr.stats.station_code
+        location = tr.stats.location_code
+        channel = tr.stats.channel_code
+
+        # Create nested Zarr groups and dataset following the hierarchy
+        network_group = root_group.require_group(network)
+        station_group = network_group.require_group(station)
+        location_group = station_group.require_group(location)
+        arr = location_group.create_dataset(channel, data=tr.data,
+                                            shape=(len(tr.data),),
+                                            dtype='float32', overwrite=True)
+
+        # Store selected stats as Zarr attributes
+        for key in ['network_code', 'station_code', 'location_code',
+                    'channel_code', 'sampling_rate', 'starttime', 'calib', 'resource_id']:
+            # Convert non-string objects to strings for easier storage and retrieval
+            arr.attrs[key] = str(tr.stats[key])
+
 
 
 def validate_mde(filepath: str) -> dict:

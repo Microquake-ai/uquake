@@ -23,9 +23,10 @@ pyproj = "^3.2.1"
 tqdm = "^4.62.3"
 scikit-fmm = "^2022.3.26"
 future = "^0.18.2"
-pytest = "^7.3.1"
 pytest-asyncio = "^0.21.0"
 pyproject-toml = "^0.0.10"
+pytest = "^7.4.2"
+pyasdf = "^0.8.1"
 
 [tool.poetry.dev-dependencies]
 ipdb = "^0.13.9"
