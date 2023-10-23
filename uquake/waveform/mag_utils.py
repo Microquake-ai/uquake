@@ -1,3 +1,18 @@
+# Copyright (C) 2023, Jean-Philippe Mercier
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 # import warnings
 # warnings.simplefilter("ignore", UserWarning)
 # warnings.simplefilter("ignore")
@@ -55,7 +70,7 @@ degs2rad = np.pi / 180.
 def double_couple_rad_pat(takeoff_angle, takeoff_azimuth, strike, dip, rake,
                           phase='P'):
     """
-    Return the radiation pattern value at the takeoff point (angle, azimuth) 
+    Return the radiation pattern value at the takeoff point (angle, azimuth)
         for a specified double couple source
         see Aki & Richards (4.89) - (4.91)
     All input angles in degrees

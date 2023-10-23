@@ -1,3 +1,18 @@
+# Copyright (C) 2023, Jean-Philippe Mercier
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 # -*- coding: utf-8 -*-
 # ------------------------------------------------------------------
 # Filename: inventory.py
@@ -954,12 +969,12 @@ def load_from_excel(file_name) -> Inventory:
     # So likely this will raise an error if/when someone changes the value in
     # Networks.contact_phone
     """
-    PhoneNumber(self, area_code, phone_number, country_code=None, 
+    PhoneNumber(self, area_code, phone_number, country_code=None,
     description=None):
         :type area_code: int
         :param area_code: The area code.
         :type phone_number: str
-        :param phone_number: The phone number minus the country and 
+        :param phone_number: The phone number minus the country and
         area code. Must be in the form "[0-9]+-[0-9]+", e.g. 1234-5678.
         :type country_code: int, optional
         :param country_code: The country code.

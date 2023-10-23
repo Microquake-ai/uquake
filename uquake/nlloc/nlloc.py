@@ -1,3 +1,18 @@
+# Copyright (C) 2023, Jean-Philippe Mercier
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 # -*- coding: utf-8 -*-
 # ------------------------------------------------------------------
 # Filename: core.py
@@ -979,11 +994,11 @@ class Srces:
                     f'0.00\n'
 
         return line
-    
+
     def __iter__(self):
         self.__i__ = 0
         return self
-    
+
     def __next__(self):
         if self.__i__ < len(self):
             location = self.locations[self.__i__]
@@ -991,7 +1006,7 @@ class Srces:
             return location
         else:
             raise StopIteration
-    
+
     def __len__(self):
         return len(self.locations)
 
