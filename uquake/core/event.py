@@ -25,13 +25,13 @@ import numpy as np
 import obspy.core.event as obsevent
 from obspy.core.event import *
 from obspy.core.util import AttribDict
+from obspy.core.event import ResourceIdentifier
 from copy import deepcopy
 from base64 import b64encode, b64decode
-from io import BytesIO
 import pickle
 from uquake.waveform.mag_utils import calc_static_stress_drop
-from .logging import logger
 from pathlib import Path
+from uquake.core.coordinates import Coordinates, CoordinateSystem
 
 debug = False
 
@@ -280,37 +280,46 @@ class Event(obsevent.Event):
 
 class Origin(obsevent.Origin):
     __doc__ = obsevent.Origin.__doc__.replace('obspy', 'uquake')
-    extra_keys = ['x', 'y', 'z', 'x_error', 'y_error', 'z_error', 'scatter',
-                  '__encoded_rays__', 'author']
+    extra_keys = ['scatter', '__encoded_rays__', '__cartesian_coordinates__', 'author']
 
-    def __init__(self, obspy_obj=None, **kwargs):
+    def __init__(self, coordinates=None, rays=[], statters=[], obspy_obj=None, **kwargs):
+
         _init_handler(self, obspy_obj, **kwargs)
+
+        if coordinates is not None:
+            self.coordinates = coordinates
+        if rays:
+            self.rays = rays
 
     def __setattr__(self, name, value):
 
         if name == 'rays':
-            self.__encoded_rays__ = self.__encode_rays__(self, value)
+            self.__encoded_rays__ = self.__encode_rays__(value)
         # elif name == 'encoded_rays':
         #     self.__encoded_rays__ = value
+        elif name == 'coordinates':
+            self.__cartesian_coordinates__ = self.__encode_coordinates__(value)
         else:
             _set_attr_handler(self, name, value)
 
     def __getattr__(self, item):
         if item == 'rays':
             try:
-                return self.__decode_rays__(self)
+                return self.__decode_rays__()
             except pickle.UnpicklingError:
                 self.__encoded_rays__ = eval(self.__encoded_rays__)
-                return self.__decode_rays__(self)
+                return self.__decode_rays__()
+
+        elif item == 'coordinates':
+            return self.__decode_coordinates__()
 
         else:
             return self.__dict__[item]
 
     @staticmethod
-    def __encode_rays__(self, rays):
+    def __encode_rays__(rays):
         return b64encode(pickle.dumps(rays))
 
-    @staticmethod
     def __decode_rays__(self):
         if self.__encoded_rays__ is None:
             return
@@ -319,6 +328,20 @@ class Origin(obsevent.Origin):
         except Exception as e:
             self.__encoded_rays__ = eval(self.__encoded_rays__)
             return pickle.loads(b64decode(self.__encoded_rays__))
+
+    @staticmethod
+    def __encode_coordinates__(value):
+        if not isinstance(value, Coordinates):
+            raise TypeError(f'the value provided must be of instance '
+                            f'{type(Coordinates)}')
+
+        return value.to_json()
+
+    def __decode_coordinates__(self):
+        if self.__cartesian_coordinates__ is None:
+            return
+        else:
+            return Coordinates.from_json(self.__cartesian_coordinates__)
 
     def get_arrival_id(self, phase, station_code):
         arrival_id = None
@@ -345,6 +368,46 @@ class Origin(obsevent.Origin):
     @property
     def loc(self):
         return np.array([self.x, self.y, self.z])
+
+    @property
+    def x(self):
+        return self.coordinates.x
+
+    @property
+    def y(self):
+        return self.coordinates.y
+
+    @property
+    def z(self):
+        return self.coordinates.z
+
+    @property
+    def easting(self):
+        return self.coordinates.easting
+
+    @property
+    def northing(self):
+        return self.coordinates.northing
+
+    @property
+    def down(self):
+        return self.coordinates.down
+
+    @property
+    def depth(self):
+        return self.coordinates.down
+
+    @property
+    def up(self):
+        return self.coordinates.up
+
+    @property
+    def elevation(self):
+        return self.coordinates.up
+
+    @property
+    def coordinate_system(self):
+        return self.coordinates.coordinate_system
 
     @property
     def location_uncertainty(self):
@@ -914,39 +977,50 @@ class RayCollection:
 
 
 class Ray(object):
+    """
+    Initializes a Ray object that represents a seismic raypath in a 3D medium.
 
-    def __init__(self, nodes: list = [], site_code: str = None,
+    :param nodes: List of nodes defining the raypath geometry. Default is an empty list.
+    :type nodes: list, optional
+    :param waveform_id: Identifier for the associated waveform. Default is an empty
+    WaveformStreamID.
+    :type waveform_id: WaveformStreamID, optional
+    :param arrival_id: Identifier for the associated seismic arrival. Default is None.
+    :type arrival_id: ResourceIdentifier, optional
+    :param phase: Type of seismic wave, either "P" for primary or "S" for secondary.
+    Default is None.
+    :type phase: str, optional
+    :param travel_time: Travel time from the source to the observation site, in seconds.
+    Default is None.
+    :type travel_time: float, optional
+    :param earth_model_id: Identifier for the Earth model used in ray tracing. Default is
+    None.
+    :type earth_model_id: ResourceIdentifier, optional
+    :param coordinate_system: Coordinate system in which the ray nodes are defined.
+    Default North East Down (NED).
+    :type coordinate_system: CoordinateSystem, optional
+    """
+
+    def __init__(self, nodes: list = [],
+                 waveform_id: WaveformStreamID = WaveformStreamID(),
                  arrival_id: ResourceIdentifier = None,
-                 phase: str = None, azimuth: float = None,
-                 takeoff_angle: float = None,
+                 phase: str = None,
                  travel_time: float = None,
+                 takeoff_angle: float = None,
+                 azimuth: float = None,
                  earth_model_id: ResourceIdentifier = None,
-                 network: str = None):
-        """
-        :param nodes: ray nodes
-        :param site_code: site code
-        :param arrival_id: the ResourceIdentifier of the arrival associated to
-        the ray
-        :param phase: seismic phase ("P" or "S")
-        :param azimuth: Azimuth in degrees
-        :param takeoff_angle: takeoff angle in degrees
-        :param travel_time: travel time between the source and the site in
-        second
-        :param earth_model_id: velocity model ResourceIdentifier
-        :param network:
-        :type network: str
-        """
+                 coordinate_system: CoordinateSystem = CoordinateSystem):
 
         self.nodes = np.array(nodes)
-        self.site_code = site_code
+        self.waveform_id = waveform_id
         self.arrival_id = arrival_id
         self.phase = phase
-        self.azimuth = azimuth
-        self.takeoff_angle = takeoff_angle
         self.travel_time = travel_time
         self.resource_id = obsevent.ResourceIdentifier()
         self.earth_model_id = earth_model_id
-        self.network = network
+        self.coordinate_system = coordinate_system
+        self.takeoff_angle = takeoff_angle
+        self.azimuth = azimuth
 
     def __setattr__(self, key, value):
         if key == 'phase':
@@ -970,33 +1044,57 @@ class Ray(object):
         return length
 
     @property
-    def baz(self):
-        # back_azimuth
-        baz = None
-        if len(self.nodes) > 2:
-            v = self.nodes[-2] - self.nodes[-1]
-            baz = np.arctan2(v[0], v[1]) * 180 / np.pi
-        return baz
+    def toa(self):
+        return self.takeoff_angle
+
+    @property
+    def az(self):
+        return self.azimuth
+
+    @property
+    def site_code(self):
+        return self.waveform_id.site_code if self.waveform_id is not None else None
 
     @property
     def station(self):
-        return self.site_code.split('.')[0]
+        return self.waveform_id.station_code
 
     @property
     def location(self):
-        return self.site_code.split('.')[1]
+        return self.waveform_id.location_code
+
+    @property
+    def network(self):
+        return self.waveform_id.network_code
 
     @property
     def back_azimuth(self):
         self.baz
 
+    def _vector(self, index1, index2):
+        """Get the vector between two nodes based on coordinate system."""
+        v = self.nodes[index2] - self.nodes[index1]
+        if self.coordinate_system == CoordinateSystem.NED:
+            return np.array([v[0], v[1], -v[2]])
+        return v
+
+    @property
+    def baz(self):
+        """Back-azimuth in degrees."""
+        if len(self.nodes) < 2:
+            return None
+        v = self._vector(-2, -1)
+        baz = np.arctan2(v[1], v[0]) * 180 / np.pi
+        return (baz + 360) % 360
+
     @property
     def incidence_angle(self):
-        ia = None
-        if len(self.nodes) > 2:
-            v = self.nodes[-2] - self.nodes[-1]
-            h = np.sqrt(v[0] ** 2 + v[1] ** 2)
-            ia = np.arctan2(h, v[2]) * 180 / np.pi
+        """Incidence angle in degrees."""
+        if len(self.nodes) < 2:
+            return None
+        v = self._vector(-2, -1)
+        h = np.sqrt(v[0] ** 2 + v[1] ** 2)
+        ia = np.arctan2(h, v[2]) * 180 / np.pi
         return ia
 
     def to_pick(self, origin_time):

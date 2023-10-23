@@ -27,6 +27,7 @@ from obspy.core.inventory.util import (Equipment, Operator, Person,
                                        PhoneNumber, Site, _textwrap,
                                        _unified_content_strings)
 from uquake.core.util.decorator import expand_input_format_compatibility
+from uquake.core.coordinates import Coordinates
 from pathlib import Path
 
 from .logging import logger
@@ -696,7 +697,8 @@ class Site:
 
 class Channel(inventory.Channel):
     defaults = {}
-    extra_keys = ['x', 'y', 'z', 'alternative_code', 'active', 'oriented']
+    extra_keys = ['x', 'y', 'z', 'alternative_code', 'active', 'oriented',
+                  '__cartesian_coordinates__']
 
     __doc__ = inventory.Channel.__doc__.replace('obspy', ns)
 
@@ -761,10 +763,22 @@ class Channel(inventory.Channel):
 
         return cha
 
+    def __getattr__(self, item):
+
+        if item == 'coordinates':
+            return self.__decode_coordinates__()
+
+        else:
+            return self.__dict__[item]
+
     def __setattr__(self, key, value):
         if key in self.extra_keys:
+            ### make modification here.
             if not hasattr(self, 'extra'):
                 self.extra = {}
+
+            if key == 'coordinates':
+                self.__cartesian_coordinates__ = self.__encode_coordinates__(value)
 
             self.extra[key] = {'value': value, 'namespace': ns}
         else:
@@ -791,6 +805,21 @@ class Channel(inventory.Channel):
     # Azimuth: 0.00 degrees from north, clockwise
     # Dip: 0.00 degrees down from horizontal
     # Response information available'
+
+    @staticmethod
+    def __encode_coordinates__(value):
+        if not isinstance(value, Coordinates):
+            raise TypeError(f'the value provided must be of instance '
+                            f'{type(Coordinates)}')
+
+        return value.to_json()
+
+    def __decode_coordinates__(self):
+        if self.__cartesian_coordinates__ is None:
+            return
+        else:
+            return Coordinates.from_json(self.__cartesian_coordinates__)
+
 
     def set_orientation(self, orientation_vector):
         """

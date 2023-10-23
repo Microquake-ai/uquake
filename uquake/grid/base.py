@@ -27,6 +27,11 @@ from scipy.ndimage.interpolation import map_coordinates
 from ..core.event import WaveformStreamID
 import matplotlib.pyplot as plt
 from scipy.ndimage.filters import gaussian_filter
+from typing import Union
+from uquake.core.coordinates import CoordinateSystem, Coordinates
+from typing import Union, List
+from uquake.core.inventory import Inventory, Network, Station, Location, Channel
+import random
 
 
 def read_grid(filename, format='PICKLE', **kwargs):
@@ -50,7 +55,8 @@ class Grid(object):
     """
 
     def __init__(self, data_or_dims, spacing=None, origin=None,
-                 resource_id=None, value=0):
+                 resource_id=None, value=0,
+                 coordinate_system: CoordinateSystem = CoordinateSystem()):
 
         """
         can hold both 2 and 3 dimensional grid
@@ -65,7 +71,10 @@ class Grid(object):
         :param value: value to fill the grid should dims be specified
         :type value:
         uuid4 is used to define a unique identifier.
-        :type uuid4: str
+        :param coordinate_system: Coordinate system
+        :type coordinate_system: ~uquake.core.coordinates.CoordinateSystem
+
+
         """
 
         data_or_dims = np.array(data_or_dims)
@@ -100,12 +109,17 @@ class Grid(object):
                 logger.error(f'spacing shape should be {len(self.data.shape)}')
                 raise ValueError
 
+            self.coordinate_system = coordinate_system
+
     def __hash__(self):
         return hash((tuple(self.data.ravel()), tuple(self.spacing),
                      tuple(self.shape), tuple(self.origin)))
 
     def __eq__(self, other):
         self.hash == other.hash
+
+    def __getitem__(self, item):
+        return self.data[item]
 
     @property
     def hash(self):
@@ -536,11 +550,49 @@ class Grid(object):
             plt.plot()
         plt.show()
 
-    def smooth(self, sigma: np.array, grid_space=False):
+    def smooth(self,
+               sigma: Union[np.ndarray, List[Union[int, float]], Union[int, float]],
+               grid_space: bool = False, preserve_statistic: bool = True) -> None:
+        """
+        Smooth the data using a Gaussian filter.
+
+        :param sigma: Standard deviation for the Gaussian filter.
+                      Can be a single number or a numpy array.
+        :type sigma: Union[np.ndarray, List[Union[int, float]], Union[int, float]]
+
+        :param grid_space: If True, the smoothing is performed in grid space.
+        :type grid_space: bool
+
+        :param preserve_statistic: If True, the original mean and standard deviation are preserved.
+        :type preserve_statistic: bool
+
+        :return: None
+        """
+
+        original_mean = np.mean(self.data)
+        original_std = np.std(self.data)
+
+        if isinstance(sigma, (int, float)):
+            sigma = np.array([sigma] * self.data.ndim)
+
+        if isinstance(sigma, list):
+            sigma = np.array(sigma)
+
         if not grid_space:
             sigma = sigma / self.spacing
 
-        self.data = gaussian_filter(self.data, sigma)
+        smoothed_data = gaussian_filter(self.data, sigma)
+
+        if preserve_statistic:
+            smoothed_mean = np.mean(smoothed_data)
+            smoothed_std = np.std(smoothed_data)
+
+            self.data = (smoothed_data - smoothed_mean) * (
+                        original_std / smoothed_std) + original_mean
+        else:
+            self.data = smoothed_data
+
+        return self
 
     @property
     def ndim(self):
@@ -562,6 +614,64 @@ class Grid(object):
     def corner(self):
         return np.array(self.origin) + np.array(self.shape) * \
                np.array(self.spacing)
+
+    from obspy.core.inventory import Inventory, Network, Station, Channel, Site, Location
+    from obspy.core.util import AttribDict
+    import random
+    import numpy as np
+
+    def generate_random_inventory_in_grid(self, num_station: int = 1,
+                                          ratio_uni_tri: float = 3) -> Inventory:
+        """
+        Generate a random inventory within the grid.
+
+        :param num_station: Number of stations to place.
+        :type num_station: int
+        :param ratio_uni_tri: Ratio of uniaxial to tri-axial stations.
+        :type ratio_uni_tri: float
+        :return: Generated inventory.
+        :rtype: Inventory
+        """
+
+        # Create a Network
+        network = Network(code='XX', description='Generated Network')
+
+        # Generate random points
+        points = self.generate_random_points_in_grid(n_points=num_station)
+
+        # Calculate number of uniaxial and triaxial stations based on the ratio
+
+        for i, point in enumerate(points):
+            # Create coordinates and a Station
+            coordinates = Coordinates(point[0], point[1], point[2],
+                                      coordinate_system=self.coordinate_system)
+
+            station = Station(code=f"ST{i:02d}", coordinates=coordinates,
+                              evaluation_mode='manual', evaluation_status='preliminary')
+
+            # Determine if this station should be uniaxial or triaxial
+            is_uni = random.choices([True, False], [ratio_uni_tri, 1])[0]
+
+            # Create Channel(s)
+            if is_uni:
+                channel = Channel(code="HHZ", location_code="00")
+                station.channels.append(channel)
+            else:
+                for axis in ["Z", "N", "E"]:
+                    channel = Channel(code=f"HH{axis}", location_code=f"00",
+                                      coordinates=coordinates)
+                    station.channels.append(channel)
+
+            # Append Station to Network
+            network.stations.append(station)
+
+        # Create an Inventory
+        inventory = Inventory(networks=[network])
+
+        return inventory
+
+    def generate_random_catalog_in_grid(self, num_event: int = 1):
+        pass
 
 
 def angles(travel_time_grid):
@@ -680,7 +790,7 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
     toa = travel_time_grid.to_takeoff_point(start, grid_space=False,
                                             order=interpolation_order)
 
-    ray = Ray(nodes=nodes, site_code=travel_time_grid.seed_label,
+    ray = Ray(nodes=nodes, waveform_id=travel_time_grid.waveform_id,
               arrival_id=arrival_id, phase=travel_time_grid.phase,
               azimuth=az, takeoff_angle=toa, travel_time=tt,
               earth_model_id=earth_model_id, network=network)

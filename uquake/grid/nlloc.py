@@ -34,6 +34,8 @@ import shutil
 from uquake.grid import read_grid
 from .hdf5 import H5TTable, write_hdf5
 from scipy.interpolate import interp1d
+from uquake.core.event import WaveformStreamID
+from enum import Enum
 
 __cpu_count__ = cpu_count()
 
@@ -278,7 +280,7 @@ class NLLocGrid(Grid):
                  float_type="FLOAT", model_id=None):
         """
         :param data_or_dims: data or data dimensions. If dimensions are
-        provided the a homogeneous grid is created with value=value
+        provided a homogeneous grid is created with value=value
         :param origin: origin of the grid
         :type origin: list
         :param spacing: the spacing between grid nodes
@@ -929,23 +931,35 @@ class VelocityGridEnsemble:
         return self['s']
 
 
+class SeededGridType(Enum):
+    time: 'TIME'
+    time2d: 'TIME2D'
+    angle: 'ANGLE'
+    angle2d: 'ANGLE2D'
+
+    def __str__(self):
+        return str(self.value)
+
+
 class SeededGrid(NLLocGrid):
     """
     container for seeded grids (e.g., travel time, azimuth and take off angle)
     """
     __valid_grid_type__ = ['TIME', 'TIME2D', 'ANGLE', 'ANGLE2D']
 
-    def __init__(self, network_code, data_or_dims, origin, spacing, seed,
-                 seed_label, phase='P', value=0,
+    def __init__(self, waveform_id: WaveformStreamID, data_or_dims, origin,
+                 spacing, seed, seed_label=None, phase='P', value=0,
                  grid_units=__default_grid_units__,
                  grid_type='TIME', float_type="FLOAT", model_id=None):
         self.seed = seed
-        self.seed_label = seed_label
-        self.network_code = network_code
 
-        if grid_type not in self.__valid_grid_type__:
-            raise ValueError()
-        self.grid_type = grid_type
+        if seed_label is None:
+            seed_label = waveform_id.site_code
+        self.seed_label = seed_label
+
+        self.waveform_id = waveform_id
+
+        self.grid_type = SeededGridType(grid_type)
 
         super().__init__(data_or_dims, origin, spacing,
                          phase=phase, value=value,
@@ -960,6 +974,22 @@ class SeededGrid(NLLocGrid):
                f'    seed label    : {self.seed_label}\n' \
                f'    seed location : {self.seed}'
         return line
+
+    @property
+    def network_code(self):
+        return self.waveform_id.network_code
+
+    @property
+    def station_code(self):
+        return self.waveform_id.station_code
+
+    @property
+    def location_code(self):
+        return self.waveform_id.location_code
+
+    @property
+    def site_code(self):
+        return self.waveform_id.site_code
 
     @classmethod
     def get_base_name(cls, network_code, phase, seed_label, grid_type):
@@ -987,17 +1017,21 @@ class SeededGrid(NLLocGrid):
 
 
 class TTGrid(SeededGrid):
-    def __init__(self, network_code, data_or_dims, origin, spacing, seed,
-                 seed_label, phase='P', value=0, float_type="FLOAT",
+    def __init__(self, waveform_id: WaveformStreamID, data_or_dims, origin,
+                 spacing, seed, seed_label=None, phase='P', value=0, float_type="FLOAT",
                  model_id=None, grid_units='METER'):
-        super().__init__(network_code, data_or_dims, origin, spacing, seed,
-                         seed_label, phase=phase, value=value,
+
+        # network_code = self.waveform_stream_id.network_code
+        super().__init__(waveform_id, data_or_dims, origin, spacing, seed,
+                         seed_label=seed_label, phase=phase, value=value,
                          grid_type='TIME', float_type=float_type,
                          model_id=model_id, grid_units=grid_units)
 
+        self.waveform_stream_id = waveform_stream_id
+
     def to_azimuth(self):
         """
-        This function calculate the take off angle and azimuth for every
+        This function calculate the takeoff angle and azimuth for every
         grid point given a travel time grid calculated using an Eikonal solver
         :return: azimuth and takeoff angles grids
         .. Note: The convention for the takeoff angle is that 0 degree is down.
@@ -1009,92 +1043,92 @@ class TTGrid(SeededGrid):
         azimuth = np.arctan2(gds[0], gds[1]) * 180 / np.pi
         # azimuth is zero northwards
 
-        return AngleGrid(self.network_code, azimuth, self.origin, self.spacing,
-                         self.seed, self.seed_label, 'AZIMUTH',
+        return AngleGrid(self.waveform_id, azimuth, self.origin, self.spacing,
+                         'AZIMUTH', self.seed, seed_label=self.seed_label,
                          phase=self.phase, float_type=self.float_type,
                          model_id=self.model_id, grid_units=self.grid_units)
 
-    def to_takeoff(self):
-        gds_tmp = np.gradient(self.data)
-        gds = [-gd for gd in gds_tmp]
+        def to_takeoff(self):
+            gds_tmp = np.gradient(self.data)
+            gds = [-gd for gd in gds_tmp]
 
-        hor = np.sqrt(gds[0] ** 2 + gds[1] ** 2)
-        takeoff = np.arctan2(hor, -gds[2]) * 180 / np.pi
-        # takeoff is zero pointing down
-        return AngleGrid(self.network_code, takeoff, self.origin, self.spacing,
-                         self.seed, self.seed_label, 'TAKEOFF',
-                         phase=self.phase, float_type=self.float_type,
-                         model_id=self.model_id, grid_units=self.grid_units)
+            hor = np.sqrt(gds[0] ** 2 + gds[1] ** 2)
+            takeoff = np.arctan2(hor, -gds[2]) * 180 / np.pi
+            # takeoff is zero pointing down
+            return AngleGrid(self.network_code, takeoff, self.origin, self.spacing,
+                             'TAKEOFF', self.seed, seed_label=self.seed_label,
+                             phase=self.phase, float_type=self.float_type,
+                             model_id=self.model_id, grid_units=self.grid_units)
 
-    def to_azimuth_point(self, coord, grid_space=False, mode='nearest',
-                         order=1, **kwargs):
-        """
-        calculate the azimuth angle at a particular point on the grid for a
-        given seed location
-        :param coord: coordinates at which to calculate the takeoff angle
-        :param grid_space: true if the coordinates are expressed in
-        grid space (indices can be fractional) as opposed to model space
-        (x, y, z)
-        :param mode: interpolation mode
-        :param order: interpolation order
-        :return: takeoff angle at the location coord
-        """
+        def to_azimuth_point(self, coord, grid_space=False, mode='nearest',
+                             order=1, **kwargs):
+            """
+            calculate the azimuth angle at a particular point on the grid for a
+            given seed location
+            :param coord: coordinates at which to calculate the takeoff angle
+            :param grid_space: true if the coordinates are expressed in
+            grid space (indices can be fractional) as opposed to model space
+            (x, y, z)
+            :param mode: interpolation mode
+            :param order: interpolation order
+            :return: takeoff angle at the location coord
+            """
 
-        return self.to_azimuth().interpolate(coord,
-                                             grid_space=grid_space,
-                                             mode=mode, order=order,
-                                             **kwargs)[0]
+            return self.to_azimuth().interpolate(coord,
+                                                 grid_space=grid_space,
+                                                 mode=mode, order=order,
+                                                 **kwargs)[0]
 
-    def to_takeoff_point(self, coord, grid_space=False, mode='nearest',
-                         order=1, **kwargs):
-        """
-        calculate the takeoff angle at a particular point on the grid for a
-        given seed location
-        :param coord: coordinates at which to calculate the takeoff angle
-        :param grid_space: true if the coordinates are expressed in
-        grid space (indices can be fractional) as opposed to model space
-        (x, y, z)
-        :param mode: interpolation mode
-        :param order: interpolation order
-        :return: takeoff angle at the location coord
-        """
-        return self.to_takeoff().interpolate(coord,
-                                             grid_space=grid_space,
-                                             mode=mode, order=order,
-                                             **kwargs)[0]
+        def to_takeoff_point(self, coord, grid_space=False, mode='nearest',
+                             order=1, **kwargs):
+            """
+            calculate the takeoff angle at a particular point on the grid for a
+            given seed location
+            :param coord: coordinates at which to calculate the takeoff angle
+            :param grid_space: true if the coordinates are expressed in
+            grid space (indices can be fractional) as opposed to model space
+            (x, y, z)
+            :param mode: interpolation mode
+            :param order: interpolation order
+            :return: takeoff angle at the location coord
+            """
+            return self.to_takeoff().interpolate(coord,
+                                                 grid_space=grid_space,
+                                                 mode=mode, order=order,
+                                                 **kwargs)[0]
 
-    def ray_tracer(self, start, grid_space=False, max_iter=1000,
-                   arrival_id=None):
-        """
-        This function calculates the ray between a starting point (start) and an
-        end point, which should be the seed of the travel_time grid, using the
-        gradient descent method.
-        :param start: the starting point (usually event location)
-        :type start: tuple, list or numpy.array
-        :param grid_space: true if the coordinates are expressed in
-        grid space (indices can be fractional) as opposed to model space
-        (x, y, z)
-        :param max_iter: maximum number of iteration
-        :param arrival_id: id of the arrival associated to the ray if
-        applicable
-        :rtype: numpy.array
-        """
+        def ray_tracer(self, start, grid_space=False, max_iter=1000,
+                       arrival_id=None):
+            """
+            This function calculates the ray between a starting point (start) and an
+            end point, which should be the seed of the travel_time grid, using the
+            gradient descent method.
+            :param start: the starting point (usually event location)
+            :type start: tuple, list or numpy.array
+            :param grid_space: true if the coordinates are expressed in
+            grid space (indices can be fractional) as opposed to model space
+            (x, y, z)
+            :param max_iter: maximum number of iteration
+            :param arrival_id: id of the arrival associated to the ray if
+            applicable
+            :rtype: numpy.array
+            """
 
-        return ray_tracer(self, start, grid_space=grid_space,
-                          max_iter=max_iter, arrival_id=arrival_id,
-                          earth_model_id=self.model_id,
-                          network=self.network_code)
+            return ray_tracer(self, start, grid_space=grid_space,
+                              max_iter=max_iter, arrival_id=arrival_id,
+                              earth_model_id=self.model_id,
+                              network=self.network_code)
 
-    @classmethod
-    def from_velocity(cls, seed, seed_label, velocity_grid):
-        return velocity_grid.to_time(seed, seed_label)
+        @classmethod
+        def from_velocity(cls, seed, seed_label, velocity_grid):
+            return velocity_grid.to_time(seed, seed_label)
 
-    def write(self, path='.'):
-        return super().write(path=path)
+        def write(self, path='.'):
+            return super().write(path=path)
 
-    @property
-    def site(self):
-        return self.seed_label
+        @property
+        def site(self):
+            return self.seed_label
 
 
 class TravelTimeEnsemble:
@@ -1413,12 +1447,12 @@ class TravelTimeEnsemble:
 
 
 class AngleGrid(SeededGrid):
-    def __init__(self, network_code, data_or_dims, origin, spacing, seed,
-                 seed_label, angle_type, phase='P', value=0,
+    def __init__(self, waveform_id: WaveformStreamID, data_or_dims, origin, spacing,
+                 angle_type, seed, seed_label=None, phase='P', value=0,
                  float_type="FLOAT", model_id=None, grid_units='degrees'):
         self.angle_type = angle_type
-        super().__init__(network_code, data_or_dims, origin, spacing, seed,
-                         seed_label, phase=phase, value=value,
+        super().__init__(waveform_id, data_or_dims, origin, spacing, seed,
+                         seed_label=seed_label, phase=phase, value=value,
                          grid_type='ANGLE', float_type=float_type,
                          model_id=model_id, grid_units=grid_units)
 

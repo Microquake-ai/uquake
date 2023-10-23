@@ -3,6 +3,9 @@ from uquake.core.util.requests import download_file_from_url
 from uquake import read, read_events, read_inventory
 import os
 from uquake.core.mde import MicroseismicDataExchange
+from uquake.core.stream import Stream, Trace
+import string
+import random
 
 
 class MicroseismicDataExchangeTest(unittest.TestCase):
@@ -26,18 +29,26 @@ class MicroseismicDataExchangeTest(unittest.TestCase):
         self.inv = read_inventory(self.inventory_bytes)
 
     def test_microseismic_data_exchange(self):
+        traces = []
 
+        for tr in self.st:
+            # Assign an arbitrary station name to the trace
+            tr.stats.station = ''.join(random.choice(
+                string.ascii_uppercase + string.digits) for _ in range(10))
 
-        exchange_object = MicroseismicDataExchange(stream=self.st, catalog=self.cat,
+            traces.append(tr)
+        st = Stream(traces=traces)
+
+        exchange_object = MicroseismicDataExchange(stream=st, catalog=self.cat,
                                                    inventory=self.inv)
         test_file_path = "test.asdf"
         exchange_object.write(test_file_path, 'tag')
 
         # Uncomment the following lines as per your requirement
-        # read_back_object = MicroseismicDataExchange.read(test_file_path)
-        # self.assertEqual(self.st, read_back_object.stream)
-        # self.assertEqual(self.cat, read_back_object.catalog)
-        # self.assertEqual(self.inv, read_back_object.inventory)
+        read_back_object = MicroseismicDataExchange.read(test_file_path)
+        self.assertEqual(st, read_back_object.stream)
+        self.assertEqual(self.cat, read_back_object.catalog)
+        self.assertEqual(self.inv, read_back_object.inventory)
 
         os.remove(test_file_path)
 

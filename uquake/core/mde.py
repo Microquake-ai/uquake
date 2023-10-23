@@ -62,7 +62,7 @@ class MicroseismicDataExchange(object):
         :rtype: MicroseismicDataExchange
         """
         asdf_handler = ASDFHandler(file_path)
-        stream = asdf_handler.get_stream()
+        stream = asdf_handler.get_all_waveforms()
         catalog = asdf_handler.get_catalog()
         inventory = asdf_handler.get_inventory()
 
@@ -90,7 +90,7 @@ class ASDFHandler:
         Retrieve the seismic catalog from the ASDF dataset.
         :return: ObsPy Catalog object
         """
-        return self.ds.events
+        return Catalog(self.ds.events)
 
     def add_inventory(self, inventory):
         """
@@ -102,9 +102,23 @@ class ASDFHandler:
     def get_inventory(self):
         """
         Retrieve the seismic inventory from the ASDF dataset.
-        :return: ObsPy Inventory object
+        :return: uQuake Inventory object
         """
-        return self.ds.waveforms[self.ds.waveforms.list()[0]].StationXML
+
+        inventories = []
+        for station_name in self.ds.waveforms.list():
+            inv = self.ds.waveforms[station_name].StationXML
+            if inv:
+                inventories.append(inv)
+
+        if not inventories:
+            return None
+
+        merged_inv = inventories[0]
+        for inv in inventories[1:]:
+            merged_inv += inv
+
+        return Inventory(merged_inv)
 
     def add_waveforms(self, stream, tag):
         """
@@ -115,14 +129,32 @@ class ASDFHandler:
         for tr in stream:
             self.ds.add_waveforms(tr, tag)
 
-    def get_waveforms(self, network, station, location, channel, starttime, endtime,
-                      tag):
+    def get_waveforms(self, network=None, station=None, location=None, channel=None,
+                      starttime=None, endtime=None):
+
+        network = network or "*"
+        station = station or "*"
+        location = location or "*"
+        channel = channel or "*"
+
+        return Stream(self.ds.get_waveforms(network, station, location, channel,
+                                            starttime=starttime, endtime=endtime))
+
+    def get_all_waveforms(self):
         """
         Retrieve specific waveforms from the ASDF dataset.
         :return: ObsPy Stream object
         """
-        return self.ds.get_waveforms(network, station, location, channel, starttime,
-                                     endtime, tag=tag)
+
+        traces = []
+        for net in self.ds.waveforms:
+            for sta in net.list():
+                st = net[sta]
+                for tr in st:
+                    traces.append(tr)
+
+        return Stream(traces=traces)
+
 
 # Note: Other functions (e.g., select_traces) can be added as needed. However, with ASDF and ObsPy's capabilities,
 # the need for manual traversal, as seen in the Zarr example, is greatly reduced.
