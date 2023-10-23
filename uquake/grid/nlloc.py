@@ -1,3 +1,18 @@
+# Copyright (C) 2023, Jean-Philippe Mercier
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 # -*- coding: utf-8 -*-
 # ------------------------------------------------------------------
 # Filename: <filename>
@@ -1413,7 +1428,7 @@ class TravelTimeEnsemble:
             seeds.append(self.select(seed_labels=seed_label)[0].seed)
 
         return np.array(seeds)
-    
+
     @property
     def seed_labels(self):
         seed_labels = []
@@ -1440,7 +1455,7 @@ class TravelTimeEnsemble:
 
     def write_hdf5(self, file_name):
         write_hdf5(file_name, self)
-        
+
     def to_hdf5(self, file_name):
         self.write_hdf5(file_name)
         return H5TTable(file_name)
