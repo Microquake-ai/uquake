@@ -58,8 +58,8 @@ class Stream(obsstream.Stream, ABC):
         return composite_traces(self)
 
     def select(self, **kwargs):
-        if 'site' in kwargs.keys():
-            trs = [tr for tr in self.traces if tr.stats.site == kwargs['site']]
+        if 'location' in kwargs.keys():
+            trs = [tr for tr in self.traces if tr.stats.location == kwargs['location']]
         else:
             return super().select(**kwargs)
 
@@ -67,7 +67,7 @@ class Stream(obsstream.Stream, ABC):
 
         kwargs_tmp = {}
         for key in kwargs.keys():
-            if key == 'site':
+            if key == 'location':
                 continue
             kwargs_tmp[key] = kwargs[key]
 
@@ -151,14 +151,14 @@ class Stream(obsstream.Stream, ABC):
 
     @property
     def unique_sites(self):
-        return np.sort(np.unique([tr.stats.site for tr in self]))
+        return np.sort(np.unique([tr.stats.location for tr in self]))
 
     @property
     def stations(self):
         return self.unique_stations
 
     @property
-    def sites(self):
+    def locations(self):
         return self.unique_sites
 
     def zpad_names(self):
@@ -170,12 +170,12 @@ class Stream(obsstream.Stream, ABC):
         for tr in self.traces:
             tr.stats.station = tr.stats.station.lstrip('0')
 
-    def distance_time_plot(self, event, site, scale=20, freq_min=100,
+    def distance_time_plot(self, event, location, scale=20, freq_min=100,
                            freq_max=1000):
         """
         plot traces that have
         :param event: event object
-        :param site: site object
+        :param location: location object
         :param scale: vertical size of pick markers and waveform
         :return: plot handler
         """
@@ -219,7 +219,7 @@ class Stream(obsstream.Stream, ABC):
         for tr in st:
             station_code = tr.stats.station
             # search for arrival
-            station = site.select(station_code).stations()[0]
+            station = location.select(station_code).stations()[0]
             station_location = station.loc
             distance = np.linalg.norm(event_location - station_location)
             p_pick = None
@@ -283,7 +283,7 @@ class Stream(obsstream.Stream, ABC):
 # from uquake.core import read, read_events
 # from spp.utils import application
 # app = application.Application()
-# site = app.get_stations()
+# location = app.get_stations()
 # st = read('2018-11-08T10:21:49.898496Z.mseed', format='mseed')
 # cat = read_events('test.xml')
 # evt = cat[0]
@@ -410,8 +410,8 @@ def composite_traces(st_in):
     st = st_in.copy()
     st.detrend('demean')
 
-    for site in st.unique_sites:
-        trs = st.select(site=site)
+    for location in st.unique_sites:
+        trs = st.select(location=location)
 
         if len(trs) == 1:
             trsout.append(trs[0].copy())

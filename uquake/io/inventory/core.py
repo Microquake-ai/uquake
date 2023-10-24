@@ -1,4 +1,4 @@
-from ...core.inventory import (Inventory, Network, Station, Site, Channel,
+from ...core.inventory import (Inventory, Network, Station, Location, Channel,
                                    geophone_response, SystemResponse)
 from ...core import UTCDateTime
 from datetime import datetime

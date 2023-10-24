@@ -166,13 +166,13 @@ class Grid2Time:
 
             ctrl.write(f'GTMODE GRID3D {angle_mode}\n')
 
-            for site in self.inventory.sites:
-                # test if site name is shorter than 6 characters
+            for location in self.inventory.locations:
+                # test if location name is shorter than 6 characters
 
-                out_line = f'GTSRCE {site.code} XYZ ' \
-                           f'{site.x / 1000:>10.6f} ' \
-                           f'{site.y / 1000 :>10.6f} ' \
-                           f'{site.z / 1000 :>10.6f} ' \
+                out_line = f'GTSRCE {location.code} XYZ ' \
+                           f'{location.x / 1000:>10.6f} ' \
+                           f'{location.y / 1000 :>10.6f} ' \
+                           f'{location.z / 1000 :>10.6f} ' \
                            f'0.00\n'
 
                 ctrl.write(out_line)
@@ -655,7 +655,7 @@ class LocationMethod:
 
 
 class SimpleArrival:
-    def __init__(self, time: UTCDateTime, site: str, phase: str,
+    def __init__(self, time: UTCDateTime, location: str, phase: str,
                  polarity: str):
         pass
 
@@ -721,10 +721,10 @@ class Observations:
         picks = []
         location_code = 0
         for phase in travel_times.keys():
-            for site in travel_times[phase].keys():
-                time = UTCDateTime.now() + travel_times[phase][site]
-                waveform_id = WaveformStreamID(station_code=site[:-2],
-                                               location_code=site[-2:],
+            for location in travel_times[phase].keys():
+                time = UTCDateTime.now() + travel_times[phase][location]
+                waveform_id = WaveformStreamID(station_code=location[:-2],
+                                               location_code=location[-2:],
                                                channel_code='BHZ')
 
                 pk = Pick(time=time, phase_hint=phase, waveform_id=waveform_id,
@@ -742,7 +742,7 @@ class Observations:
             if pick.evaluation_status == 'rejected':
                 continue
 
-            site = pick.site
+            location = pick.location
             instrument_identification = pick.waveform_id.channel_code[0:2]
             component = pick.waveform_id.channel_code[-1]
             phase_onset = 'e' if pick.onset in ['emergent', 'questionable'] \
@@ -767,7 +767,7 @@ class Observations:
             period = -1
             phase_weight = 1
 
-            line = f'{site:<6s} {instrument_identification:<4s} ' \
+            line = f'{location:<6s} {instrument_identification:<4s} ' \
                    f'{component:<4s} {phase_onset:1s} ' \
                    f'{phase_descriptor:<6s} {first_motion:1s} ' \
                    f'{datetime_str} {error_type} {pick_error} ' \
@@ -859,7 +859,7 @@ class GridTimeMode:
         return f'GTMODE {self.grid_mode} {self.angle_mode}'
 
 
-class Site:
+class Location:
 
     def __init__(self, label, x, y, z, elev=None, time_correction=0):
         self.label = label
@@ -880,25 +880,25 @@ class Srces:
 
     __valid_measurement_units__ = ['METERS', 'KILOMETERS']
 
-    def __init__(self, sites=[], units='METERS'):
+    def __init__(self, locations=[], units='METERS'):
         """
         specifies a series of source location from an inventory object
-        :param sites: a list of sites containing at least the location,
-        and site label
-        :type sites: list of dictionary
+        :param locations: a list of locations containing at least the location,
+        and location label
+        :type locations: list of dictionary
 
         :Example:
 
-        >>> site = Site(label='test', x=1000, y=1000, z=1000, elev=0.0)
-        >>> sites = [site]
-        >>> srces = Srces(sites)
+        >>> location = Location(label='test', x=1000, y=1000, z=1000, elev=0.0)
+        >>> locations = [location]
+        >>> srces = Srces(locations)
 
         """
 
         validate(units, self.__valid_measurement_units__)
         self.units = units
 
-        self.sites = sites
+        self.locations = locations
 
     @classmethod
     def from_inventory(cls, inventory):
@@ -908,10 +908,10 @@ class Srces:
         :type inventory: uquake.core.inventory.Inventory
         """
 
-        sites = []
-        for site in inventory.sites:
-            sites.append(Site(site.code, site.x, site.y, site.z))
-        return cls(sites)
+        locations = []
+        for location in inventory.locations:
+            locations.append(Location(location.code, location.x, location.y, location.z))
+        return cls(locations)
 
     @classmethod
     def generate_random_srces_in_grid(cls, gd, n_srces=1, label_root='sta'):
@@ -936,26 +936,26 @@ class Srces:
         for i, point in enumerate(gd.generate_random_points_in_grid(
                 n_points=n_srces)):
             label = f'{label_root}{i:02d}'
-            site = Site(label, point[0], point[1], point[2])
-            srces.append(site)
+            location = Location(label, point[0], point[1], point[2])
+            srces.append(location)
         return cls(srces)
 
     def add_site(self, label, x, y, z, elev=None, units='METERS'):
         """
-        Add a single site to the source list
-        :param label: site label
+        Add a single location to the source list
+        :param label: location label
         :type label: str
         :param x: x location relative to geographic origin expressed
-        in the units of measurements for site/source
+        in the units of measurements for location/source
         :type x: float
         :param y: y location relative to geographic origin expressed
-        in the units of measurements for site/source
+        in the units of measurements for location/source
         :type y: float
         :param z: z location relative to geographic origin expressed
-        in the units of measurements for site/source
+        in the units of measurements for location/source
         :type z: float
         :param elev: elevation above z grid position (positive UP) in
-        kilometers for site (Default = None)
+        kilometers for location (Default = None)
         :type elev: float
         :param units: units of measurement used to express x, y, and z
         ( 'METERS' or 'KILOMETERS')
@@ -969,13 +969,13 @@ class Srces:
     def __repr__(self):
         line = ""
 
-        for site in self.sites:
-            # test if site name is shorter than 6 characters
+        for location in self.locations:
+            # test if location name is shorter than 6 characters
 
-            line += f'GTSRCE {site.label} XYZ ' \
-                    f'{site.x / 1000:>15.6f} ' \
-                    f'{site.y / 1000:>15.6f} ' \
-                    f'{site.z / 1000:>15.6f} ' \
+            line += f'GTSRCE {location.label} XYZ ' \
+                    f'{location.x / 1000:>15.6f} ' \
+                    f'{location.y / 1000:>15.6f} ' \
+                    f'{location.z / 1000:>15.6f} ' \
                     f'0.00\n'
 
         return line
@@ -986,47 +986,47 @@ class Srces:
     
     def __next__(self):
         if self.__i__ < len(self):
-            site = self.sites[self.__i__]
+            location = self.locations[self.__i__]
             self.__i__ += 1
-            return site
+            return location
         else:
             raise StopIteration
     
     def __len__(self):
-        return len(self.sites)
+        return len(self.locations)
 
     @property
     def json(self):
         dict_out = vars(self)
-        for i, site in enumerate(dict_out['sites']):
-            dict_out['sites'][i] = vars(dict_out['sites'][i])
+        for i, location in enumerate(dict_out['locations']):
+            dict_out['locations'][i] = vars(dict_out['locations'][i])
         return json.dumps(dict_out)
 
     @classmethod
     def from_json(cls, json_obj):
         obj = json.loads(json_obj)
-        sites = []
+        locations = []
         for key in obj.keys():
-            if key == 'sites':
+            if key == 'locations':
                 for site_dict in obj[key]:
-                    sites.append(Site(**site_dict))
+                    locations.append(Location(**site_dict))
 
-        obj['sites'] = sites
+        obj['locations'] = locations
 
         cls.__init__(**obj)
 
     @property
     def locs(self):
         seeds = []
-        for site in self.sites:
-            seeds.append([site.x, site.y, site.z])
+        for location in self.locations:
+            seeds.append([location.x, location.y, location.z])
         return np.array(seeds)
 
     @property
     def labels(self):
         seed_labels = []
-        for site in self.sites:
-            seed_labels.append(site.label)
+        for location in self.locations:
+            seed_labels.append(location.label)
 
         return np.array(seed_labels)
 

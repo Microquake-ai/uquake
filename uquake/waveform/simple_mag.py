@@ -1048,7 +1048,7 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
     :param cat: catalog object
     :type cat: uquake.core.event.Catalog
     :param inventory: network information (contains stations information)
-    :type inventory: uquake.station.Site
+    :type inventory: uquake.station.Location
     :param vp: P-wave velocity
     :type vp: float or uquake.core.data.Grid
     :param vs: S-wave velocity

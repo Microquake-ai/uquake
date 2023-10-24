@@ -28,7 +28,7 @@ from ..core.util.tools import copy_picks_to_dict
 from ..core import UTCDateTime
 
 
-def measure_polarity(st, catalog, site, average_time_window=1e-3,
+def measure_polarity(st, catalog, location, average_time_window=1e-3,
                      lp_filter_freq=100):
     """
     Measure the P- and S-wave polarities
@@ -36,8 +36,8 @@ def measure_polarity(st, catalog, site, average_time_window=1e-3,
     :type st: either obspy.core.Stream or uquake.core.Stream
     :param catalog: catalog object
     :type catalog: uquake.core.Catalog
-    :param site: sensor information
-    :type site: uquake.core.station.Site
+    :param location: sensor information
+    :type location: uquake.core.station.Location
     :param average_time_window: time window over which the polarity is measured (s)
     :type average_time_window: float
     :param lp_filter_freq: frequency of the low pass filter to apply for
@@ -53,12 +53,12 @@ def measure_polarity(st, catalog, site, average_time_window=1e-3,
             ch_code = pick.waveform_id.channel_code
             trs = st.select(station=sta_code, channel=ch_code)
             trs = trs.detrend('linear').detrend('demean')
-            sta = site.select(station=sta_code, channel=ch_code)
+            sta = location.select(station=sta_code, channel=ch_code)
             if not sta.networks[0].stations:
                 continue
             if (len(sta.networks) > 1) or (len(sta.networks[0].stations) > 1):
                 logger.warning("MeasurePolarity: multiple station selected "
-                               "from site. Only the first will be used")
+                               "from location. Only the first will be used")
             sta = sta.networks[0].stations[0]
             motion_type = sta.motion_type
             if motion_type == 'acceleration':
@@ -419,7 +419,7 @@ def extract_trace_segment(st: Stream, pick_time: UTCDateTime,
                           window_length: float):
     """
         Extract a fragment of trace and return the waveform in a matrix
-        :param st: waveforms recorded by a particular site
+        :param st: waveforms recorded by a particular location
         :type st: :py:class:`uquake.core.stream.Stream`
         :param pick_time: pick time
         :type pick_time: :py:class:uquake.core.UTCDateTime
@@ -452,7 +452,7 @@ def measure_linearity(st: Stream, pick_time: UTCDateTime,
                       window_length: float):
     """
     measure the linearity of the particule motion using PCA
-    :param st: waveforms recorded by a particular site
+    :param st: waveforms recorded by a particular location
     :type st: :py:class:`uquake.core.stream.Stream`
     :param pick_time: pick time
     :type pick_time: :py:class:uquake.core.UTCDateTime
@@ -468,7 +468,7 @@ def measure_linearity(st: Stream, pick_time: UTCDateTime,
 def measure_planarity():
     """
     measure the planarity of the particule motion using PCA
-    :param st: waveforms recorded by a particular site
+    :param st: waveforms recorded by a particular location
     :type st: :py:class:`uquake.core.stream.Stream`
     :param pick_time: pick time
     :type pick_time: :py:class:uquake.core.UTCDateTime

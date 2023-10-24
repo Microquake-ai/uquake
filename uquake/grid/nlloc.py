@@ -130,29 +130,29 @@ def validate(value, choices):
 class Seeds:
     __valid_measurement_units__ = ['METERS', 'KILOMETERS']
 
-    def __init__(self, sites=[], units='METERS'):
+    def __init__(self, locations=[], units='METERS'):
         """
         specifies a series of source location from an inventory object
-        :param sites: a list of sites containing at least the location,
-        and site label
-        :type sites: list of dictionary
+        :param locations: a list of locations containing at least the location,
+        and location label
+        :type locations: list of dictionary
 
         :Example:
 
-        >>> site = {'label': 'test', 'x': 1000, 'y': 1000, 'z': 1000,
+        >>> location = {'label': 'test', 'x': 1000, 'y': 1000, 'z': 1000,
                       'elev': 0.0}
-        >>> sites = [site]
-        >>> seeds = Seeds(sites)
+        >>> locations = [location]
+        >>> seeds = Seeds(locations)
 
         """
 
         validate(units, self.__valid_measurement_units__)
         self.units = units
 
-        self.sites = sites
+        self.locations = locations
 
     def __len__(self):
-        return len(self.sites)
+        return len(self.locations)
 
     @classmethod
     def from_inventory(cls, inventory):
@@ -163,11 +163,11 @@ class Seeds:
         """
 
         srces = []
-        for site in inventory.sites:
-            srce = {'label': site.code,
-                    'x': site.x,
-                    'y': site.y,
-                    'z': site.z,
+        for location in inventory.locations:
+            srce = {'label': location.code,
+                    'x': location.x,
+                    'y': location.y,
+                    'z': location.z,
                     'elev': 0}
             srces.append(srce)
 
@@ -179,20 +179,20 @@ class Seeds:
 
     def add(self, label, x, y, z, elev=0, units='METERS'):
         """
-        Add a single site to the source list
-        :param label: site label
+        Add a single location to the source list
+        :param label: location label
         :type label: str
         :param x: x location relative to geographic origin expressed
-        in the units of measurements for site/source
+        in the units of measurements for location/source
         :type x: float
         :param y: y location relative to geographic origin expressed
-        in the units of measurements for site/source
+        in the units of measurements for location/source
         :type y: float
         :param z: z location relative to geographic origin expressed
-        in the units of measurements for site/source
+        in the units of measurements for location/source
         :type z: float
         :param elev: elevation above z grid position (positive UP) in
-        kilometers for site (Default = 0)
+        kilometers for location (Default = 0)
         :type elev: float
         :param units: units of measurement used to express x, y, and z
         ( 'METERS' or 'KILOMETERS')
@@ -201,7 +201,7 @@ class Seeds:
 
         validate(units.upper(), self.__valid_measurement_units__)
 
-        self.sites.append({'label': label, 'x': x, 'y': y, 'z': z,
+        self.locations.append({'label': label, 'x': x, 'y': y, 'z': z,
                            'elev': elev})
 
         self.units = units.upper()
@@ -237,13 +237,13 @@ class Seeds:
     def __repr__(self):
         line = ""
 
-        for site in self.sites:
-            # test if site name is shorter than 6 characters
+        for location in self.locations:
+            # test if location name is shorter than 6 characters
 
-            line += f'GTSRCE {site["label"]} XYZ ' \
-                    f'{site["x"] / 1000:>15.6f} ' \
-                    f'{site["y"] / 1000:>15.6f} ' \
-                    f'{site["z"] / 1000:>15.6f} ' \
+            line += f'GTSRCE {location["label"]} XYZ ' \
+                    f'{location["x"] / 1000:>15.6f} ' \
+                    f'{location["y"] / 1000:>15.6f} ' \
+                    f'{location["z"] / 1000:>15.6f} ' \
                     f'0.00\n'
 
         return line
@@ -251,22 +251,22 @@ class Seeds:
     @property
     def locs(self):
         seeds = []
-        for site in self.sites:
-            seeds.append([site['x'], site['y'], site['z']])
+        for location in self.locations:
+            seeds.append([location['x'], location['y'], location['z']])
         return np.array(seeds)
 
     @property
     def labels(self):
         seed_labels = []
-        for site in self.sites:
-            seed_labels.append(site['label'])
+        for location in self.locations:
+            seed_labels.append(location['label'])
 
         return np.array(seed_labels)
 
 
 # class Srces(Seeds):
-#     def __init__(self, sites=[], units='METERS'):
-#         super().__init__(sites=sites, units=units)
+#     def __init__(self, locations=[], units='METERS'):
+#         super().__init__(locations=locations, units=units)
 
 
 class NLLocGrid(Grid):
@@ -1127,7 +1127,7 @@ class TTGrid(SeededGrid):
             return super().write(path=path)
 
         @property
-        def site(self):
+        def location(self):
             return self.seed_label
 
 
@@ -1256,17 +1256,17 @@ class TravelTimeEnsemble:
                     seed_labels: Optional[list] = None,
                     phase: Optional[list] = None):
         """
-        calculate the travel time at a specific point for a series of site
+        calculate the travel time at a specific point for a series of location
         ids
         :param seed: travel time seed
         :param grid_space: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
-        :param seed_labels: a list of sites from which to calculate the
+        :param seed_labels: a list of locations from which to calculate the
         travel time.
         :param phase: a list of phases for which the travel time need to be
         calculated
-        :return: a list of dictionary containing the travel time and site id
+        :return: a list of dictionary containing the travel time and location id
         """
 
         if isinstance(seed, list):
@@ -1302,17 +1302,17 @@ class TravelTimeEnsemble:
                 seed_labels: Optional[list] = None,
                 phase: Optional[list] = None, **kwargs):
         """
-        calculate the azimuth at a specific point for a series of site
+        calculate the azimuth at a specific point for a series of location
         ids
         :param seed: travel time seed
         :param grid_space: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
-        :param seed_labels: a list of sites from which to calculate the
+        :param seed_labels: a list of locations from which to calculate the
         travel time.
         :param phase: a list of phases for which the travel time need to be
         calculated
-        :return: a list of dictionary containing the azimuth and site id
+        :return: a list of dictionary containing the azimuth and location id
         """
 
         if isinstance(seed, list):

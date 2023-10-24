@@ -42,136 +42,199 @@ from pkg_resources import load_entry_point
 from tempfile import NamedTemporaryFile
 import os
 from .util.requests import download_file_from_url
+# from uquake.core.util.attribute_handler import _set_attr_handler
+# from uquake.core.util.attribute_handler import set_attr_handler
+from uquake.core.util.attribute_handler import set_extra, get_extra
 
 
 class SystemResponse(object):
-    def __init__(self, sensitivity=1, frequency=1):
-        self.stage_sequence_number = 0
-        self.response_stages = []
-        self.sensitivity = sensitivity
-        self.frequency = frequency
+    def __init__(self, sensor_type, **sensor_params):
+        def __init__(self, sensor_type, **sensor_params):
+            """
+            Initialize a SystemResponse object.
 
-    def add_geophone(self, resonance_frequency, gain, damping=0.707,
-                     output_resistance=np.inf,
-                     cable_length=np.inf, cable_capacitance=np.inf):
+            Parameters:
+            -----------
+            sensor_type : str
+                Type of the sensor. Accepted values are 'geophone' or 'accelerometer'.
 
-        resp = geophone_response(resonance_frequency, gain, damping=damping,
-                                 output_resistance=output_resistance,
-                                 cable_length=cable_length,
-                                 cable_capacitance=cable_capacitance,
-                                 stage_sequence_number=
-                                 self.stage_sequence_number)
+            **sensor_params : keyword arguments
+                Additional parameters for configuring the sensor response. These vary based on the `sensor_type`.
 
-        self.stage_sequence_number += 1
+                For 'geophone':
+                - resonance_frequency : float
+                    The resonance frequency of the geophone, in Hz.
+                - gain : float
+                    The gain of the geophone response.
+                - damping : float, optional
+                    Damping factor. Default is 0.707.
+                - stage_sequence_number : int, optional
+                    Stage sequence number. Default is 1.
 
-        self.response_stages.append(resp)
+                For 'accelerometer':
+                - resonance_frequency : float
+                    The resonance frequency of the accelerometer, in Hz.
+                - gain : float
+                    The gain of the accelerometer response.
+                - sensitivity : float, optional
+                    Sensitivity of the accelerometer. Default is 1.
+                - damping : float, optional
+                    Damping factor. Default is 0.707.
+                - stage_sequence_number : int, optional
+                    Stage sequence number. Default is 1.
 
-    def add_accelerometer(self, resonance_frequency, gain, sensitivity=1,
-                          damping=0.707):
+            Raises:
+            --------
+            ValueError
+                When an invalid `sensor_type` or unsupported `sensor_params` are supplied.
 
-        resp = accelerometer_response(resonance_frequency, gain,
-                                      sensitivity=sensitivity,
-                                      stage_sequence_number=
-                                      self.stage_sequence_number,
-                                      damping=damping)
+            Examples:
+            ----------
+            >>> sr = SystemResponse('geophone', resonance_frequency=4.5, gain=2.0)
+            >>> sr = SystemResponse('accelerometer', resonance_frequency=15, gain=3.0, sensitivity=0.2)
+            """
 
-        self.stage_sequence_number += 1
+        self.components_info = {}
+        self.components_info['sensor'] = {'type': sensor_type, 'params': sensor_params}
 
-        self.response_stages.append(resp)
+    def add_cable(self, **cable_params):
+        if 'cable' in self.components_info:
+            raise ValueError("Cable response already added.")
+        self.components_info['cable'] = {'params': cable_params}
 
-    def add_digitizer(self, max_voltage=2.5, resolution_bit=24,
-                      stage_gain_frequency=1, digitizer_name=None):
+    def add_digitizer(self, **digitizer_params):
+        if 'digitizer' in self.components_info:
+            raise ValueError("Digitizer already added.")
+        self.components_info['digitizer'] = {'params': digitizer_params}
 
-        stage_gain = 2 ** resolution_bit / max_voltage
-        resp = ResponseStage(self.stage_sequence_number, stage_gain,
-                             stage_gain_frequency,
-                             input_units='V', output_units='COUNT',
-                             input_units_description='voltage',
-                             output_units_description='ADC Count',
-                             name=digitizer_name)
-        self.stage_sequence_number += 1
+    def validate(self):
+        if 'sensor' not in self.components_info:
+            raise ValueError("System must have at least a sensor.")
 
-        self.response_stages.append(resp)
+    def generate_stage(self, component_key, stage_sequence_number):
+        component_info = self.components_info.get(component_key, {})
+        if component_key == 'sensor':
+            if component_info['type'] == 'geophone':
+                stage = geophone_sensor_response(**component_info['params'])
+            elif component_info['type'] == 'accelerometer':
+                stage = accelerometer_sensor_response(**component_info['params'])
+            else:
+                raise ValueError("Invalid sensor type.")
+        elif component_key == 'cable':
+            stage = sensor_cable_response(**component_info['params'])
+        # Add more conditions for other components
+        stage.stage_sequence_number = stage_sequence_number
+        return stage
 
     @property
     def response(self):
-        if len(self.response_stages) == 0:
-            return
-
-        input_units = self.response_stages[0].input_units
-
-        if input_units == 'M/S':
-            input_units_description = 'Velocity'
-        elif input_units == 'M/S/S':
-            input_units_description = 'Acceleration'
-        elif input_units == 'M':
-            input_units_description = 'Displacement'
-
-        i_s = InstrumentSensitivity(self.sensitivity,
-                                    self.frequency,
-                                    input_units=input_units,
-                                    output_units='COUNT',
-                                    input_units_description=input_units_description,
-                                    output_units_description='ADC Count')
-
-        return Response(instrument_sensitivity=i_s,
-                        response_stages=self.response_stages)
+        self.validate()
+        response_stages = []
+        sequence_number = 1
+        for key in ['sensor', 'cable', 'digitizer']:
+            if key in self.components_info:
+                stage = self.generate_stage(key, sequence_number)
+                response_stages.append(stage)
+                sequence_number += 1
+        # Generate and return the full system response
+        return response_stages
 
 
-def geophone_response(resonance_frequency, gain, damping=0.707,
-                      output_resistance=np.inf,
-                      cable_length=np.inf, cable_capacitance=np.inf,
-                      stage_sequence_number=0):
+    @property
+    def response(self):
+        self.validate()
+        # Generate and return the full system response
 
-    paz = corn_freq_2_paz(resonance_frequency,
-                          damp=damping)
 
-    l = cable_length
-    R = output_resistance
-    C = cable_capacitance
+def geophone_sensor_response(resonance_frequency, gain, damping=0.707,
+                             stage_sequence_number=1):
+    """
+    Generate a Poles and Zeros response stage for a geophone.
 
-    if ((R * l * C) != np.inf) and ((R * l * C) != 0):
-        pole_cable = -1 / (R * l * C)
-        paz['poles'].append(pole_cable)
+    Parameters:
+    - resonance_frequency (float): Resonance frequency of the geophone in Hz.
+    - gain (float): Gain factor.
+    - damping (float, optional): Damping ratio. Defaults to 0.707 (critical damping).
+    - stage_sequence_number (int, optional): Sequence number for the response stage.
 
-    # i_s = InstrumentSensitivity(sensitivity, resonance_frequency,
-    #                             input_units='M/S',
-    #                             output_units='COUNT',
-    #                             input_units_description='Velocity',
-    #                             output_units_description='ADC Count')
+    Returns:
+    - PolesZerosResponseStage: Response stage object with configured poles and zeros.
 
+    Notes:
+    - The function utilizes the Laplace transform in the frequency domain.
+    """
+    paz = corn_freq_2_paz(resonance_frequency, damp=damping)
     pzr = PolesZerosResponseStage(stage_sequence_number, gain,
                                   resonance_frequency, 'M/S', 'V',
                                   'LAPLACE (RADIANT/SECOND)',
                                   resonance_frequency, paz['zeros'],
                                   paz['poles'])
-
     return pzr
 
-    # return Response(instrument_sensitivity=i_s,
-    #                 response_stages=[pzr])
 
+def accelerometer_sensor_response(resonance_frequency, gain, sensitivity=1,
+                                  damping=0.707, stage_sequence_number=1):
+    """
+    Generate a Poles and Zeros response stage for an accelerometer.
 
-def accelerometer_response(resonance_frequency, gain, sensitivity=1,
-                           stage_sequence_number=0, damping=0.707):
-    i_s = InstrumentSensitivity(sensitivity, resonance_frequency,
-                                input_units='M/S/S', output_units='M/S/S',
-                                input_units_description='ACC',
-                                output_units_description='ACC')
+    Parameters:
+    - resonance_frequency (float): Resonance frequency of the accelerometer in Hz.
+    - gain (float): Gain factor.
+    - sensitivity (float, optional): Sensitivity of the sensor. Defaults to 1.
+    - damping (float, optional): Damping ratio. Defaults to 0.707 (critical damping).
+    - stage_sequence_number (int, optional): Sequence number for the response stage.
 
+    Returns:
+    - PolesZerosResponseStage: Response stage object with configured poles and zeros.
+
+    Notes:
+    - The function utilizes the Laplace transform in the frequency domain.
+    """
     paz = corn_freq_2_paz(resonance_frequency, damp=damping)
-
     paz['zeros'] = []
-
-    pzr = PolesZerosResponseStage(stage_sequence_number, 1, 14, 'M/S/S', 'V',
+    pzr = PolesZerosResponseStage(stage_sequence_number, gain,
+                                  resonance_frequency, 'M/S/S', 'V',
                                   'LAPLACE (RADIANT/SECOND)',
-                                  1, [],
+                                  resonance_frequency, paz['zeros'],
                                   paz['poles'])
-
     return pzr
 
-    # return Response(instrument_sensitivity=i_s,
-    #                 response_stages=[pzr])
+
+def sensor_cable_response(output_resistance=np.inf, cable_length=np.inf,
+                          cable_capacitance=np.inf, stage_sequence_number=2):
+    """
+    Generate a Poles and Zeros response stage for sensor-cable interaction.
+
+    Parameters:
+    - output_resistance (float, optional): Output resistance of the sensor in ohms. D
+    efaults to infinity.
+    - cable_length (float, optional): Length of the cable in meters. Defaults to
+    infinity.
+    - cable_capacitance (float, optional): Cable capacitance in farads per meter.
+    Defaults to infinity.
+    - stage_sequence_number (int, optional): Sequence number for the response stage.
+
+    Returns:
+    - PolesZerosResponseStage: Response stage object with configured poles.
+
+    Notes:
+    - Assumes a Laplace transform in the frequency domain for the response.
+    """
+    R = output_resistance
+    l = cable_length
+    C = cable_capacitance
+    poles = []
+
+    if ((R * l * C) != np.inf) and ((R * l * C) != 0):
+        pole_cable = -1 / (R * l * C)
+        poles.append(pole_cable)
+
+    pzr = PolesZerosResponseStage(stage_sequence_number, 1,
+                                  0, 'V', 'V',
+                                  'LAPLACE (RADIANT/SECOND)',
+                                  0, [], poles)
+    return pzr
+
 
 
 def get_response_from_nrl(datalogger_keys, sensor_keys):
@@ -257,22 +320,17 @@ class Inventory(inventory.Inventory):
     def get_channel(self, sta=None, cha=None):
         return self.select(sta, cha_code=cha)
 
-    # def select(self, network=None, station=None, location=None, channel=None, **kwargs):
-    #
-    #     return super().select(network=network, station=station,
-    #                           location=location, channel=channel, **kwargs)
-
-    def select_site(self, sites=None):
-        if isinstance(sites, list):
-            for site in sites:
-                for obj_site in self.sites:
-                    if site.code == obj_site.code:
+    def select_site(self, locations=None):
+        if isinstance(locations, list):
+            for location in locations:
+                for obj_site in self.locations:
+                    if location.code == obj_site.code:
                         yield obj_site
 
-        elif isinstance(sites, str):
-            site = sites
-            for obj_site in self.sites:
-                if site.code == obj_site.code:
+        elif isinstance(locations, str):
+            location = locations
+            for obj_site in self.locations:
+                if location.code == obj_site.code:
                     return obj_site
 
     def to_bytes(self):
@@ -282,20 +340,20 @@ class Inventory(inventory.Inventory):
         return file_out.getvalue()
 
     def __eq__(self, other):
-        return np.all(self.sites == other.sites)
+        return np.all(self.locations == other.locations)
 
     # def write(self, filename):
     #     super().write(self, filename, format='stationxml', nsmap={ns: ns})
 
     @property
-    def sites(self):
-        sites = []
+    def locations(self):
+        locations = []
         for network in self.networks:
             for station in network.stations:
-                for site in station.sites:
-                    sites.append(site)
+                for location in station.locations:
+                    locations.append(location)
 
-        return np.sort(sites)
+        return np.sort(locations)
 
 
 class Network(inventory.Network):
@@ -337,7 +395,7 @@ class Network(inventory.Network):
         :param padding_fraction: buffer to add around the stations
         :param ignore_stations: list of stations to exclude from the
         calculation of the grid extents
-        :param ignore_sites: list of site to exclude from the calculation of
+        :param ignore_sites: list of location to exclude from the calculation of
         the grid extents
         :type ignore_stations: list
         :return: return the lower and upper corners
@@ -352,10 +410,10 @@ class Network(inventory.Network):
         for station in self.stations:
             if station.code in ignore_stations:
                 continue
-            for site in station.sites:
-                if site.code in ignore_sites:
+            for location in station.locations:
+                if location.code in ignore_sites:
                     continue
-                coordinates.append(site.loc)
+                coordinates.append(location.loc)
 
         min = np.min(coordinates, axis=0)
         max = np.max(coordinates, axis=0)
@@ -381,26 +439,24 @@ class Network(inventory.Network):
         return np.array([station.loc for station in self.stations])
 
     @property
-    def sites(self):
-        sites = []
+    def locations(self):
+        locations = []
         for station in self.stations:
-            for site in station.sites:
-                sites.append(site)
-        return sites
+            for location in station.locations:
+                locations.append(location)
+        return locations
 
     @property
     def site_coordinates(self):
         coordinates = []
-        for site in self.sites:
-            coordinates.append(site.loc)
+        for location in self.locations:
+            coordinates.append(location.loc)
 
 
 class Station(inventory.Station):
     __doc__ = inventory.Station.__doc__.replace('obspy', ns)
 
-    extra_keys = ['x', 'y', 'z']
-
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, coordinates: Coordinates = Coordinates(0, 0, 0), **kwargs):
 
         self.extra = AttribDict()
 
@@ -411,30 +467,26 @@ class Station(inventory.Station):
         if 'elevation' not in kwargs.keys():
             kwargs['elevation'] = 0
 
-        kwargs_with_extra = kwargs.copy()
-
-        for key in self.extra_keys:
-            kwargs.pop(key, None)
-
-        super(Station, self).__init__(*args, **kwargs)
-        [self.__setattr__(key, 0) for key in self.extra_keys]
-
-        for key in self.extra_keys:
-            if not hasattr(self, 'extra'):
-                self.extra = AttribDict()
-
-            self.extra[key] = AttribDict({'value': 0, 'namespace': ns})
-
-        for key in kwargs_with_extra:
-            if key in self.extra_keys:
-                self.extra[key] = AttribDict({'value': kwargs_with_extra[key],
-                                              'namespace': ns})
+        # initialize the extra key
 
         if not hasattr(self, 'extra'):
             self.extra = AttribDict()
 
-    # def __setattr__(self, name, value):
-    #     _set_attr_handler(self, name, value)
+        super(Station, self).__init__(*args, **kwargs)
+
+        self.extra['coordinates'] = coordinates.to_extra_key()
+
+    def __setattr__(self, name, value):
+        if name == 'coordinates':
+            self.extra[name] = value.to_extra_key(namespace=ns)
+        else:
+            super(Station, self).__setattr__(name, value)
+
+    def __getattr__(self, item):
+        if item == 'coordinates':
+            return Coordinates.from_extra_key(self.extra[item])
+        else:
+            super(Station, self).__getattr__(item)
 
     @classmethod
     def from_obspy_station(cls, obspy_station, xy_from_lat_lon=False,
@@ -480,46 +532,17 @@ class Station(inventory.Station):
 
         return stn
 
-    def __setattr__(self, key, value):
-        if key in self.extra_keys:
-            if not hasattr(self, 'extra'):
-                self.extra = {}
-
-            self.extra[key] = {'value': value, 'namespace': ns}
-        else:
-            super().__setattr__(key, value)
-
     @property
     def x(self):
-        if self.extra:
-            if self.extra.get('x', None):
-                return float(
-                    self.extra.x.value)  # obspy inv_read converts everything
-                # in extra to str
-            else:
-                raise AttributeError
-        else:
-            raise AttributeError
+        return self.coordinates.x
 
     @property
     def y(self):
-        if self.extra:
-            if self.extra.get('y', None):
-                return float(self.extra.y.value)
-            else:
-                raise AttributeError
-        else:
-            raise AttributeError
+        return self.coordinates.y
 
     @property
     def z(self):
-        if self.extra:
-            if self.extra.get('z', None):
-                return float(self.extra.z.value)
-            else:
-                raise AttributeError
-        else:
-            raise AttributeError
+        return self.coordinates.z
 
     @property
     def loc(self):
@@ -533,10 +556,10 @@ class Station(inventory.Station):
             raise AttributeError
 
     @property
-    def sites(self):
+    def locations(self):
         location_codes = []
         channel_dict = {}
-        sites = []
+        locations = []
         for channel in self.channels:
             location_codes.append(channel.location_code)
             channel_dict[channel.location_code] = []
@@ -545,15 +568,15 @@ class Station(inventory.Station):
             channel_dict[channel.location_code].append(channel)
 
         for key in channel_dict.keys():
-            sites.append(Site(self, channel_dict[key]))
+            locations.append(Location(self, channel_dict[key]))
 
-        return sites
+        return locations
 
     @property
     def site_coordinates(self):
         coordinates = []
-        for site in self.sites:
-            coordinates.append(site.loc)
+        for location in self.locations:
+            coordinates.append(location.loc)
         return np.array(coordinates)
 
     def __str__(self):
@@ -563,14 +586,25 @@ class Station(inventory.Station):
         y = self.y
         z = self.z
 
-        site_count = len(self.sites)
+        location_count = len(self.locations)
         channel_count = len(self.channels)
-        ret = (f"\tStation {self.historical_code}\n"
-               f"\tStation Code: {self.code}\n"
-               f"\tSite Count: {site_count}\n"
-               f"\tChannel Count: {channel_count}\n"
-               f"\tDate range: {self.start_date} - {self.end_date}\n"
-               f"\tx: {x:.0f}, y: {y:.0f}, z: {z:.0f} m\n")
+
+        format_dict = {
+            'code': self.code or 'N/A',
+            'location_count': location_count or 0,
+            'channel_count': channel_count or 0,
+            'start_date': self.start_date or 'N/A',
+            'end_date': self.end_date or 'N/A',
+            'x': f"{x:.0f}" if x is not None else 0,
+            'y': f"{y:.0f}" if y is not None else 0,
+            'z': f"{z:.0f}" if z is not None else 0
+        }
+
+        ret = ("\tStation Code: {code}\n"
+               "\tLocation Count: {location_count}\n"
+               "\tChannel Count: {channel_count}\n"
+               "\tDate range: {start_date} - {end_date}\n"
+               "\tx: {x}, y: {y}, z: {z} m\n").format(**format_dict)
 
         if getattr(self, 'extra', None):
             if getattr(self.extra, 'x', None) and getattr(self.extra, 'y',
@@ -580,7 +614,7 @@ class Station(inventory.Station):
                 z = self.z
                 ret = ("Station {station_name}\n"
                        "\tStation Code: {station_code}\n"
-                       "\tSite Count: {site_count}\n"
+                       "\tLocation Count: {site_count}\n"
                        "\tChannel Count: {selected}/{total}"
                        " (Selected/Total)\n"
                        "\tDate range: {start_date} - {end_date}\n"
@@ -590,7 +624,7 @@ class Station(inventory.Station):
         ret = ret.format(
             station_name=contents["stations"][0],
             station_code=self.code,
-            site_count=len(self.sites),
+            site_count=len(self.locations),
             selected=self.selected_number_of_channels,
             total=self.total_number_of_channels,
             start_date=str(self.start_date),
@@ -613,12 +647,12 @@ class Station(inventory.Station):
         return self.__str__()
 
 
-class Site:
+class Location:
     """
     This class is a container for grouping the channels into coherent entity
-    that are sites. From the uquake package perspective a station is
+    that are Locations. From the uquake package perspective a station is
     the physical location where data acquisition instruments are grouped.
-    One or multiple sites can be connected to a station.
+    One or multiple locations can be connected to a station.
     """
 
     def __init__(self, station, channels):
@@ -636,14 +670,14 @@ class Site:
         self.channels = channels
 
     def __repr__(self):
-        ret = f'\tSite {self.site_code}\n' \
+        ret = f'\tLocation {self.location_code}\n' \
               f'\tx: {self.x:.0f} m, y: {self.y:.0f} m z: {self.z:0.0f} m\n' \
               f'\tChannel Count: {len(self.channels)}'
 
         return ret
 
     def __str__(self):
-        return self.site_code
+        return self.location_code
 
     def __eq__(self, other):
         return str(self) == str(other)
@@ -690,46 +724,33 @@ class Site:
     def sensor_type_code(self):
         return self.channels[0].code[0:-1]
 
-    @property
-    def site_code(self):
-        return f'{self.station_code}.{self.location_code}'
-
 
 class Channel(inventory.Channel):
     defaults = {}
-    extra_keys = ['x', 'y', 'z', 'alternative_code', 'active', 'oriented',
-                  '__cartesian_coordinates__']
 
     __doc__ = inventory.Channel.__doc__.replace('obspy', ns)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, code, location_code, active: bool = True, oriented: bool = False,
+                 coordinates: Coordinates = Coordinates(0, 0, 0),
+                 orientation_vector=None, **kwargs):
         self.extra = AttribDict()
-        if 'latitude' not in kwargs.keys():
-            kwargs['latitude'] = 0
-        if 'longitude' not in kwargs.keys():
-            kwargs['longitude'] = 0
-        if 'elevation' not in kwargs.keys():
-            kwargs['elevation'] = 0
-        if 'depth' not in kwargs.keys():
-            kwargs['depth'] = 0
 
-        kwargs_with_extra = kwargs.copy()
+        latitude = 0
+        longitude = 0
+        elevation = 0
+        depth = 0
 
-        for key in self.extra_keys:
-            kwargs.pop(key, None)
+        super(Channel, self).__init__(code, location_code, latitude, longitude,
+                                      elevation, depth, **kwargs)
 
-        super().__init__(*args, **kwargs)
+        if orientation_vector is not None:
+            # making the orientation vector (cosine vector) unitary
+            orientation_vector = orientation_vector / np.linalg.norm(orientation_vector)
+            self.set_orientation(orientation_vector)
 
-        for key in self.extra_keys:
-            if not hasattr(self, 'extra'):
-                self.extra = AttribDict()
-
-            self.extra[key] = {'value': 0, 'namespace': ns}
-
-        for key in kwargs_with_extra:
-            if key in self.extra_keys:
-                self.extra[key] = {'value': kwargs_with_extra[key],
-                                   'namespace': ns}
+        self.extra['coordinates'] = coordinates.to_extra_key()
+        set_extra(self, 'active', active)
+        set_extra(self, 'oriented', oriented)
 
     @classmethod
     def from_obspy_channel(cls, obspy_channel, xy_from_lat_lon=False,
@@ -764,62 +785,42 @@ class Channel(inventory.Channel):
         return cha
 
     def __getattr__(self, item):
-
         if item == 'coordinates':
-            return self.__decode_coordinates__()
-
+            return Coordinates.from_extra_key(self.extra['coordinates'])
+        elif item in ('active', 'oriented'):
+            return get_extra(item)
         else:
-            return self.__dict__[item]
+            if hasattr(super(Channel, self), item):
+                return getattr(super(Channel, self), item)
+            else:
+                raise AttributeError(
+                    f"'{type(self).__name__}' object has no attribute '{item}'")
 
     def __setattr__(self, key, value):
-        if key in self.extra_keys:
-            ### make modification here.
-            if not hasattr(self, 'extra'):
-                self.extra = {}
-
-            if key == 'coordinates':
-                self.__cartesian_coordinates__ = self.__encode_coordinates__(value)
-
-            self.extra[key] = {'value': value, 'namespace': ns}
+        if key == 'coordinates':
+            self.extra[key] = value.to_extra_key()
+        elif key in ('active', 'oriented'):
+            set_extra(self, key, value)
         else:
-            super().__setattr__(key, value)
+            super(Channel, self).__setattr__(key, value)
 
     def __repr__(self):
+        time_range = f"{self.start_date} - {self.end_date}" if self.start_date and self.end_date else 'N/A'
 
-        ret = (f'Channel {self.code}, Location {self.location_code}\n'
-               f'Time range: {self.start_date} - {self.end_date}\n'
-               f'Easting [x]: {self.x:0.0f} m, Northing [y]: '
-               f'{self.y:0.0f} m, Elevation [z]: {self.z:0.0f} m\n'
-               f'Dip (degrees): {self.dip:0.0f}, Azimuth (degrees): '
-               f'{self.azimuth:0.0f}\n')
+        attributes = {
+            'Channel': self.code,
+            'Location': self.location_code,
+            'Time range': time_range,
+            'Easting [x]': f"{self.x:0.0f} m" if self.x is not None else 'N/A',
+            'Northing [y]': f"{self.y:0.0f} m" if self.y is not None else 'N/A',
+            'Elevation [z]': f"{self.z:0.0f} m" if self.z is not None else 'N/A',
+            'Dip (degrees)': f"{self.dip:0.0f}" if self.dip is not None else 'N/A',
+            'Azimuth (degrees)': f"{self.azimuth:0.0f}" if self.azimuth is not None else 'N/A',
+            'Response information': 'available' if self.response else 'not available'
+        }
 
-        if self.response:
-            ret += "Response information available"
-        else:
-            ret += "Response information not available"
-
+        ret = "\n".join([f"{key}: {value}" for key, value in attributes.items()])
         return ret
-
-    # Time range: 2015-12-31T12:23:34.500000Z - 2599-12-31T12:23:34.500000Z
-    # Latitude: 0.00, Longitude: 0.00, Elevation: 0.0 m, Local Depth: 0.0 m
-    # Azimuth: 0.00 degrees from north, clockwise
-    # Dip: 0.00 degrees down from horizontal
-    # Response information available'
-
-    @staticmethod
-    def __encode_coordinates__(value):
-        if not isinstance(value, Coordinates):
-            raise TypeError(f'the value provided must be of instance '
-                            f'{type(Coordinates)}')
-
-        return value.to_json()
-
-    def __decode_coordinates__(self):
-        if self.__cartesian_coordinates__ is None:
-            return
-        else:
-            return Coordinates.from_json(self.__cartesian_coordinates__)
-
 
     def set_orientation(self, orientation_vector):
         """
@@ -856,57 +857,25 @@ class Channel(inventory.Channel):
 
     @property
     def x(self):
-        if self.extra:
-            if self.extra.get('x', None):
-                # obspy inv_read converts everything in extra to str
-                return float(self.extra.x.value)
-            else:
-                raise AttributeError
-        else:
-            raise AttributeError
+        return self.coordinates.x
 
     @property
     def y(self):
-        if self.extra:
-            if self.extra.get('y', None):
-                # obspy inv_read converts everything in extra to str
-                return float(self.extra.y.value)
-            else:
-                raise AttributeError
-        else:
-            raise AttributeError
+        return self.coordinates.y
 
     @property
     def z(self):
-        if self.extra:
-            if self.extra.get('z', None):
-                # obspy inv_read converts everything in extra to str
-                return float(self.extra.z.value)
-            else:
-                raise AttributeError
-        else:
-            raise AttributeError
+        return self.coordinates.z
 
     @property
     def loc(self):
         return np.array([self.x, self.y, self.z])
 
-    @property
-    def alternative_code(self):
-        if self.extra:
-            if self.extra.get('alternative_code', None):
-                # obspy inv_read converts everything in extra to str
-                return self.extra.alternative_code.value
-            else:
-                raise AttributeError
-        else:
-            raise AttributeError
-
 
 def load_from_excel(file_name) -> Inventory:
     """
     Read in a multi-sheet excel file with network metadata sheets:
-        Sites, Networks, Hubs, Stations, Components, Sites, Cables,
+        Locations, Networks, Hubs, Stations, Components, Locations, Cables,
         Boreholes
     Organize these into a uquake Inventory object
 
@@ -919,19 +888,19 @@ def load_from_excel(file_name) -> Inventory:
 
     df_dict = pd.read_excel(file_name, sheet_name=None)
 
-    source = df_dict['Sites'].iloc[0]['code']
+    source = df_dict['Locations'].iloc[0]['code']
     # sender (str, optional) Name of the institution sending this message.
-    sender = df_dict['Sites'].iloc[0]['operator']
+    sender = df_dict['Locations'].iloc[0]['operator']
     net_code = df_dict['Networks'].iloc[0]['code']
     net_descriptions = df_dict['Networks'].iloc[0]['name']
 
     contact_name = df_dict['Networks'].iloc[0]['contact_name']
     contact_email = df_dict['Networks'].iloc[0]['contact_email']
     contact_phone = df_dict['Networks'].iloc[0]['contact_phone']
-    site_operator = df_dict['Sites'].iloc[0]['operator']
-    site_country = df_dict['Sites'].iloc[0]['country']
-    site_name = df_dict['Sites'].iloc[0]['name']
-    site_code = df_dict['Sites'].iloc[0]['code']
+    site_operator = df_dict['Locations'].iloc[0]['operator']
+    site_country = df_dict['Locations'].iloc[0]['country']
+    site_name = df_dict['Locations'].iloc[0]['name']
+    location_code = df_dict['Locations'].iloc[0]['code']
 
     print("source=%s" % source)
     print("sender=%s" % sender)
@@ -964,17 +933,17 @@ def load_from_excel(file_name) -> Inventory:
     person = Person(names=[contact_name], agencies=[site_operator],
                     emails=[contact_email], phones=[phone_number])
     operator = Operator(site_operator, contacts=[person])
-    site = Site(name=site_name, description=site_name,
+    location = Location(name=site_name, description=site_name,
                 country=site_country)
 
-    # Merge Stations+Components+Sites+Cables info into sorted stations +
+    # Merge Stations+Components+Locations+Cables info into sorted stations +
     # channels dicts:
 
     df_dict['Stations']['station_code'] = df_dict['Stations']['code']
-    df_dict['Sites']['sensor_code'] = df_dict['Sites']['code']
+    df_dict['Locations']['sensor_code'] = df_dict['Locations']['code']
     df_dict['Components']['code_channel'] = df_dict['Components']['code']
     df_dict['Components']['sensor'] = df_dict['Components']['sensor__code']
-    df_merge = pd.merge(df_dict['Stations'], df_dict['Sites'],
+    df_merge = pd.merge(df_dict['Stations'], df_dict['Locations'],
                         left_on='code', right_on='station__code',
                         how='inner', suffixes=('', '_channel'))
 
@@ -986,7 +955,7 @@ def load_from_excel(file_name) -> Inventory:
                          left_on='cable__code', right_on='code',
                          how='inner', suffixes=('', '_cable'))
 
-    df_merge4 = pd.merge(df_merge3, df_dict['Site types'],
+    df_merge4 = pd.merge(df_merge3, df_dict['Location types'],
                          left_on='sensor_type__model', right_on='model',
                          how='inner', suffixes=('', '_sensor_type'))
 
@@ -1063,7 +1032,7 @@ def load_from_excel(file_name) -> Inventory:
     for station in stations:
         # This is where namespace is first employed:
         station = Station.from_station_dict(station, site_name)
-        station.site = site
+        station.location = location
         station.operators = [operator]
         station_list.append(station)
 

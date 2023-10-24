@@ -220,7 +220,7 @@ class WaveformPlotting(object):
         self.title = kwargs.get('title', self.stream[0].id)
         # event for plotting picks
         self.event = kwargs.get('event', None)
-        self.site = kwargs.get('site', None)
+        self.location = kwargs.get('location', None)
 
     def __del__(self):
         """
@@ -366,7 +366,7 @@ class WaveformPlotting(object):
         self.axis = []
 
         import numpy as np
-        if self.event and self.site:
+        if self.event and self.location:
             origin = self.event.preferred_origin()
             if origin:
                 ex = origin.x
@@ -378,7 +378,7 @@ class WaveformPlotting(object):
                 name = []
                 dist = []
 
-                for sta in self.site.stations():
+                for sta in self.location.stations():
                     sloc = np.array([sta.x, sta.y, sta.z])
                     dist.append(np.linalg.norm(eloc - sloc))
                     name.append(sta.code)

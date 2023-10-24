@@ -17,10 +17,10 @@ class H5TTable(object):
         if dset_key is not None:
             self.set_dataset(dset_key)
 
-        self.sites = self.hf['sites'][:].astype('U6')
+        self.locations = self.hf['locations'][:].astype('U6')
         self.stations = self.hf['stations'][:].astype('U4')
         self.station_locations = self.hf['station_locations'].astype('U2')
-        self._sitedict = dict(zip(self.sites, np.arange(len(self.sites))))
+        self._sitedict = dict(zip(self.locations, np.arange(len(self.locations))))
 
         self.locations = self.hf['locations'][:]
         self.coords = self.hf['grid_locs'][:]
@@ -46,11 +46,11 @@ class H5TTable(object):
     def spacing(self):
         return self.hf.attrs['spacing']
 
-    def index_sites(self, sites):
-        if isinstance(sites, (list, np.ndarray)):
-            return np.array([self._sitedict[site] for site in sites])
+    def index_sites(self, locations):
+        if isinstance(locations, (list, np.ndarray)):
+            return np.array([self._sitedict[location] for location in locations])
         else:
-            return self._sitedict[site]
+            return self._sitedict[location]
 
     def icol_to_xyz(self, index):
         nx, ny, nz = self.shape
@@ -95,19 +95,19 @@ def array_from_travel_time_ensemble(tt_grids):
     data = {'P': [],
             'S': []}
 
-    sites = []
+    locations = []
     slocs = []
     shape = tt_grids[0].shape
     origin = tt_grids[0].origin
     spacing = tt_grids[0].spacing
     for tt_grid in tt_grids:
-        sites.append(tt_grid.seed_label)
+        locations.append(tt_grid.seed_label)
         slocs.append(tt_grid.seed)
 
-    sites = np.array(sites)
+    locations = np.array(locations)
     slocs = np.array(slocs)
 
-    nsites = len(sites)
+    nsites = len(locations)
     ngrid = np.product(shape)
 
     tts = np.zeros((nsites, ngrid), dtype=np.float32)
@@ -116,7 +116,7 @@ def array_from_travel_time_ensemble(tt_grids):
         tts[i] = tt_grids[i].data.reshape(ngrid).astype(np.float32)
 
     data[phase] = dict(ttable=tts, locations=slocs, shape=shape,
-                       origin=origin, spacing=spacing, sites=sites)
+                       origin=origin, spacing=spacing, locations=locations)
 
     return data
 
@@ -133,7 +133,7 @@ def write_hdf5(fname, tt_grids):
     hf.attrs['spacing'] = spacing
     hf.attrs['origin'] = origin
 
-    sites = tt_grids.seed_labels
+    locations = tt_grids.seed_labels
     locations = tt_grids.seeds
 
     hf.create_dataset('locations', data=locations.astype(np.float32))
@@ -141,21 +141,21 @@ def write_hdf5(fname, tt_grids):
     hf.create_dataset('grid_locs', data=gridlocs.astype(np.float32))
     gdef = np.concatenate((shape, origin, spacing)).astype(np.int32)
     hf.create_dataset('grid_def', data=gdef)
-    hf.create_dataset('sites', data=sites.astype('S8'))
-    stations = np.array([site[0:6] for site in sites])
-    station_locations = np.array([site[6:] for site in sites])
+    hf.create_dataset('locations', data=locations.astype('S8'))
+    stations = np.array([location[0:6] for location in locations])
+    station_locations = np.array([location[6:] for location in locations])
     hf.create_dataset('stations', data=stations.astype('S6'))
     hf.create_dataset('station_locations', data=station_locations.astype('S2'))
 
-    nsites = len(sites)
+    nsites = len(locations)
     ngrid = np.product(shape)
 
     tts = {'P': np.zeros((nsites, ngrid), dtype=np.float32),
            'S': np.zeros((nsites, ngrid), dtype=np.float32)}
 
-    for i, site in enumerate(sites):
+    for i, location in enumerate(locations):
         for phase in ['P', 'S']:
-            tt_grid = tt_grids.select(phase=phase, seed_labels=site)[0]
+            tt_grid = tt_grids.select(phase=phase, seed_labels=location)[0]
             tts[phase][i] = tt_grid.data.reshape(ngrid).astype(np.float32)
 
     hf.create_dataset('ttp', data=tts['P'])

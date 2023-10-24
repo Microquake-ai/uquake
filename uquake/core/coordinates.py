@@ -1,5 +1,6 @@
 from enum import Enum
 import json
+from obspy.core.util import AttribDict
 
 
 class CoordinateSystem(Enum):
@@ -257,7 +258,9 @@ class Coordinates:
         return cls(dict['x'], dict['y'], dict['z'], coordinate_system=coordinate_system,
                    transformation=transformation)
 
+    def to_extra_key(self, namespace='uquake'):
+        return AttribDict({'value': self.to_json(), 'namespace': namespace})
 
-
-
-
+    @classmethod
+    def from_extra_key(cls, extra_key):
+        return cls.from_json(extra_key['value'])

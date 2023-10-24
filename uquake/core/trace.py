@@ -39,7 +39,7 @@ class Stats(ObspyStats, ABC):
                 self.__dict__[item] = stats.__dict__[item]
 
     @property
-    def site(self):
+    def location(self):
         return f'{self.station}.{self.location}'
 
     def __str__(self):

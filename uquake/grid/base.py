@@ -615,7 +615,7 @@ class Grid(object):
         return np.array(self.origin) + np.array(self.shape) * \
                np.array(self.spacing)
 
-    from obspy.core.inventory import Inventory, Network, Station, Channel, Site, Location
+    from obspy.core.inventory import Inventory, Network, Station, Channel, Location, Location
     from obspy.core.util import AttribDict
     import random
     import numpy as np

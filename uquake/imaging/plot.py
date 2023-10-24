@@ -86,7 +86,7 @@ def guttenberg_richter(magnitudes, dates, bin_size=0.05, b_range=[-2.0, -0.5],
 
 class Plot(object):
 
-    def __init__(self, data=None, picks=None, site=None):
+    def __init__(self, data=None, picks=None, location=None):
 
         self.data = data
         self.picks = picks

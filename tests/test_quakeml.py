@@ -13,5 +13,5 @@ coord1 = coordinates.Coordinates.from_json(json_string)
 
 assert(coord == coord1)
 
-origin = event.Origin()
-origin.coordinates = coord
+origin = event.Origin(coordinates=coordinates)
+# origin.coordinates = coord

@@ -476,31 +476,31 @@ def envelope(data):
 
 def read_csv(filename, site_code='', **kwargs):
     """
-    read a csv file containing site information
-    The first line of the csv file should contain the site name
+    read a csv file containing location information
+    The first line of the csv file should contain the location name
     The expected file structure is as follows and should contain one header line
-    <network>, <site name>, <site type>, <no component>, x, y, z
-    where x, y and z represents the location of the sites expressed in a local
-    coordinate system. Note that the <site name> is limited to four character
+    <network>, <location name>, <location type>, <no component>, x, y, z
+    where x, y and z represents the location of the locations expressed in a local
+    coordinate system. Note that the <location name> is limited to four character
     because of NonLinLoc limitations.
 
     example of file strucuture
 
-    1. <Network>, <site long name>, <site code>, <site type>, <gain>,
+    1. <Network>, <location long name>, <location code>, <location type>, <gain>,
     <sensitivity>, <sx>, <sy>, <sz>, <channel 1 code>, <azimuth>, <dip>,
     <channel 2 code>, <azimuth>, <dip>, <channel 3 code>, <azimuth>, <dip>
 
     :param filename: path to a csv file
     :type filename: string
-    :param site_code: site code
+    :param site_code: location code
     :type site_code: string
     :param has_header: whether or not the input file has an header
     :type has_header: bool
-    :rparam: site object
-    :rtype: ~uquake.core.station.Site
+    :rparam: location object
+    :rtype: ~uquake.core.station.Location
     """
 
-    from uquake.core.data.station import Site, Network, Station, Channel
+    from uquake.core.data.station import Location, Network, Station, Channel
     from numpy import loadtxt
 
     data = loadtxt(filename, delimiter=',', skiprows=1, dtype=object)
@@ -530,6 +530,6 @@ def read_csv(filename, site_code='', **kwargs):
         stations.append(station)
 
     networks = [Network(code=nc, stations=stations)]
-    site = Site(code=site_code, networks=networks)
+    location = Location(code=site_code, networks=networks)
 
-    return site
+    return location

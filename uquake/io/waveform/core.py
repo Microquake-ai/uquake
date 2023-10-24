@@ -152,7 +152,7 @@ def read_ESG_SEGY(fname, inventory=None, **kwargs):
     read data produced by ESG and turn them into a valid stream with network,
     station and component information properly filled
     :param fname: the filename
-    :param inventory: a site object containing site information
+    :param inventory: a location object containing location information
     :type inventory: ~uquake.core.inventory.Inventory
     :return: ~uquake.core.stream.Stream
     """
@@ -169,7 +169,7 @@ def read_ESG_SEGY(fname, inventory=None, **kwargs):
         tr_x = tr.stats.segy.trace_header.group_coordinate_y
 
         h_distances = []
-        sites = inventory.networks[0].sites
+        locations = inventory.networks[0].locations
 
         component = np.abs(tr.stats.segy.trace_header.trace_identification_code
                            - 14)
@@ -177,22 +177,22 @@ def read_ESG_SEGY(fname, inventory=None, **kwargs):
         if component == 13:
             component = 0
 
-        for site in inventory.networks[0].sites:
-            h_distance = np.linalg.norm([site.x - tr_x, site.y - tr_y])
+        for location in inventory.networks[0].locations:
+            h_distance = np.linalg.norm([location.x - tr_x, location.y - tr_y])
             h_distances.append(h_distance)
         if np.min(h_distances) > 1:
             missed_traces += 1
             continue
 
         i = np.argmin(h_distances)
-        site = sites[i]
+        location = locations[i]
 
-        channel_code = f'{site.channels[0].code[0:2]}{component:0.0f}'
+        channel_code = f'{location.channels[0].code[0:2]}{component:0.0f}'
 
         tr_stats = Stats()
         tr_stats.network = network
-        tr_stats.station = site.station.code
-        tr_stats.location = site.location_code
+        tr_stats.station = location.station.code
+        tr_stats.location = location.location_code
         tr_stats.channel = channel_code
         tr_stats.sampling_rate = tr.stats.sampling_rate
 
@@ -257,7 +257,7 @@ def read_TEXCEL_CSV(filename, **kwargs):
                 starttime = datetime + rt0
 
             elif k == 9:
-                site = val[offset]
+                location = val[offset]
 
             elif k == 10:
                 location = val[offset]
@@ -297,7 +297,7 @@ def read_TEXCEL_CSV(filename, **kwargs):
         z = np.array(z)
 
         stats = Stats()
-        stats.network = site
+        stats.network = location
         stats.delta = si_x / 1000.0
         stats.npts = len(x)
         stats.location = location
