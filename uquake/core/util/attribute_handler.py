@@ -8,7 +8,7 @@ from uquake import __package_name__ as ns
 
 
 def set_extra(self, name, value, namespace=ns):
-    self.extra[name] = AttribDict({'value': value, 'namespace': namespace})
+    self.extra[name] = AttribDict({'value': value, 'namespace': namespace.upper()})
 
 
 def get_extra(self, name):

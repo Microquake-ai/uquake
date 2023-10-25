@@ -46,6 +46,8 @@ from .util.requests import download_file_from_url
 # from uquake.core.util.attribute_handler import set_attr_handler
 from uquake.core.util.attribute_handler import set_extra, get_extra
 
+ns = ns.upper()
+
 
 class SystemResponse(object):
     def __init__(self, sensor_type, **sensor_params):
@@ -94,8 +96,10 @@ class SystemResponse(object):
             >>> sr = SystemResponse('accelerometer', resonance_frequency=15, gain=3.0, sensitivity=0.2)
             """
 
-        self.components_info = {}
-        self.components_info['sensor'] = {'type': sensor_type, 'params': sensor_params}
+        self.components_info = {
+            'sensor': {'type': sensor_type,
+                       'params': sensor_params}
+        }
 
     def add_cable(self, **cable_params):
         if 'cable' in self.components_info:
@@ -136,14 +140,11 @@ class SystemResponse(object):
                 stage = self.generate_stage(key, sequence_number)
                 response_stages.append(stage)
                 sequence_number += 1
-        # Generate and return the full system response
-        return response_stages
 
+        # Create and return a Response object using the gathered response stages
+        system_response = Response(response_stages=response_stages)
 
-    @property
-    def response(self):
-        self.validate()
-        # Generate and return the full system response
+        return system_response
 
 
 def geophone_sensor_response(resonance_frequency, gain, damping=0.707,
@@ -735,10 +736,11 @@ class Channel(inventory.Channel):
                  orientation_vector=None, **kwargs):
         self.extra = AttribDict()
 
-        latitude = 0
-        longitude = 0
-        elevation = 0
-        depth = 0
+        latitude = kwargs.pop('latitude') if 'latitude' in kwargs.keys() else 0
+        longitude = kwargs.pop('longitude') if 'longitude' in kwargs.keys() else 0
+        elevation = kwargs.pop('elevation') if 'elevation' in kwargs.keys() else 0
+        depth = kwargs.pop('depth') if 'depth' in kwargs.keys() else 0
+
 
         super(Channel, self).__init__(code, location_code, latitude, longitude,
                                       elevation, depth, **kwargs)
@@ -748,9 +750,9 @@ class Channel(inventory.Channel):
             orientation_vector = orientation_vector / np.linalg.norm(orientation_vector)
             self.set_orientation(orientation_vector)
 
-        self.extra['coordinates'] = coordinates.to_extra_key()
-        set_extra(self, 'active', active)
-        set_extra(self, 'oriented', oriented)
+        self.extra['coordinates'] = coordinates.to_extra_key(namespace=ns)
+        set_extra(self, 'active', active, namespace=ns)
+        set_extra(self, 'oriented', oriented, namespace=ns)
 
     @classmethod
     def from_obspy_channel(cls, obspy_channel, xy_from_lat_lon=False,
@@ -1073,9 +1075,8 @@ def read_inventory(path_or_file_object, format='STATIONXML',
     if (format not in ENTRY_POINTS['inventory'].keys()) or \
             (format.upper() == 'STATIONXML'):
 
-        obspy_inv = inventory.read_inventory(path_or_file_object,
-                                     format=format,
-                                     *args, **kwargs)
+        obspy_inv = inventory.read_inventory(path_or_file_object, *args, format=format,
+                                             **kwargs)
 
         return Inventory.from_obspy_inventory_object(obspy_inv,
                                         xy_from_lat_lon=xy_from_lat_lon,
