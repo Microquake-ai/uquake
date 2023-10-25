@@ -258,7 +258,7 @@ class Coordinates:
         return cls(dict['x'], dict['y'], dict['z'], coordinate_system=coordinate_system,
                    transformation=transformation)
 
-    def to_extra_key(self, namespace='uquake'):
+    def to_extra_key(self, namespace='mq'):
         return AttribDict({'value': self.to_json(), 'namespace': namespace})
 
     @classmethod

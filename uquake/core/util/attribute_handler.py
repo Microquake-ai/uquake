@@ -4,15 +4,15 @@ import numpy as np
 import base64
 import io
 from obspy.core.util import AttribDict
-from uquake import __package_name__ as ns
 
 
-def set_extra(self, name, value, namespace=ns):
-    self.extra[name] = AttribDict({'value': value, 'namespace': namespace.upper()})
+def set_extra(self, name, value, namespace='mq'):
+    self['extra'][name] = AttribDict({'value': value, 'namespace': namespace})
 
 
 def get_extra(self, name):
-    return self.extra[name].value
+    return self['extra'][name].value
+
 
 def array_to_b64(array):
     output = io.BytesIO()
@@ -20,6 +20,7 @@ def array_to_b64(array):
     content = output.getvalue()
     encoded = base64.b64encode(content).decode('utf-8')
     return encoded
+
 
 def isfloat(value):
     try:
@@ -100,35 +101,6 @@ def _set_attr_handler(self, name, value, namespace='UQUAKE'):
     else:
         raise KeyError(name)
 
-
-def _set_attr_handler2(self, name, value, namespace='UQUAKE'):
-    """
-    Generic handler to set attributes for uquake objects
-    which inherit from ObsPy objects. If 'name' is not in
-    default keys then it will be set in self['extra'] dict. If
-    'name' is not in default keys but in the self.extra_keys
-    then it will also be set as a class attribute. When loading
-    extra keys from quakeml file, those in self.extra_keys will
-    be set as attributes.
-    """
-
-    #  use obspy default setattr for default keys
-    if name in self.defaults.keys():
-        super(type(self), self).__setattr__(name, value)
-    # recursive parse of extra args when constructing uquake from obspy
-    elif name == 'extra':
-        if 'extra' not in self:  # hack for deepcopy to work
-            self['extra'] = {}
-        for key, adict in value.items():
-            self.__setattr__(key, parse_string_val(adict.value))
-    else:  # branch for extra keys
-        if name in self.extra_keys:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                self[name] = value
-        if type(value) is np.ndarray:
-            value = "npy64_" + array_to_b64(value)
-        self['extra'][name] = {'value': value, 'namespace': namespace}
 
 
 

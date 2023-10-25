@@ -46,7 +46,7 @@ from .util.requests import download_file_from_url
 # from uquake.core.util.attribute_handler import set_attr_handler
 from uquake.core.util.attribute_handler import set_extra, get_extra
 
-ns = ns.upper()
+namespace = 'https://microquake.ai/'
 
 
 class SystemResponse(object):
@@ -237,17 +237,9 @@ def sensor_cable_response(output_resistance=np.inf, cable_length=np.inf,
     return pzr
 
 
-
 def get_response_from_nrl(datalogger_keys, sensor_keys):
     pass
 
-
-# class Inventory(inventory.Inventory):
-#
-#     __doc__ = inventory.Inventory.__doc__.replace('obspy', ns)
-#
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
 
 class Inventory(inventory.Inventory):
 
@@ -275,7 +267,6 @@ class Inventory(inventory.Inventory):
                                                            output_projection))
 
         return inv
-
 
     @staticmethod
     def from_url(url):
@@ -313,7 +304,8 @@ class Inventory(inventory.Inventory):
         return read_inventory(file_in)
 
     def write(self, path_or_file_obj, format='stationxml', *args, **kwargs):
-        return super().write(path_or_file_obj, format, *args, **kwargs)
+        return super().write(path_or_file_obj, format, *args,
+                             nsmap={'mq': namespace}, **kwargs)
 
     def get_station(self, sta):
         return self.select(sta)
@@ -459,6 +451,9 @@ class Station(inventory.Station):
 
     def __init__(self, *args, coordinates: Coordinates = Coordinates(0, 0, 0), **kwargs):
 
+        if 'extra' not in self.__dict__.keys():  # hack for deepcopy to work
+            self['extra'] = {}
+
         self.extra = AttribDict()
 
         if 'latitude' not in kwargs.keys():
@@ -473,21 +468,36 @@ class Station(inventory.Station):
         if not hasattr(self, 'extra'):
             self.extra = AttribDict()
 
-        super(Station, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
-        self.extra['coordinates'] = coordinates.to_extra_key()
+        self.extra['coordinates'] = coordinates.to_extra_key(namespace=namespace)
 
     def __setattr__(self, name, value):
         if name == 'coordinates':
-            self.extra[name] = value.to_extra_key(namespace=ns)
+            self.extra[name] = value.to_extra_key(namespace=namespace)
         else:
-            super(Station, self).__setattr__(name, value)
+            super().__setattr__(name, value)
 
     def __getattr__(self, item):
         if item == 'coordinates':
             return Coordinates.from_extra_key(self.extra[item])
         else:
-            super(Station, self).__getattr__(item)
+            super().__getattr__(item)
+
+    # def __getitem__(self, key):
+    #     if isinstance(key, int):
+    #         return self[key]
+    #     else:
+    #         return self.__dict__[key]
+
+    def __setitem__(self, key, value):
+        self.__dict__['key'] = value
+
+    def __eq__(self, other):
+        if not super().__eq__(other):
+            return False
+
+        return self.coordinates == other.coordinates
 
     @classmethod
     def from_obspy_station(cls, obspy_station, xy_from_lat_lon=False,
@@ -574,7 +584,7 @@ class Station(inventory.Station):
         return locations
 
     @property
-    def site_coordinates(self):
+    def location_coordinates(self):
         coordinates = []
         for location in self.locations:
             coordinates.append(location.loc)
@@ -734,25 +744,26 @@ class Channel(inventory.Channel):
     def __init__(self, code, location_code, active: bool = True, oriented: bool = False,
                  coordinates: Coordinates = Coordinates(0, 0, 0),
                  orientation_vector=None, **kwargs):
-        self.extra = AttribDict()
 
         latitude = kwargs.pop('latitude') if 'latitude' in kwargs.keys() else 0
         longitude = kwargs.pop('longitude') if 'longitude' in kwargs.keys() else 0
         elevation = kwargs.pop('elevation') if 'elevation' in kwargs.keys() else 0
         depth = kwargs.pop('depth') if 'depth' in kwargs.keys() else 0
 
-
-        super(Channel, self).__init__(code, location_code, latitude, longitude,
+        super().__init__(code, location_code, latitude, longitude,
                                       elevation, depth, **kwargs)
+
+        if 'extra' not in self.__dict__.keys():  # hack for deepcopy to work
+            self.__dict__['extra'] = {}
 
         if orientation_vector is not None:
             # making the orientation vector (cosine vector) unitary
             orientation_vector = orientation_vector / np.linalg.norm(orientation_vector)
             self.set_orientation(orientation_vector)
 
-        self.extra['coordinates'] = coordinates.to_extra_key(namespace=ns)
-        set_extra(self, 'active', active, namespace=ns)
-        set_extra(self, 'oriented', oriented, namespace=ns)
+        self.extra['coordinates'] = coordinates.to_extra_key(namespace=namespace)
+        set_extra(self, 'active', active, namespace=namespace)
+        set_extra(self, 'oriented', oriented, namespace=namespace)
 
     @classmethod
     def from_obspy_channel(cls, obspy_channel, xy_from_lat_lon=False,
@@ -765,7 +776,7 @@ class Channel(inventory.Channel):
                   depth=obspy_channel.depth)
 
         if hasattr(obspy_channel, 'extra'):
-            for key in cha.extra_keys:
+            for key in cha.extra.keys():
                 if key not in obspy_channel.__dict__['extra'].keys():
                     cha.__dict__['extra'][key] = 0
                 else:
@@ -792,37 +803,69 @@ class Channel(inventory.Channel):
         elif item in ('active', 'oriented'):
             return get_extra(item)
         else:
-            if hasattr(super(Channel, self), item):
-                return getattr(super(Channel, self), item)
+            if hasattr(super(), item):
+                return getattr(super(), item)
             else:
                 raise AttributeError(
                     f"'{type(self).__name__}' object has no attribute '{item}'")
 
     def __setattr__(self, key, value):
         if key == 'coordinates':
-            self.extra[key] = value.to_extra_key()
+            self.extra[key] = value.to_extra_key(namespace=namespace)
         elif key in ('active', 'oriented'):
-            set_extra(self, key, value)
+            set_extra(self, key, value, namespace=namespace)
         else:
-            super(Channel, self).__setattr__(key, value)
+            super().__setattr__(key, value)
+
+    def __getitem__(self, key):
+        return self.__dict__[key]
+
+    def __setitem__(self, key, value):
+        self.__dict__['key'] = value
 
     def __repr__(self):
-        time_range = f"{self.start_date} - {self.end_date}" if self.start_date and self.end_date else 'N/A'
+        time_range = f"{self.start_date} - {self.end_date}" if self.start_date and \
+                                                               self.end_date else 'N/A'
 
-        attributes = {
-            'Channel': self.code,
-            'Location': self.location_code,
-            'Time range': time_range,
-            'Easting [x]': f"{self.x:0.0f} m" if self.x is not None else 'N/A',
-            'Northing [y]': f"{self.y:0.0f} m" if self.y is not None else 'N/A',
-            'Elevation [z]': f"{self.z:0.0f} m" if self.z is not None else 'N/A',
-            'Dip (degrees)': f"{self.dip:0.0f}" if self.dip is not None else 'N/A',
-            'Azimuth (degrees)': f"{self.azimuth:0.0f}" if self.azimuth is not None else 'N/A',
-            'Response information': 'available' if self.response else 'not available'
-        }
+        if self.coordinates.coordinate_system == 'ENU':
+
+            attributes = {
+                'Channel': self.code,
+                'Location': self.location_code,
+                'Time range': time_range,
+                'Northing [x]': f"{self.x:0.0f} m" if self.x is not None else 'N/A',
+                'Easting [y]': f"{self.y:0.0f} m" if self.y is not None else 'N/A',
+                'Elevation [z]': f"{self.z:0.0f} m" if self.z is not None else 'N/A',
+                'Dip (degrees)': f"{self.dip:0.0f}" if self.dip is not None else 'N/A',
+                'Azimuth (degrees)': f"{self.azimuth:0.0f}" if self.azimuth
+                                                               is not None else 'N/A',
+                'Response information': 'available' if self.response else 'not available'
+            }
+
+        else:
+            attributes = {
+                'Channel': self.code,
+                'Location': self.location_code,
+                'Time range': time_range,
+                'Easting [x]': f"{self.x:0.0f} m" if self.x is not None else 'N/A',
+                'Northing [y]': f"{self.y:0.0f} m" if self.y is not None else 'N/A',
+                'Depth [z]': f"{self.z:0.0f} m" if self.z is not None else 'N/A',
+                'Dip (degrees)': f"{self.dip:0.0f}" if self.dip is not None else 'N/A',
+                'Azimuth (degrees)': f"{self.azimuth:0.0f}" if self.azimuth
+                                                               is not None else 'N/A',
+                'Response information': 'available' if self.response else 'not available'
+            }
 
         ret = "\n".join([f"{key}: {value}" for key, value in attributes.items()])
         return ret
+
+    def __eq__(self, other):
+        if not super().__eq__(other):
+            return False
+
+        return (self.coordinates == other.coordinates and
+                self.active == other.active and
+                self.oriented == other.oriented)
 
     def set_orientation(self, orientation_vector):
         """
@@ -1078,10 +1121,10 @@ def read_inventory(path_or_file_object, format='STATIONXML',
         obspy_inv = inventory.read_inventory(path_or_file_object, *args, format=format,
                                              **kwargs)
 
-        return Inventory.from_obspy_inventory_object(obspy_inv,
-                                        xy_from_lat_lon=xy_from_lat_lon,
-                                        output_projection=output_projection,
-                                        input_projection=input_projection)
+        return Inventory.from_obspy_inventory_object(
+            obspy_inv, xy_from_lat_lon=xy_from_lat_lon,
+            output_projection=output_projection,
+            input_projection=input_projection)
 
     else:
         format_ep = ENTRY_POINTS['inventory'][format]
