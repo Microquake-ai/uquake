@@ -46,7 +46,7 @@ from .util.requests import download_file_from_url
 # from uquake.core.util.attribute_handler import set_attr_handler
 from uquake.core.util.attribute_handler import set_extra, get_extra
 
-namespace = 'https://microquake.ai/'
+namespace = 'https://microquake.ai/xml/station/1'
 
 
 class SystemResponse(object):
