@@ -26,7 +26,7 @@ import numpy as np
 from obspy.core.inventory.util import (Equipment, Operator, Person,
                                        PhoneNumber, Site, _textwrap,
                                        _unified_content_strings)
-from uquake.core.util.decorator import expand_input_format_compatibility
+from uquake.core.util.decorators import expand_input_format_compatibility
 from uquake.core.coordinates import Coordinates
 from pathlib import Path
 

@@ -1,7 +1,3 @@
-# Copyright (c) 2009 J-Pascal Mercier
-#
-#
-# vim: ts=4 sw=4 sts=0 noexpandtab:
 import os
 import time
 from functools import wraps
@@ -58,7 +54,6 @@ def expand_input_format_compatibility(func):
         return func(*args, **kwargs)
 
     return wrapper
-
 
 
 def compress_file(func):
@@ -266,3 +261,71 @@ def memoize(fct):
         return return_dict[args]
 
     return wrapper
+
+
+def update_doc(cls):
+    """
+    Decorator function to update the docstring of a class.
+    Inherits the documentation from its parent class, and allows
+    for additional customization via class attributes:
+    __remove_parameters__, __new_section__, and __example__.
+
+    :param cls: The class whose docstring needs to be updated
+    :return: The class with the updated docstring
+    """
+
+    # Inherit parent class doc if available (assuming single inheritance)
+    parent_doc = cls.__bases__[0].__doc__ if cls.__bases__ else ''
+
+    # Replace specific substrings in the inherited doc
+    parent_doc = parent_doc.replace('~obspy.', '~uquake.')
+    parent_doc = parent_doc.replace('obspy', 'uquake - powered by obspy -')
+
+    # Append parent doc to current class doc
+    if parent_doc:
+        cls.__doc__ = f"{parent_doc}"
+
+    original_doc = cls.__doc__
+
+    # Remove specified parameters from the doc
+    if hasattr(cls, '__remove_parameters__'):
+        for section in cls.__remove_parameters__:
+            start_idx = original_doc.find(f':type {section}')
+            end_idx = original_doc.find(':type',
+                                        original_doc.find(f':param {section}') + 1)
+
+            # If section exists, remove it
+            if start_idx != -1:
+                original_doc = original_doc[:start_idx] + original_doc[end_idx:]
+
+        cls.__doc__ = original_doc
+
+    # Insert new doc sections if defined
+    if hasattr(cls, '__new_section__'):
+        new_section = cls.__new_section__['doc']
+        previous_parameter = cls.__new_section__['previous_parameter']
+
+        if previous_parameter:
+            start_idx = cls.__doc__.find(f':type {previous_parameter}')
+            end_idx = cls.__doc__.find(':type',
+                                       cls.__doc__.find(f':param {previous_parameter}'))
+            cls.__doc__ = cls.__doc__[:start_idx] + f'{new_section}' + cls.__doc__[
+                                                                       end_idx:]
+        else:
+            cls.__doc__ += f'{new_section}'
+
+    # Replace example section if defined
+    if hasattr(cls, '__example__'):
+        start_idx = original_doc.find('.. rubric:: Example')
+        if start_idx != -1:
+            end_idx = original_doc.find('.. note::', start_idx)
+            if end_idx == -1:
+                end_idx = len(original_doc)
+
+            original_doc = original_doc[:start_idx] + '.. rubric:: Example\n' + \
+                           cls.__example__ + original_doc[end_idx:] + '\n'
+
+        cls.__doc__ = original_doc
+
+    return cls
+

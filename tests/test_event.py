@@ -8,6 +8,8 @@ import datetime
 import string
 import random
 from typing import List
+import os
+reload(event)
 
 
 class TestEventMethods(unittest.TestCase):
@@ -31,8 +33,14 @@ class TestEventMethods(unittest.TestCase):
 
         self.assertEqual(ray, ray2)
 
-    def test_origin_serialization(self):
-        pass
+    def test_read_write(self):
+        cat = generate_catalog()
+        cat.write('test.xml')
+
+    # def tearDown(self):
+    #     # Remove the test.xml file after the test
+    #     if os.path.exists('test.xml'):
+    #         os.remove('test.xml')
 
 
 def generate_uncertainty_point_cloud():
@@ -50,7 +58,7 @@ def generate_ray():
 
     waveform_id = generate_waveform_id()
 
-    nodes = np.random.randn(3, 1000)
+    nodes = np.random.randn(1000, 3)
 
     ray = event.Ray(nodes, waveform_id, event.ResourceIdentifier(), 'P',
                     travel_time=10.0,
@@ -70,7 +78,7 @@ def generate_ray_collection(n_rays):
 
 
 def generate_uncertainty_point_cloud(n_points=100):
-    location = [random.randrange(0, 100) for i in range(n_points)]
+    location = (np.random.rand(3, 100) * 100).tolist()
     probabilities = [random.random() for i in range(n_points)]
 
     return event.UncertaintyPointCloud(location, probabilities)
@@ -136,19 +144,19 @@ def generate_waveform_id():
     )
 
 
-def generate_event(n_origin=1, n_picks_per_origin=20):
-
-    picks = []
-    for i in range(0, n_origin):
-        arrivals = []
-        for j in range(0, n_picks_per_origin):
-            pick = generate_pick()
-            picks.append(pick)
-            arrivals.append(generate_arrival(pick))
-
-        event.Origin()
-
-    pass
+# def generate_event(n_origin=1, n_picks_per_origin=20):
+#
+#     picks = []
+#     for i in range(0, n_origin):
+#         arrivals = []
+#         for j in range(0, n_picks_per_origin):
+#             pick = generate_pick()
+#             picks.append(pick)
+#             arrivals.append(generate_arrival(pick))
+#
+#         event.Origin()
+#
+#     pass
 
 
 def generate_origin(origin_time: datetime = datetime.datetime(2010, 1, 1, 0, 0, 0),
@@ -189,6 +197,62 @@ def generate_origin(origin_time: datetime = datetime.datetime(2010, 1, 1, 0, 0, 
                           creation_info=event.CreationInfo('creation info'))
 
     return origin, picks
+
+
+def generate_magnitude(origin):
+
+    evaluation_mode = random.choice(list(event.header.EvaluationMode))
+    evaluation_status = random.choice(list(event.header.EvaluationStatus))
+
+    magnitude = event.Magnitude(mag=random.randrange(-2, 3),
+                                magnitude_type='Mw',
+                                corner_frequency_p=random.randrange(1, 1000, 10),
+                                corner_frequency_s=random.randrange(1, 1000, 10),
+                                corner_frequency=random.randrange(1, 1000, 10),
+                                corner_frequency_error=random.randrange(0, 100),
+                                corner_frequency_p_error=random.randrange(0, 100),
+                                corner_frequency_s_error=random.randrange(0, 100),
+                                energy_p=random.random() * 100,
+                                energy_s=random.random() * 100,
+                                energy_p_error=random.random(),
+                                energy_s_error=random.random(),
+                                origin_id=origin.resource_id,
+                                evaluation_mode=evaluation_mode,
+                                evaluation_status=evaluation_status)
+
+    return magnitude
+
+
+def generate_event(n_origins=5):
+    origins = []
+    magnitudes = []
+    picks = []
+    for i in range(n_origins):
+        origin, pks = generate_origin()
+        magnitude = generate_magnitude(origin)
+
+        picks += pks
+        origins.append(origin)
+        magnitudes.append(magnitude)
+
+    evt = event.Event(origins=origins, magnitudes=magnitudes, picks=picks,
+                      preferred_origin_id=origin.resource_id,
+                      preferred_magnitude_id=magnitude.resource_id)
+
+    return evt
+
+
+def generate_catalog(n_events=1):
+    events = []
+    for i in range(n_events):
+        events.append(generate_event())
+
+    cat = event.Catalog(events=events)
+    return cat
+
+
+cat = generate_catalog()
+cat.write('test2.xml')
 
 
 if __name__ == '__main__':

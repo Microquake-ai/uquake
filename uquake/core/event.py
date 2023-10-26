@@ -19,22 +19,22 @@ Expansion of the obspy.core.event module
 
 import base64
 import io
-
+import warnings
 import numpy as np
 import obspy.core.event as obsevent
 from obspy.core.event import *
 from obspy.core.event import ResourceIdentifier
 from copy import deepcopy
-from base64 import b64encode, b64decode
-import pickle
 from uquake.waveform.mag_utils import calc_static_stress_drop
 from pathlib import Path
 from uquake.core.coordinates import Coordinates, CoordinateSystem
-from uquake.core.util.attribute_handler import (_set_attr_handler, pop_keys_matching,
-                                                namespace, _init_handler)
+from uquake.core.util.decorators import update_doc
 import json
 from typing import List
 from enum import Enum
+from obspy.core.util import AttribDict
+
+namespace = 'https://microquake.ai/xml/event/1'
 
 
 class RayCollection(list):
@@ -51,12 +51,12 @@ class RayCollection(list):
         out_list = []
         for ray in self:
             out_list.append(ray.to_json())
-        return out_list
+        return json.dumps(out_list)
 
     @classmethod
     def from_json(cls, encoded_rays):
         out_list = cls()
-        for encoded_ray in encoded_rays:
+        for encoded_ray in json.loads(encoded_rays):
             out_list.append(Ray.from_json(encoded_ray))
         return out_list
 
@@ -243,7 +243,7 @@ class Ray(object):
          stream code: {stream_code}
           arrival id: {self.arrival_id}
                phase: {self.phase}
-          length (m): {self.length}
+          length (m): {self.length:0.1f}
      number of nodes: {len(self.nodes)}
             """
         return txt
@@ -295,39 +295,48 @@ class Ray(object):
                    takeoff_angle, azimuth, velocity_model_id, coordinate_system)
 
 
+@update_doc
 class Catalog(obsevent.Catalog):
     extra_keys = []
-
-    __doc__ = obsevent.Catalog.__doc__.replace('obspy', 'uquake')
+    extra = {}
 
     def __init__(self, obspy_obj=None, **kwargs):
-        # _init_handler(self, obspy_obj, **kwargs)
-        if obspy_obj and len(kwargs) > 0:
-            raise AttributeError("Initialize from either \
-                                  obspy_obj or kwargs, not both")
-
-        if obspy_obj:
-
-            for key in obspy_obj.__dict__.keys():
-                if key == 'events':
-                    event_type_lookup = EventTypeLookup()
-                    events = []
-                    for event in obspy_obj:
-                        uquake_event = Event(obspy_obj=event)
-                        if event_type_lookup.is_valid_quakeml(uquake_event.event_type):
-                            uquake_event.event_type = \
-                                event_type_lookup.inverse_lookup_table[event.event_type]
-                        events.append(uquake_event)
-                    self.events = events
-                else:
-                    self.__dict__[key] = obspy_obj.__dict__[key]
-
+        self.events = []
+        if obspy_obj is None:
+            _init_handler(self, obspy_obj, **kwargs)
         else:
-            super(type(self), self).__init__(
-                **kwargs)
+            for event in obspy_obj.events:
+                self.events.append(Event(obspy_obj=event))
+
+        # if obspy_obj and len(kwargs) > 0:
+        #     raise AttributeError("Initialize from either \
+        #                           obspy_obj or kwargs, not both")
+        #
+        # if obspy_obj:
+        #
+        #     for key in obspy_obj.__dict__.keys():
+        #         if key == 'events':
+        #             event_type_lookup = EventTypeLookup()
+        #             events = []
+        #             for event in obspy_obj:
+        #                 uquake_event = Event(obspy_obj=event)
+        #                 if event_type_lookup.is_valid_quakeml(uquake_event.event_type):
+        #                     uquake_event.event_type = \
+        #                         event_type_lookup.inverse_lookup_table[event.event_type]
+        #                 events.append(uquake_event)
+        #             self.events = events
+        #         else:
+        #             self.__dict__[key] = obspy_obj.__dict__[key]
+
+        # else:
+        #     super(type(self), self).__init__(
+        #         **kwargs)
 
     def __setattr__(self, name, value):
         super(type(self), self).__setattr__(name, value)
+
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
 
     def write(self, fileobj, format='quakeml', **kwargs):
         event_type_lookup = EventTypeLookup()
@@ -340,7 +349,12 @@ class Catalog(obsevent.Catalog):
                     if 'extra' in ar.keys():
                         del ar.extra
 
-        result = obsevent.Catalog.write(self, fileobj, format=format, **kwargs)
+        if format.upper() == 'QUAKEML':
+            result = obsevent.Catalog.write(self, fileobj, format=format,
+                                            nsmap={'mq': namespace}, **kwargs)
+
+        else:
+            result = obsevent.Catalog.write(self, fileobj, format=format, **kwargs)
 
         for event in self.events:
             for ori in event.origins:
@@ -461,14 +475,46 @@ class EventTypeLookup(object):
         return event_type in self.valid_uquakeml_types
 
 
+@update_doc
 class Event(obsevent.Event):
 
     # _format keyword is actualy a missing obspy default
 
-    __doc__ = obsevent.Event.__doc__.replace('obspy', 'uquake')
+    # __doc__ = obsevent.Event.__doc__.replace('obspy', 'uquake')
+
+    extra_keys = ['_format']
+    extra_types = {'_format': str}
 
     def __init__(self, obspy_obj=None, **kwargs):
-        _init_handler(self, obspy_obj, **kwargs)
+        if obspy_obj is None:
+            _init_handler(self, obspy_obj, **kwargs)
+        else:
+
+            pick_dict = {}
+            self.picks = []
+            for pick in obspy_obj.picks:
+                uq_pick = Pick(obspy_obj=pick)
+                pick_dict[pick.resource_id.id] = uq_pick
+                self.picks.append(uq_pick)
+
+            self.origins = []
+            preferred_origin_id = obspy_obj.preferred_origin_id
+            for origin in obspy_obj.origins:
+                uq_origin = Origin(obspy_obj=origin)
+                self.origins.append(uq_origin)
+                if origin.resource_id == preferred_origin_id:
+                    self.preferred_origin_id = origin.resource_id
+
+                for arrival in uq_origin.arrivals:
+                    arrival.pick_id = pick_dict[arrival.pick_id.id].resource_id
+
+            self.magnitudes = []
+            preferred_magnitude_id = obspy_obj.preferred_magnitude_id
+            for magnitude in obspy_obj.magnitudes:
+                uq_magnitude = Magnitude(obspy_obj=magnitude)
+                self.magnitudes.append(uq_magnitude)
+                if magnitude.resource_id == preferred_magnitude_id:
+                    self.preferred_magnitude_id = uq_magnitude.resource_id
 
     def __setattr__(self, name, value):
         _set_attr_handler(self, name, value)
@@ -550,6 +596,22 @@ class UncertaintyPointCloud(object):
 
         return True
 
+    def __str__(self):
+        return (f"UncertaintyPointCloud:\n"
+                f"number of points: {len(self.locations)}\n"
+                f"location range:\n"
+                f"\tx range: "
+                f"{np.max(self.locations[0]) - np.min(self.locations[0]):.1f}\n"
+                f"\ty range: "
+                f"{np.max(self.locations[1]) - np.min(self.locations[1]):.1f}\n"
+                f"\tz range: "
+                f"{np.max(self.locations[2]) - np.min(self.locations[2]):.1f}\n"
+                f""
+                f"coordinate system: {self.coordinate_system.__repr__()})")
+
+    def __repr__(self):
+        return self.__str__()
+
     def to_json(self):
         out_dict = {}
         for key in self.__dict__.keys():
@@ -569,54 +631,101 @@ class UncertaintyPointCloud(object):
         return cls(**in_dict)
 
 
+@update_doc
 class Origin(obsevent.Origin):
-    original_doc = obsevent.Origin.__doc__.replace('obspy', 'uquake')
-    original_doc = original_doc.replace('earth_model_id', 'velocity_model_id')
-
-    # Locate the latitude section
-    start_idx = original_doc.find(':type latitude:')
-    end_idx = original_doc.find(':type', original_doc.find(
-        ':param latitude:'))  # Locate the next ':type' after latitude
-
-    # Define the new 'coordinates' parameter section
-    new_section = """:type coordinates: :class:`~uquake.core.coordinates.Coordinates`
+    __doc__ = obsevent.Origin.__doc__
+    # original_doc = obsevent.Origin.__doc__.replace('obspy', 'uquake')
+    # original_doc = original_doc.replace('earth_model_id', 'velocity_model_id')
+    #
+    # # Remove unwanted sections
+    __remove_parameters__ = ['latitude', 'latitude_error',
+                             'longitude', 'longitude_error',
+                             'depth', 'depth_error', 'depth_type', 'elevation',
+                             'epicenter_fixed']
+    #
+    # # Define the new 'coordinates' parameter section
+    __new_section__ = {
+        'doc': """:type coordinates: :class:`~uquake.core.coordinates.Coordinates`
     :param coordinates: Spatial coordinates of the event origin.
+    """,
+        'previous_parameter': 'time_fixed'}
+
+    __example__ = """
+    >>> from uquake.core.event import Origin
+    >>> from uquake.core.coordinates import Coordinates, CoordinateSystem
+    >>> from uquake.core import UTCDateTime
+    >>> coords = Coordinates(10, 20, 30, coordinate_system=CoordinateSystem.ENU)
+    >>> origin = Origin(time=UTCDateTime(2020, 1, 1, 10, 20, 30), coordinates=coords)
+    >>> print(origin)
     """
 
-    # Replace the latitude section with the new 'coordinates' section
-    original_doc = original_doc[:start_idx] + new_section + original_doc[end_idx:]
-
-    # Remove unwanted sections
-    sections_to_remove = ['latitude', 'longitude', 'longitude_error', 'depth',
-                          'depth_error', 'depth_type', 'elevation',
-                          'epicenter_fixed']
-    for section in sections_to_remove:
-        start_idx = original_doc.find(f':type {section}')
-        end_idx = original_doc.find(':type', original_doc.find(
-            f':param {section}') + 1)  # Locate the next ':type' after section
-
-        if start_idx != -1:  # Only remove if the section exists
-            original_doc = original_doc[:start_idx] + original_doc[end_idx:]
-
-    __doc__ = original_doc
-
     extra_keys = ['rays', 'coordinates', 'uncertainty_point_cloud']
+    extra_types = {'rays': RayCollection,
+                   'coordinates': Coordinates,
+                   'uncertainty_point_cloud': UncertaintyPointCloud
+                   }
 
-    def __init__(self, coordinates: Coordinates = Coordinates(0, 0, 0),
-                 rays: RayCollection = [],
+    def __init__(self, coordinates: Coordinates = None,
+                 rays: RayCollection = None,
                  uncertainty_point_cloud: UncertaintyPointCloud = None,
                  obspy_obj=None, **kwargs):
 
-        _init_handler(self, obspy_obj, **kwargs)
+        self.extra = {}
 
-        if 'velocity_model_id' in kwargs.keys():
-            kwargs['earth_model_id'] = kwargs.pop('velocity_model_id')
-        if coordinates:
-            self.coordinates = coordinates
-        if rays:
-            self.rays = rays
-        if uncertainty_point_cloud is not None:
-            self.uncertainty_point_cloud = uncertainty_point_cloud
+        if obspy_obj is not None:
+            if hasattr(obspy_obj, 'extra'):
+                extra = obspy_obj.extra
+                obspy_obj.extra = {}
+                _init_handler(self, obspy_obj, **kwargs)
+                for key in self.extra_keys:
+                    if key in extra.keys():
+                        if hasattr(self.extra_types[key], 'from_json'):
+                            value = self.extra_types[key].from_json(
+                                extra[key].value
+                            )
+                            self.__setattr__(key, value)
+            else:
+                _init_handler(self, obspy_obj, **kwargs)
+
+            self.arrivals = []
+            for arrival in obspy_obj.arrivals:
+                uq_arrival = Arrival(obspy_obj=arrival)
+                self.arrivals.append(uq_arrival)
+
+            obspy_obj.extra = {}
+
+        else:
+            _init_handler(self, obspy_obj, **kwargs)
+
+            if 'velocity_model_id' in kwargs.keys():
+                kwargs['earth_model_id'] = kwargs.pop('velocity_model_id')
+            if coordinates:
+                self.coordinates = coordinates
+            else:
+                self.coordinates = Coordinates(0, 0, 0,
+                                               coordinate_system=CoordinateSystem.ENU)
+            if rays:
+                self.rays = rays
+            if uncertainty_point_cloud is not None:
+                self.uncertainty_point_cloud = uncertainty_point_cloud
+
+    def __eq__(self, other):
+        warnings.simplefilter('ignore')
+        if type(self) != type(other):
+            return False
+        if len(self.arrivals) != len(other.arrivals):
+            return False
+        if self.arrivals != other.arrivals:
+            return False
+
+        for key in self.extra_keys:
+            if self.extra[key] != other.extra[key]:
+                return False
+
+        if not super().__eq__(self, other):
+            return False
+
+        return True
 
     def __setattr__(self, name, value):
         _set_attr_handler(self, name, value)
@@ -631,43 +740,61 @@ class Origin(obsevent.Origin):
         else:
             return self.__dict__[item]
 
-    @staticmethod
-    def __encode_rays__(rays: List):
-        encoded_rays = []
-        for ray in rays:
-            encoded_rays.append(ray.to_json())
-        return encoded_rays
+    def __str__(self):
+        string = f"""
+          resource_id: {self.resource_id}
+            time(UTC): {self.time}
+                    x: {self.x}
+                    y: {self.y}
+                    z: {self.z}
+          uncertainty: {self.location_uncertainty} (m)
+      evaluation_mode: {self.evaluation_mode}
+    evaluation_status: {self.evaluation_status}
+                   ---------
+             arrivals: {len(self.arrivals):d}
+           """
+        return string
 
-    def __decode_rays__(self):
-        decoded_rays = []
-        if self.__encoded_rays__ is None:
-            return
-        for encoded_ray in self.__encoded_rays__:
-            decoded_rays.append(Ray.from_json(encoded_ray))
+    def __repr__(self):
+        return self.__str__()
 
-        return decoded_rays
-
-    @staticmethod
-    def __encode_uncertainty_point_cloud__(
-            uncertainty_point_cloud: UncertaintyPointCloud):
-        return uncertainty_point_cloud.to_json()
-
-    def __decode_uncertainty_point_cloud__(self):
-        return UncertaintyPointCloud.from_json(self.__encoded_uncertainty_point_cloud__)
-
-    @staticmethod
-    def __encode_coordinates__(value):
-        if not isinstance(value, Coordinates):
-            raise TypeError(f'the value provided must be of instance '
-                            f'{type(Coordinates)}')
-
-        return value.to_json()
-
-    def __decode_coordinates__(self):
-        if self.__cartesian_coordinates__ is None:
-            return
-        else:
-            return Coordinates.from_json(self.__cartesian_coordinates__)
+    # @staticmethod
+    # def __encode_rays__(rays: List):
+    #     encoded_rays = []
+    #     for ray in rays:
+    #         encoded_rays.append(ray.to_json())
+    #     return encoded_rays
+    #
+    # def __decode_rays__(self):
+    #     decoded_rays = []
+    #     if self.__encoded_rays__ is None:
+    #         return
+    #     for encoded_ray in self.__encoded_rays__:
+    #         decoded_rays.append(Ray.from_json(encoded_ray))
+    #
+    #     return decoded_rays
+    #
+    # @staticmethod
+    # def __encode_uncertainty_point_cloud__(
+    #         uncertainty_point_cloud: UncertaintyPointCloud):
+    #     return uncertainty_point_cloud.to_json()
+    #
+    # def __decode_uncertainty_point_cloud__(self):
+    #     return UncertaintyPointCloud.from_json(self.__encoded_uncertainty_point_cloud__)
+    #
+    # @staticmethod
+    # def __encode_coordinates__(value):
+    #     if not isinstance(value, Coordinates):
+    #         raise TypeError(f'the value provided must be of instance '
+    #                         f'{type(Coordinates)}')
+    #
+    #     return value.to_json()
+    #
+    # def __decode_coordinates__(self):
+    #     if self.__cartesian_coordinates__ is None:
+    #         return
+    #     else:
+    #         return Coordinates.from_json(self.__cartesian_coordinates__)
 
     def get_arrival_id(self, phase, station_code):
         arrival_id = None
@@ -759,21 +886,6 @@ class Origin(obsevent.Origin):
 
         return magnitudes
 
-    def __str__(self, **kwargs):
-        string = f"""
-       resource_id: {self.resource_id}
-         time(UTC): {self.time}
-                 x: {self.x}
-                 y: {self.y}
-                 z: {self.z}
-       uncertainty: {self.location_uncertainty} (m)
-   evaluation_mode: {self.evaluation_mode}
- evaluation_status: {self.evaluation_status}
-                ---------
-          arrivals: {len(self.arrivals):d}
-        """
-        return string
-
     def get_incidence_baz_angles(self, site_code, phase):
         baz = None
         inc = None
@@ -800,20 +912,64 @@ class Origin(obsevent.Origin):
         return ray.length
 
 
+@update_doc
 class Magnitude(obsevent.Magnitude):
     __doc__ = obsevent.Magnitude.__doc__.replace('obspy', 'uquake')
 
     extra_keys = ['corner_frequency',
                   'corner_frequency_p', 'corner_frequency_s',
                   'corner_frequency_error', 'corner_frequency_p_error',
-                  'corner_frequency_s_error'
-                  'moment_magnitude', 'moment_magnitude_uncertainty']
+                  'corner_frequency_s_error',
+                  'energy_p', 'energy_s', 'energy_p_error', 'energy_s_error']
+
+    extra_types = {'corner_frequency': float,
+                   'corner_frequency_p': float,
+                   'corner_frequency_s': float,
+                   'corner_frequency_error': float,
+                   'corner_frequency_p_error': float,
+                   'corner_frequency_s_error': float,
+                   'energy_p': float,
+                   'energy_s': float,
+                   'energy_p_error': float,
+                   'energy_s_error': float}
+
+    __new_section__ = {
+        'doc': """:type corner_frequency: float
+    :param seismic_moment: the seismic moment
+    :type seismic_moment: float
+    :param corner_frequency: The corner frequency in Hz.
+    :type corner_frequency_p: float
+    :param corner_frequency_p: The corner frequency for P-waves in Hz.
+    :type corner_frequency_s: float
+    :param corner_frequency_s: The corner frequency for S-waves in Hz.
+    :type corner_frequency_error: float
+    :param corner_frequency_error: Error associated with the corner frequency in Hz.
+    :type corner_frequency_p_error: float
+    :param corner_frequency_p_error: Error associated with the corner frequency for P-waves in Hz.
+    :type corner_frequency_s_error: float
+    :param corner_frequency_s_error: Error associated with the corner frequency for S-waves in Hz.
+    :type energy_p: float
+    :param energy_p: P-wave radiated energy in joules
+    :type energy_s: float
+    :param energy_s: S-wave radiated energy in joules
+    :type energy_p_error: float
+    :param energy_p_error: P-wave radiated energy error in joules
+    :type energy_s_error: float
+    :param energy_s_error:  S-wave radiated energy error in joules
+    """,
+        'previous_parameter': 'magnitude_type'}
 
     def __init__(self, obspy_obj=None, **kwargs):
+        if 'seismic_moment' in kwargs.keys():
+            seismic_moment = kwargs.pop('seismic_moment')
+            kwargs['mag'] = (2 / 3) * (np.log10(seismic_moment) - 9.1)
         _init_handler(self, obspy_obj, **kwargs)
 
     def __setattr__(self, name, value):
-        _set_attr_handler(self, name, value)
+        if name == 'seismic_moment':
+            self.mag = (2 / 3) * (np.log10(value) - 9.1)
+        else:
+            _set_attr_handler(self, name, value)
 
     @classmethod
     def from_dict(cls, input_dict, origin_id=None, obspy_obj=None, **kwargs):
@@ -825,20 +981,24 @@ class Magnitude(obsevent.Magnitude):
         return out_cls
 
     @property
-    def static_stress_drop_mpa(self):
+    def energy(self):
+        return self.energy_p + self.energy_s
+
+    @property
+    def static_stress_drop(self):
         ssd = None
         if self.magnitude_type == "Mw":
-            if self.mag and self.corner_frequency_hz:
+            if self.mag and self.corner_frequency:
                 ssd = calc_static_stress_drop(self.mag,
-                                              self.corner_frequency_hz)
+                                              self.corner_frequency) * 1e6
         return ssd
 
     @property
     def apparent_stress(self):
         app_stress = None
         if self.magnitude_type == 'Mw':
-            if self.energy_joule and self.mag:
-                app_stress = 2 * self.energy_joule / self.potency_m3
+            if self.energy and self.mag:
+                app_stress = 2 * self.energy / self.potency
         return app_stress
 
     @property
@@ -848,13 +1008,8 @@ class Magnitude(obsevent.Magnitude):
             seismic_moment = 10 ** (3 * (self.mag + 6.03) / 2)
         return seismic_moment
 
-    # @seismic_moment.setter
-    # def seismic_moment(self, val):
-    #     self.mag = val
-    #     self.magnitude_type = 'Mw'
-
     @property
-    def potency_m3(self):
+    def potency(self):
         potency = None
         mu = 29.5e9
         if self.magnitude_type == 'Mw':
@@ -865,20 +1020,20 @@ class Magnitude(obsevent.Magnitude):
     def __str__(self, **kwargs):
 
         es_ep = None
-        if self.energy_p_joule and self.energy_s_joule:
-            es_ep = self.energy_s_joule / self.energy_p_joule
+        if self.energy_p and self.energy_s:
+            es_ep = self.energy_s / self.energy_p
 
         string = f"""
              resource_id: {self.resource_id.id}     
-               Magnitude: {self.mag}
+               Magnitude: {self.mag:0.1f}
           Magnitude type: {self.magnitude_type}
-   Corner frequency (Hz): {self.corner_frequency_hz}
- Radiated Energy (joule): {self.energy_joule}
-                   Es/Ep: {es_ep}
-          Seismic moment: {self.seismic_moment}
-       Source volume(m3): {self.potency_m3}
-Static stress drop (MPa): {self.static_stress_drop_mpa}
-     Apparent stress(Pa): {self.apparent_stress}
+   Corner frequency (Hz): {self.corner_frequency:0.1f}
+ Radiated Energy (joule): {self.energy:.3e}
+                   Es/Ep: {es_ep:0.1f}
+          Seismic moment: {self.seismic_moment:.3e}
+       Source volume(m3): {self.potency:.3e}
+ Static stress drop (Pa): {self.static_stress_drop:.3e}
+     Apparent stress(Pa): {self.apparent_stress:.3e}
          evaluation mode: {self.evaluation_mode}
        evaluation status: {self.evaluation_status}
         """
@@ -907,6 +1062,9 @@ class Pick(obsevent.Pick):
                                                                   insert_position:]
 
     extra_keys = ['snr', 'planarity', 'linearity']
+    extra_types = {'snr': float,
+                   'planarity': float,
+                   'linearity': float}
 
     def __init__(self, obspy_obj=None, **kwargs):
         _init_handler(self, obspy_obj, **kwargs)
@@ -949,8 +1107,11 @@ class Pick(obsevent.Pick):
 class WaveformStreamID(obsevent.WaveformStreamID):
     __doc__ = obsevent.WaveformStreamID.__doc__.replace('obspy', 'uquake')
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    extra_keys = []
+    extra_type = {}
+
+    def __init__(self, obspy_obj=None, **kwargs):
+        _init_handler(self, obspy_obj, **kwargs)
 
     @property
     def location(self):
@@ -973,6 +1134,7 @@ class Arrival(obsevent.Arrival):
                               ':type velocity_model_id:')
 
     extra_keys = []
+    extra_type = {}
 
     def __init__(self, obspy_obj=None, **kwargs):
         if 'velocity_model_id' in kwargs.keys():
@@ -1083,38 +1245,6 @@ def read_events(filename, **kwargs):
     return mq_catalog
 
 
-def _init_from_obspy_object(uquake_obj, obspy_obj):
-    """
-    When initializing uquake object from obspy_obj
-    checks attributes for lists of obspy objects and
-    converts them to equivalent uquake objects.
-    """
-
-    class_equiv = {obsevent.event: Event,
-                   obsevent.Pick: Pick,
-                   obsevent.Arrival: Arrival,
-                   obsevent.Origin: Origin,
-                   obsevent.Magnitude: Magnitude,
-                   obsevent.WaveformStreamID: WaveformStreamID}
-
-    for key, val in obspy_obj.__dict__.items():
-        itype = type(val)
-        if itype in class_equiv:
-            uquake_obj.__setattr__(key, class_equiv[itype](val))
-
-        elif itype == list:
-            out = []
-            for item in val:
-                itype = type(item)
-                if itype in class_equiv:
-                    out.append(class_equiv[itype](item))
-                else:
-                    out.append(item)
-            uquake_obj.__setattr__(key, out)
-        else:
-            uquake_obj.__setattr__(key, val)
-
-
 def break_down(event):
     origin = event.origins[0]
     print("break_down: Here's what obspy reads:")
@@ -1150,3 +1280,157 @@ def make_pick(time, phase='P', wave_data=None, snr=None, mode='automatic',
         this_pick.trace_id = wave_data.get_id()
 
     return this_pick
+
+
+def array_to_b64(array):
+    output = io.BytesIO()
+    np.save(output, array)
+    content = output.getvalue()
+    encoded = base64.b64encode(content).decode('utf-8')
+    return encoded
+
+
+def isfloat(value):
+    try:
+        float(value)
+        return True
+    except ValueError:
+        return False
+
+
+def b64_to_array(b64str):
+    arr = np.load(io.BytesIO(base64.b64decode(b64str)))
+    return arr
+
+
+def pop_keys_matching(dict_in, keys):
+    # Move keys from dict_in to dict_out
+    dict_out = {}
+    for key in keys:
+        if key in dict_in:
+            dict_out[key] = dict_in.pop(key)
+    return dict_out
+
+
+def parse_string_val(val, arr_flag='npy64_'):
+    """
+    Parse extra args in quakeML which are all stored as string.
+    """
+    if val is None:  # hack for deepcopy ignoring isfloat try-except
+        val = None
+    elif type(val) == AttribDict:
+        val = val
+    elif isfloat(val):
+        val = float(val)
+    elif str(val) == 'None':
+        val = None
+    elif val[:len(arr_flag)] == 'npy64_':
+        val = b64_to_array(val[len(arr_flag):])
+    return val
+
+
+def _set_attr_handler(self, name, value, namespace=namespace):
+    """
+    Generic handler to set attributes for uquake objects
+    which inherit from ObsPy objects. If 'name' is not in
+    default keys then it will be set in self['extra'] dict. If
+    'name' is not in default keys but in the self.extra_keys
+    then it will also be set as a class attribute. When loading
+    extra keys from quakeml file, those in self.extra_keys will
+    be set as attributes.
+    """
+
+    #  use obspy default setattr for default keys
+    if name in self.defaults.keys():
+        self.__dict__[name] = value
+        if isinstance(self.__dict__[name], ResourceIdentifier):
+            self.__dict__[name] = ResourceIdentifier(id=value.id)
+        # super(type(self), self).__setattr__(name, value)
+    elif name in self.extra_keys:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self[name] = value
+        if isinstance(value, np.ndarray):
+            value = "npy64_" + array_to_b64(value)
+        elif type(value) is str:
+            if "npy64_" in value:
+                value.replace("npy64_", "")
+                b64_to_array(value)
+        elif hasattr(value, 'to_json'):
+            value = value.to_json()
+        self['extra'][name] = {'value': value, 'namespace': namespace}
+    # recursive parse of 'extra' args when constructing uquake from obspy
+    elif name == 'extra':
+        if 'extra' not in self:  # hack for deepcopy to work
+            self['extra'] = {}
+        else:
+            for key, adict in value.items():
+                if key in self.extra_keys:
+                    self.__dict__[key] = parse_string_val(adict.value)
+                else:
+                    self['extra'][key] = adict
+    else:
+        raise KeyError(name)
+
+
+def _init_handler(self, obspy_obj, **kwargs):
+    """
+    Handler to initialize uquake objects which
+    inherit from ObsPy class. If obspy_obj is none,
+    Kwargs is expected to be a mix of obspy kwargs
+    and uquake kwargs specified by the hardcoded
+    extra_keys.
+    """
+
+    if obspy_obj and len(kwargs) > 0:
+        raise AttributeError("Initialize from either \
+                              obspy_obj or kwargs, not both")
+
+    # default initialize the extra_keys args to None
+    self['extra'] = {}
+    [self.__setattr__(key, None) for key in self.extra_keys]
+
+    if obspy_obj:
+        _init_from_obspy_object(self, obspy_obj)
+
+        if 'resource_id' in obspy_obj.__dict__.keys():
+            rid = obspy_obj.resource_id.id
+            self.resource_id = ResourceIdentifier(id=rid,
+                                                  referred_object=self)
+    else:
+        extra_kwargs = pop_keys_matching(kwargs, self.extra_keys)
+        super(type(self), self).__init__(**kwargs)  # init obspy_origin args
+        [self.__setattr__(k, v) for k, v in extra_kwargs.items()]  # init
+        # extra_args
+
+
+def _init_from_obspy_object(uquake_obj, obspy_obj):
+    """
+    When initializing uquake object from obspy_obj
+    checks attributes for lists of obspy objects and
+    converts them to equivalent uquake objects.
+    """
+
+    class_equiv = {obsevent.event: Event,
+                   obsevent.Pick: Pick,
+                   obsevent.Arrival: Arrival,
+                   obsevent.Origin: Origin,
+                   obsevent.Magnitude: Magnitude,
+                   obsevent.WaveformStreamID: WaveformStreamID}
+
+    for key, val in obspy_obj.__dict__.items():
+        itype = type(val)
+        if itype in class_equiv:
+            uquake_obj.__setattr__(key, class_equiv[itype](val))
+
+        elif itype == list:
+            out = []
+            for item in val:
+                itype = type(item)
+                if itype in class_equiv:
+                    out.append(class_equiv[itype](item))
+                else:
+                    out.append(item)
+            uquake_obj.__setattr__(key, out)
+        else:
+            uquake_obj.__setattr__(key, val)

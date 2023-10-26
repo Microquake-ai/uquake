@@ -248,7 +248,7 @@ class Coordinates:
     @classmethod
     def from_json(cls, json_string):
         in_dict = json.loads(json_string)
-        coordinate_system = CoordinateSystem(**in_dict['coordinate_system'])
+        coordinate_system = CoordinateSystem(in_dict['coordinate_system'])
 
         if in_dict['transformation'] is not None:
             transformation = CoordinateTransformation.from_json(
