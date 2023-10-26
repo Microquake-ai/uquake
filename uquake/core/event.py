@@ -31,6 +31,9 @@ from uquake.waveform.mag_utils import calc_static_stress_drop
 from pathlib import Path
 from uquake.core.coordinates import Coordinates, CoordinateSystem
 from uquake.core.util.attribute_handler import _set_attr_handler, pop_keys_matching
+import json
+from typing import List
+from enum import Enum
 
 
 class Catalog(obsevent.Catalog):
@@ -202,16 +205,6 @@ class EventTypeLookup(object):
 class Event(obsevent.Event):
 
     # _format keyword is actualy a missing obspy default
-    extra_keys = ['_format', 'ACCEPTED', 'ASSOC_SEISMOGRAM_NAMES',
-                  'AUTO_PROCESSED',
-                  'BLAST', 'CORNER_FREQUENCY', 'DYNAMIC_STRESS_DROP',
-                  'ENERGY', 'ENERGY_P', 'ENERGY_S', 'EVENT_MODIFICATION_TIME',
-                  'EVENT_NAME', 'EVENT_TIME_FORMATTED', 'EVENT_TIME_NANOS',
-                  'LOCAL_MAGNITUDE', 'LOCATION_RESIDUAL', 'LOCATION_X',
-                  'LOCATION_Y', 'LOCATION_Z', 'MANUALLY_PROCESSED',
-                  'NUM_ACCEPTED_TRIGGERS', 'NUM_TRIGGERS', 'POTENCY',
-                  'POTENCY_P', 'POTENCY_S', 'STATIC_STRESS_DROP', 'TAP_TEST',
-                  'TEST', 'TRIGGERED_SITES', 'USER_NAME', 'network']
 
     __doc__ = obsevent.Event.__doc__.replace('obspy', 'uquake')
 
@@ -276,17 +269,53 @@ class Event(obsevent.Event):
 
 
 class Origin(obsevent.Origin):
-    __doc__ = obsevent.Origin.__doc__.replace('obspy', 'uquake')
-    extra_keys = ['scatter', '__encoded_rays__', '__cartesian_coordinates__', 'author']
+    original_doc = obsevent.Origin.__doc__.replace('obspy', 'uquake')
+    original_doc = original_doc.replace('earth_model_id', 'velocity_model_id')
 
-    def __init__(self, coordinates=None, rays=[], statters=[], obspy_obj=None, **kwargs):
+    # Locate the latitude section
+    start_idx = original_doc.find(':type latitude:')
+    end_idx = original_doc.find(':type', original_doc.find(
+        ':param latitude:'))  # Locate the next ':type' after latitude
 
-        _init_handler(self, obspy_obj, **kwargs)
+    # Define the new 'coordinates' parameter section
+    new_section = """:type coordinates: :class:`~uquake.core.coordinates.Coordinates`
+    :param coordinates: Spatial coordinates of the event origin.
+    """
+
+    # Replace the latitude section with the new 'coordinates' section
+    original_doc = original_doc[:start_idx] + new_section + original_doc[end_idx:]
+
+    # Remove unwanted sections
+    sections_to_remove = ['latitude', 'longitude', 'longitude_error', 'depth',
+                          'depth_error', 'depth_type', 'elevation',
+                          'epicenter_fixed']
+    for section in sections_to_remove:
+        start_idx = original_doc.find(f':type {section}')
+        end_idx = original_doc.find(':type', original_doc.find(
+            f':param {section}') + 1)  # Locate the next ':type' after section
+
+        if start_idx != -1:  # Only remove if the section exists
+            original_doc = original_doc[:start_idx] + original_doc[end_idx:]
+
+    __doc__ = original_doc
+
+    extra_keys = ['__encoded_rays__', '__encoded__coordinates__',
+                  '__encoded__uncertain_point_cloud__']
+
+    def __init__(self, coordinates: Coordinates = Coordinates(0, 0, 0),
+                 rays=[], uncertainty_point_cloud=[], obspy_obj=None, **kwargs):
+
+        if 'velocity_model_id' in kwargs.keys():
+            kwargs['earth_model_id'] = kwargs.pop('velocity_model_id')
 
         if coordinates is not None:
             self.coordinates = coordinates
         if rays:
             self.rays = rays
+        if uncertainty_point_cloud is not None:
+            self.uncertainty_point_cloud = uncertainty_point_cloud
+
+        _init_handler(self, obspy_obj, **kwargs)
 
     def __setattr__(self, name, value):
 
@@ -295,7 +324,7 @@ class Origin(obsevent.Origin):
         # elif name == 'encoded_rays':
         #     self.__encoded_rays__ = value
         elif name == 'coordinates':
-            self.__cartesian_coordinates__ = self.__encode_coordinates__(value)
+            self.__cartesian_coordinates__ = self.coordinates.to_json()
         else:
             _set_attr_handler(self, name, value)
 
@@ -314,17 +343,28 @@ class Origin(obsevent.Origin):
             return self.__dict__[item]
 
     @staticmethod
-    def __encode_rays__(rays):
-        return b64encode(pickle.dumps(rays))
+    def __encode_rays__(rays: List):
+        encoded_rays = []
+        for ray in rays:
+            encoded_rays.append(ray.to_json())
+        return encoded_rays
 
     def __decode_rays__(self):
+        decoded_rays = []
         if self.__encoded_rays__ is None:
             return
-        try:
-            return pickle.loads(b64decode(self.__encoded_rays__))
-        except Exception as e:
-            self.__encoded_rays__ = eval(self.__encoded_rays__)
-            return pickle.loads(b64decode(self.__encoded_rays__))
+        for encoded_ray in self.__encoded_rays__:
+            decoded_rays.append(Ray.from_json(encoded_ray))
+
+        return decoded_rays
+
+    @staticmethod
+    def __encode_uncertainty_point_cloud__(
+            uncertainty_point_cloud: UncertaintyPointCloud):
+        return uncertainty_point_cloud.to_json()
+
+    def __decode_uncertainty_point_cloud__(self):
+        return UncertaintyPointCloud.from_json(self.__encoded_uncertainty_point_cloud__)
 
     @staticmethod
     def __encode_coordinates__(value):
@@ -431,7 +471,6 @@ class Origin(obsevent.Origin):
         return magnitudes
 
     def __str__(self, **kwargs):
-
         string = f"""
        resource_id: {self.resource_id}
          time(UTC): {self.time}
@@ -475,16 +514,11 @@ class Origin(obsevent.Origin):
 class Magnitude(obsevent.Magnitude):
     __doc__ = obsevent.Magnitude.__doc__.replace('obspy', 'uquake')
 
-    extra_keys = ['energy_joule', 'energy_p_joule', 'energy_p_std',
-                  'energy_s_joule', 'energy_s_std', 'corner_frequency_hz',
-                  'corner_frequency_p_hz', 'corner_frequency_s_hz',
-                  'corner_frequency_error',
-                  'time_domain_moment_magnitude',
-                  'frequency_domain_moment_magnitude',
-                  'moment_magnitude', 'moment_magnitude_uncertainty',
-                  'seismic_moment', 'potency_m3', 'source_volume_m3',
-                  'apparent_stress', 'static_stress_drop_mpa',
-                  'quick_magnitude', 'error']
+    extra_keys = ['corner_frequency',
+                  'corner_frequency_p', 'corner_frequency_s',
+                  'corner_frequency_error', 'corner_frequency_p_error',
+                  'corner_frequency_s_error'
+                  'moment_magnitude', 'moment_magnitude_uncertainty']
 
     def __init__(self, obspy_obj=None, **kwargs):
         _init_handler(self, obspy_obj, **kwargs)
@@ -564,34 +598,45 @@ Static stress drop (MPa): {self.static_stress_drop_mpa}
 
 
 class Pick(obsevent.Pick):
-    __doc__ = obsevent.Pick.__doc__.replace('obspy', 'uquake')
-    extra_keys = ['method', 'snr', 'trace_id', 'author', 'linearity',
-                  'planarity', 'azimuth', 'dip']
+    original_doc = obsevent.Pick.__doc__.replace('obspy', 'uquake')
+
+    insert_position = original_doc.find(".. note::")
+
+    new_doc_addition = """
+        :type snr: float, optional
+        :param snr: Signal-to-Noise Ratio.
+        :type planarity: float, optional
+        :param planarity: Measure of planarity of the waveform.
+        :type linearity: float, optional
+        :param linearity: Measure of linearity of the waveform.
+
+        **Extensions to original obsevent.Pick class above**
+    """
+
+    # Insert new documentation at the identified position
+    new_doc = original_doc[:insert_position] + new_doc_addition + original_doc[
+                                                                  insert_position:]
+
+    extra_keys = ['snr', 'planarity', 'linearity']
 
     def __init__(self, obspy_obj=None, **kwargs):
         _init_handler(self, obspy_obj, **kwargs)
-        if obspy_obj:
-            wid = self.waveform_id
-            self.trace_id = "%s.%s.%s.%s" % (wid.network_code,
-                                             wid.station_code,
-                                             wid.location_code,
-                                             wid.channel_code)
 
     def __setattr__(self, name, value):
         _set_attr_handler(self, name, value)
 
     def __str__(self, **kwargs):
         string = """
-          trace_id: %s
+         stream_id: %s
               time: %s
-             phase:[%s]
-            method: %s [%s]
+             phase: %s
+               snr: %s
    evaluation_mode: %s
  evaluation_status: %s
        resource_id: %s
         """ \
-                 % (self.trace_id, self.time.strftime("%Y/%m/%d %H:%M:%S.%f"),
-                    self.phase_hint, self.method, self.snr,
+                 % (self.stream_id, self.time.strftime("%Y/%m/%d %H:%M:%S.%f"),
+                    self.phase_hint,  self.snr,
                     self.evaluation_mode,
                     self.evaluation_status, self.resource_id)
         return string
@@ -603,62 +648,54 @@ class Pick(obsevent.Pick):
     @property
     def location(self):
         if self.waveform_id is not None:
-            location = f'{self.waveform_id.station_code}.{self.waveform_id.location_code}'
+            location = f'{self.waveform_id.station_code}.' \
+                       f'{self.waveform_id.location_code}'
             return location
 
     @property
-    def site_code(self):
-        return self.location
+    def stream_id(self):
+        return self.waveform_id.stream_id
 
 
 class WaveformStreamID(obsevent.WaveformStreamID):
     __doc__ = obsevent.WaveformStreamID.__doc__.replace('obspy', 'uquake')
-    extra_keys = []
 
-    def __init__(self, obspy_obj=None, **kwargs):
-        _init_handler(self, obspy_obj, **kwargs)
-
-    @property
-    def site_code(self):
-        if self.station_code is not None:
-            if self.location_code is None:
-                return self.station_code
-            else:
-                return f'{self.station_code}.{self.location_code}'
-
-        return
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     @property
     def location(self):
-        return self.site_code
+        return self.location_code
+
+    @property
+    def stream_id(self):
+        return f'{self.network_code}.{self.station_code}.{self.location_code}.' \
+               f'{self.channel_code}'
 
 
 class Arrival(obsevent.Arrival):
     __doc__ = obsevent.Arrival.__doc__.replace('obspy', 'uquake')
+    __doc__ = __doc__.replace(':param distance: Epicentral distance. Unit: deg',
+                              ':param distance: Hypocentral distance. Unit: m')
+    __doc__ = __doc__.replace(':param earth_model_id: Earth model',
+                              ':param velocity_model_id: Velocity model')
 
-    extra_keys = ['ray', 'backazimuth', 'inc_angle',
-                  'peak_vel', 'tpeak_vel', 't1', 't2', 'pulse_snr',
-                  'peak_dis', 'tpeak_dis', 'max_dis', 'tmax_dis',
-                  'dis_pulse_width', 'dis_pulse_area', 'smom', 'fit',
-                  'tstar', 'hypo_dist_in_m', 'vel_flux', 'vel_flux_Q',
-                  'energy', 'fmin', 'fmax', 'traces']
+    __doc__ = __doc__.replace(':type earth_model_id:',
+                              ':type velocity_model_id:')
+
+    extra_keys = []
 
     def __init__(self, obspy_obj=None, **kwargs):
+        if 'velocity_model_id' in kwargs.keys():
+            velocity_model_id = kwargs['velocity_model_id']
+            kwargs.pop('velocity_model_id')
+            kwargs['earth_model_id'] = velocity_model_id
         _init_handler(self, obspy_obj, **kwargs)
 
     def __setattr__(self, name, value):
-        if name == 'polarity':
-            if value in ['positive', 'negative', 'undecidable']:
-                self.get_pick().polarity = value
-            elif value == -1:
-                self.get_pick().polarity = 'negative'
-            elif value == 1:
-                self.get_pick().polarity = 'positive'
-            else:
-                self.get_pick().polarity = 'undecidable'
-
-        else:
-            _set_attr_handler(self, name, value)
+        if name == 'velocity_model_id':
+            self.earth_model_id = value
+        super().__setattr__(name, value)
 
     def __repr__(self):
         out_str = f"""
@@ -679,24 +716,11 @@ class Arrival(obsevent.Arrival):
 
     @property
     def polarity(self):
-        if self.get_pick().polarity == 'positive':
-            return 1.0
-        elif self.get_pick().polarity == 'negative':
-            return -1.0
-        else:
-            return None
+        return self.get_pick().polarity
 
     @property
     def pick(self):
         return self.get_pick()
-
-    @property
-    def site_code(self):
-        return self.pick.location
-
-    @property
-    def location(self):
-        return self.pick.location
 
     @property
     def time(self):
@@ -718,6 +742,10 @@ class Arrival(obsevent.Arrival):
     def network(self):
         return self.pick.waveform_id.network_code
 
+    @property
+    def velocity_model_id(self):
+        return self.earth_model_id
+
     def get_pick(self):
         if self.pick_id is not None:
             return self.pick_id.get_referred_object()
@@ -726,6 +754,9 @@ class Arrival(obsevent.Arrival):
         if self.pick_id is not None:
             pick = self.pick_id.get_referred_object()
             return pick.get_sta()
+
+    def get_station(self):
+        return self.get_sta()
 
 
 def get_arrival_from_pick(arrivals, pick):
@@ -855,6 +886,15 @@ class RayCollection:
         self.rays = self.rays + [item]
 
 
+class Phase(Enum):
+
+    P = 'P'
+    S = 'S'
+
+    def __str__(self):
+        return str(self.value)
+
+
 class Ray(object):
     """
     Initializes a Ray object that represents a seismic raypath in a 3D medium.
@@ -869,7 +909,8 @@ class Ray(object):
     :param phase: Type of seismic wave, either "P" for primary or "S" for secondary.
     Default is None.
     :type phase: str, optional
-    :param travel_time: Travel time from the source to the observation location, in seconds.
+    :param travel_time: Travel time from the source to the observation location, in
+    seconds.
     Default is None.
     :type travel_time: float, optional
     :param earth_model_id: Identifier for the Earth model used in ray tracing. Default is
@@ -880,33 +921,54 @@ class Ray(object):
     :type coordinate_system: CoordinateSystem, optional
     """
 
-    def __init__(self, nodes: list = [],
+    def __init__(self, nodes: list,
                  waveform_id: WaveformStreamID = WaveformStreamID(),
                  arrival_id: ResourceIdentifier = None,
-                 phase: str = None,
+                 phase: str = 'P',
                  travel_time: float = None,
                  takeoff_angle: float = None,
                  azimuth: float = None,
-                 earth_model_id: ResourceIdentifier = None,
-                 coordinate_system: CoordinateSystem = CoordinateSystem):
+                 velocity_model_id: ResourceIdentifier = None,
+                 coordinate_system: CoordinateSystem = CoordinateSystem('ENU')):
 
         self.nodes = np.array(nodes)
         self.waveform_id = waveform_id
         self.arrival_id = arrival_id
-        self.phase = phase
+        self.phase = Phase(phase)
         self.travel_time = travel_time
         self.resource_id = obsevent.ResourceIdentifier()
-        self.earth_model_id = earth_model_id
+        self.velocity_model_id = velocity_model_id
         self.coordinate_system = coordinate_system
         self.takeoff_angle = takeoff_angle
         self.azimuth = azimuth
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+
+        # Compare nodes (assuming the same shape and numerical values)
+        if not np.array_equal(self.nodes, other.nodes):
+            return False
+
+        # Compare other attributes
+        if self.arrival_id != other.arrival_id or \
+                self.phase != other.phase or \
+                self.travel_time != other.travel_time or \
+                self.takeoff_angle != other.takeoff_angle or \
+                self.azimuth != other.azimuth or \
+                self.velocity_model_id != other.velocity_model_id or \
+                self.coordinate_system != other.coordinate_system or \
+                self.waveform_id != other.waveform_id:
+            return False
+
+        return True
 
     def __setattr__(self, key, value):
         if key == 'phase':
             if value is None:
                 self.__dict__[key] = value
             else:
-                self.__dict__[key] = value.upper()
+                self.__dict__[key] = value
         else:
             self.__dict__[key] = value
 
@@ -931,8 +993,8 @@ class Ray(object):
         return self.azimuth
 
     @property
-    def site_code(self):
-        return self.waveform_id.site_code if self.waveform_id is not None else None
+    def location(self):
+        return self.waveform_id.location if self.waveform_id is not None else None
 
     @property
     def station(self):
@@ -949,6 +1011,10 @@ class Ray(object):
     @property
     def back_azimuth(self):
         self.baz
+
+    @property
+    def earth_model_id(self):
+        return self.velocity_model_id
 
     def _vector(self, index1, index2):
         """Get the vector between two nodes based on coordinate system."""
@@ -993,21 +1059,107 @@ class Ray(object):
 
     def __str__(self):
 
-        site_code = f'{self.network}.{self.site_code[0:4]}.' \
-                    f'{self.site_code[4:]}'
+        stream_code = f'{self.waveform_id.network_code}.' \
+                      f'{self.waveform_id.station_code}.' \
+                      f'{self.waveform_id.location_code}'
 
         txt = \
             f"""
-       location code: {site_code}
-        arrival id: {self.arrival_id}
-             phase: {self.phase}
-        length (m): {self.length}
-   number of nodes: {len(self.nodes)}
+         stream code: {stream_code}
+          arrival id: {self.arrival_id}
+               phase: {self.phase}
+          length (m): {self.length}
+     number of nodes: {len(self.nodes)}
             """
         return txt
 
     def __repr__(self):
         return self.__str__()
+
+    def to_json(self):
+        obj_dict = {
+            'nodes': self.nodes.tolist(),
+            'waveform_id': {
+                'network_code': self.waveform_id.network_code,
+                'station_code': self.waveform_id.station_code,
+                'channel_code': self.waveform_id.channel_code,
+                'location_code': self.waveform_id.location_code,
+                'resource_uri': str(self.waveform_id.resource_uri)
+            },
+            'arrival_id': str(self.arrival_id),
+            'phase': str(self.phase),
+            'travel_time': self.travel_time,
+            'resource_id': str(self.resource_id),
+            'velocity_model_id': str(self.velocity_model_id),
+            'coordinate_system': str(self.coordinate_system),
+            'takeoff_angle': self.takeoff_angle,
+            'azimuth': self.azimuth
+        }
+        return json.dumps(obj_dict)
+
+    @classmethod
+    def from_json(cls, json_str):
+        obj_dict = json.loads(json_str)
+        nodes = np.array(obj_dict['nodes'])
+        waveform_id_dict = obj_dict['waveform_id']
+        waveform_id = WaveformStreamID(network_code=waveform_id_dict['network_code'],
+                                       station_code=waveform_id_dict['station_code'],
+                                       channel_code=waveform_id_dict['channel_code'],
+                                       location_code=waveform_id_dict['location_code'],
+                                       resource_uri=ResourceIdentifier(
+                                           waveform_id_dict['resource_uri']))
+        arrival_id = ResourceIdentifier(obj_dict['arrival_id'])
+        phase = Phase(obj_dict['phase'])
+        travel_time = obj_dict['travel_time']
+        velocity_model_id = ResourceIdentifier(obj_dict['velocity_model_id'])
+        coordinate_system = CoordinateSystem(obj_dict['coordinate_system'])
+        takeoff_angle = obj_dict['takeoff_angle']
+        azimuth = obj_dict['azimuth']
+
+        return cls(nodes, waveform_id, arrival_id, phase, travel_time,
+                   takeoff_angle, azimuth, velocity_model_id, coordinate_system)
+
+
+class UncertaintyPointCloud(object):
+    def __init__(self, locations: List[float], probabilities: List[float],
+                 coordinate_system: CoordinateSystem = CoordinateSystem('ENU')):
+        if isinstance(locations, np.ndarray):
+            locations = locations.tolist()
+        if isinstance(probabilities, np.ndarray):
+            probabilities = probabilities.tolist()
+        self.locations = locations
+        self.probabilities = probabilities
+        self.coordinate_system = coordinate_system
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        if self.probabilities != other.probabilities:
+            return False
+        if self.locations != other.locations:
+            return False
+        if self.coordinate_system != other.coordinate_system:
+            return False
+
+        return True
+
+    def to_json(self):
+        out_dict = {}
+        for key in self.__dict__.keys():
+            if key == 'coordinate_system':
+                out_dict[key] = str(self.coordinate_system)
+            else:
+                out_dict[key] = self.__dict__[key]
+
+        return json.dumps(out_dict)
+
+    @classmethod
+    def from_json(cls, json_string):
+        in_dict = json.loads(json_string)
+        if 'coordinate_system' in in_dict.keys():
+            in_dict['coordinate_system'] = CoordinateSystem(
+                in_dict['coordinate_system'])
+        return cls(**in_dict)
 
 
 def break_down(event):

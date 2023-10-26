@@ -230,32 +230,34 @@ class Coordinates:
                         (self.transformation == other.transformation)) else False
 
     def to_json(self):
-        dict = {}
+        out_dict = {}
         for key in self.__dict__.keys():
             # from ipdb import set_trace
             # set_trace()
             if key == 'coordinate_system':
-                dict[key] = str(self.coordinate_system)
+                out_dict[key] = str(self.coordinate_system)
             elif key == 'transformation':
                 if self.transformation is not None:
-                    dict[key] = self.transformation.to_json()
+                    out_dict[key] = self.transformation.to_json()
                 else:
-                    dict[key] = None
+                    out_dict[key] = None
             else:
-                dict[key] = self.__dict__[key]
-        return json.dumps(dict)
+                out_dict[key] = self.__dict__[key]
+        return json.dumps(out_dict)
 
     @classmethod
     def from_json(cls, json_string):
-        dict = json.loads(json_string)
-        coordinate_system = CoordinateSystem(dict['coordinate_system'])
+        in_dict = json.loads(json_string)
+        coordinate_system = CoordinateSystem(**in_dict['coordinate_system'])
 
-        if dict['transformation'] is not None:
-            transformation = CoordinateTransformation.from_json(dict['transformation'])
+        if in_dict['transformation'] is not None:
+            transformation = CoordinateTransformation.from_json(
+                in_dict['transformation'])
         else:
             transformation = None
 
-        return cls(dict['x'], dict['y'], dict['z'], coordinate_system=coordinate_system,
+        return cls(in_dict['x'], in_dict['y'], in_dict['z'],
+                   coordinate_system=coordinate_system,
                    transformation=transformation)
 
     def to_extra_key(self, namespace='mq'):
