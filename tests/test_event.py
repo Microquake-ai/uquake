@@ -3,9 +3,11 @@ from uquake.core import event
 from uquake.core import coordinates
 from importlib import reload
 import numpy as np
-from datetime import datetime, timedelta
+# from datetime import datetime, timedelta
+import datetime
 import string
 import random
+from typing import List
 
 
 class TestEventMethods(unittest.TestCase):
@@ -59,14 +61,29 @@ def generate_ray():
     return ray
 
 
-def generate_pick(origin_time=datetime(2010, 1, 1, 0, 0, 0)):
+def generate_ray_collection(n_rays):
+    ray_collection = event.RayCollection()
+    for i in range(n_rays):
+        ray_collection.append(generate_ray())
+
+    return ray_collection
+
+
+def generate_uncertainty_point_cloud(n_points=100):
+    location = [random.randrange(0, 100) for i in range(n_points)]
+    probabilities = [random.random() for i in range(n_points)]
+
+    return event.UncertaintyPointCloud(location, probabilities)
+
+
+def generate_pick(origin_time=datetime.datetime(2010, 1, 1, 0, 0, 0)):
     snr = np.random.rand() * 20
     azimuth = np.random.rand() * 360 - 180
     incidence_angle = np.random.rand() * 90
     planarity = np.random.rand()
     linearity = np.random.rand()
 
-    time = origin_time + timedelta(seconds=np.random.rand() / 10)
+    time = origin_time + datetime.timedelta(seconds=np.random.rand() / 10)
     time_error = np.random.rand() / 100
     waveform_id = generate_waveform_id()
     filter_id = event.ResourceIdentifier()
@@ -132,6 +149,46 @@ def generate_event(n_origin=1, n_picks_per_origin=20):
         event.Origin()
 
     pass
+
+
+def generate_origin(origin_time: datetime = datetime.datetime(2010, 1, 1, 0, 0, 0),
+                    n_picks=20) -> (event.Origin, List[event.Pick]):
+    arrivals = []
+    picks = []
+    for i in range(0, n_picks):
+        pick = generate_pick(origin_time)
+        picks.append(pick)
+        arrivals.append(generate_arrival(pick))
+
+    x = np.random.rand() * 1000
+    y = np.random.rand() * 1000
+    z = np.random.rand() * 1000
+    coords = coordinates.Coordinates(
+        x, y, z, coordinate_system=coordinates.CoordinateSystem.ENU)
+
+    origin_uncertainty = event.OriginUncertainty(associated_phase_count=len(arrivals),
+                                                 used_phase_count=len(arrivals))
+
+    evaluation_mode = random.choice(list(event.header.EvaluationMode))
+    evaluation_status = random.choice(list(event.header.EvaluationStatus))
+
+    origin = event.Origin(time=origin_time,
+                          time_error=event.QuantityError(uncertainty=0),
+                          coordinates=coords,
+                          rays=generate_ray_collection(n_picks),
+                          uncertainty_point_cloud=generate_uncertainty_point_cloud(),
+                          time_fixed=False,
+                          velocity_model_id=event.ResourceIdentifier(),
+                          arrivals=arrivals,
+                          origin_uncertainty=origin_uncertainty,
+                          origin_type=event.header.OriginType.hypocenter,
+                          region='crusher',
+                          evaluation_mode=evaluation_mode,
+                          evaluation_status=evaluation_status,
+                          comments=[event.Comment('a comment')],
+                          creation_info=event.CreationInfo('creation info'))
+
+    return origin, picks
 
 
 if __name__ == '__main__':

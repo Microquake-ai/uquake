@@ -42,9 +42,7 @@ from pkg_resources import load_entry_point
 from tempfile import NamedTemporaryFile
 import os
 from .util.requests import download_file_from_url
-from uquake.core.util.attribute_handler import set_extra, get_extra
-
-namespace = 'https://microquake.ai/xml/station/1'
+from uquake.core.util.attribute_handler import set_extra, get_extra, namespace
 
 
 class SystemResponse(object):

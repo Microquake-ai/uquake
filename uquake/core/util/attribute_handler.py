@@ -6,6 +6,9 @@ import io
 from obspy.core.util import AttribDict
 
 
+namespace = 'https://microquake.ai/xml/station/1'
+
+
 def set_extra(self, name, value, namespace='mq'):
     self['extra'][name] = AttribDict({'value': value, 'namespace': namespace})
 
@@ -61,7 +64,7 @@ def parse_string_val(val, arr_flag='npy64_'):
     return val
 
 
-def _set_attr_handler(self, name, value, namespace='UQUAKE'):
+def _set_attr_handler(self, name, value, namespace=namespace):
     """
     Generic handler to set attributes for uquake objects
     which inherit from ObsPy objects. If 'name' is not in
@@ -82,7 +85,9 @@ def _set_attr_handler(self, name, value, namespace='UQUAKE'):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             self[name] = value
-        if type(value) is np.ndarray:
+        if hasattr(value, 'to_json'):
+            value = value.to_json()
+        elif isinstance(value, np.ndarray):
             value = "npy64_" + array_to_b64(value)
         elif type(value) is str:
             if "npy64_" in value:
@@ -100,6 +105,37 @@ def _set_attr_handler(self, name, value, namespace='UQUAKE'):
                 self['extra'][key] = adict
     else:
         raise KeyError(name)
+
+
+def _init_handler(self, obspy_obj, **kwargs):
+    """
+    Handler to initialize uquake objects which
+    inherit from ObsPy class. If obspy_obj is none,
+    Kwargs is expected to be a mix of obspy kwargs
+    and uquake kwargs specified by the hardcoded
+    extra_keys.
+    """
+
+    if obspy_obj and len(kwargs) > 0:
+        raise AttributeError("Initialize from either \
+                              obspy_obj or kwargs, not both")
+
+    # default initialize the extra_keys args to None
+    self['extra'] = {}
+    [self.__setattr__(key, None) for key in self.extra_keys]
+
+    if obspy_obj:
+        _init_from_obspy_object(self, obspy_obj)
+
+        if 'resource_id' in obspy_obj.__dict__.keys():
+            rid = obspy_obj.resource_id.id
+            self.resource_id = ResourceIdentifier(id=rid,
+                                                  referred_object=self)
+    else:
+        extra_kwargs = pop_keys_matching(kwargs, self.extra_keys)
+        super(type(self), self).__init__(**kwargs)  # init obspy_origin args
+        [self.__setattr__(k, v) for k, v in extra_kwargs.items()]  # init
+        # extra_args
 
 
 
