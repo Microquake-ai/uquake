@@ -45,7 +45,7 @@ from scipy.ndimage.filters import gaussian_filter
 from typing import Union
 from uquake.core.coordinates import CoordinateSystem, Coordinates
 from typing import Union, List
-from uquake.core.inventory import Inventory, Network, Station, Location, Channel
+from uquake.core.inventory import Inventory, Network, Station, Channel
 import random
 
 
