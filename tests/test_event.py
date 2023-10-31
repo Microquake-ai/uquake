@@ -3,7 +3,6 @@ from uquake.core import event
 from uquake.core import coordinates
 from importlib import reload
 import numpy as np
-# from datetime import datetime, timedelta
 import datetime
 import string
 import random
