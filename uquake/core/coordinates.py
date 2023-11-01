@@ -32,7 +32,7 @@ class CoordinateSystem(Enum):
     ENU = 2
 
     def __repr__(self):
-        return "North, East, Down (NED)" if self.__name__ == "NED" else "East, North, Up (ENU)"
+        return "North, East, Down (NED)" if self.name == "NED" else "East, North, Up (ENU)"
 
 
 class CoordinateTransformation:
