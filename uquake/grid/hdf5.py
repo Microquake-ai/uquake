@@ -37,7 +37,6 @@ class H5TTable(object):
         self.station_locations = self.hf['station_locations'].astype('U2')
         self._sitedict = dict(zip(self.locations, np.arange(len(self.locations))))
 
-        self.locations = self.hf['locations'][:]
         self.coords = self.hf['grid_locs'][:]
 
     def __delete__(self):
@@ -130,7 +129,7 @@ def array_from_travel_time_ensemble(tt_grids):
     for i in range(nsites):
         tts[i] = tt_grids[i].data.reshape(ngrid).astype(np.float32)
 
-    data[phase] = dict(ttable=tts, locations=slocs, shape=shape,
+    data[phase] = dict(ttable=tts, slocs=slocs, shape=shape,
                        origin=origin, spacing=spacing, locations=locations)
 
     return data
