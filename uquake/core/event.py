@@ -40,7 +40,6 @@ import obspy.core.event as obsevent
 from obspy.core.event import *
 from obspy.core.event import ResourceIdentifier
 from copy import deepcopy
-from uquake.waveform.mag_utils import calc_static_stress_drop
 from pathlib import Path
 from uquake.core.coordinates import Coordinates, CoordinateSystem
 from uquake.core.util.decorators import update_doc
@@ -1449,3 +1448,49 @@ def _init_from_obspy_object(uquake_obj, obspy_obj):
             uquake_obj.__setattr__(key, out)
         else:
             uquake_obj.__setattr__(key, val)
+
+def calc_static_stress_drop(Mw, fc, phase='S', v=3.5, use_brune=False):
+    """
+    Calculate static stress drop from moment/corner_freq relation
+    Note the brune model (instantaneous slip) gives stress drops ~ 8 x lower
+    than the Madariaga values for fcP, fcS
+
+    :param Mw: moment magnitude
+    :type Mw: float
+    :param fc: corner frequency [Hz]
+    :type fc: float
+    :param phase: P or S phase
+    :type phase: string
+    :param v: P or S velocity [km/s] at source
+    :type v: float
+    :param use_brune: If true --> use Brune's original scaling
+    :type use_brune: boolean
+    :returns: static stress drop [MPa]
+    :rtype: float
+
+    """
+
+    if use_brune:  # Use Brune scaling
+        c = .375
+    else:  # Use Madariaga scaling
+        if phase == 'S':
+            c = .21
+        else:
+            c = .32
+
+    v *= 1e5  # cm/s
+
+    a = c * v / fc  # radius of circular fault from corner freq
+
+    logM0 = 3 / 2 * Mw + 9.1  # in N-m
+    M0 = 10 ** logM0 * 1e7  # dyn-cm
+
+    stress_drop = 7. / 16. * M0 * (1 / a) ** 3  # in dyn/cm^2
+    stress_drop /= 10.  # convert to Pa=N/m^2
+
+    return stress_drop / 1e6  # MPa
+
+
+cos = np.cos
+sin = np.sin
+degs2rad = np.pi / 180.
