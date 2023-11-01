@@ -14,6 +14,11 @@ reload(event)
 
 class TestEventMethods(unittest.TestCase):
 
+    # def tearDown(self):
+    #     # Remove the test.xml file after the test
+    #     if os.path.exists('test.xml'):
+    #         os.remove('test.xml')
+
     def test_uncertainty_point_cloud_serialization(self):
         reload(event)
 
@@ -36,11 +41,10 @@ class TestEventMethods(unittest.TestCase):
     def test_read_write(self):
         cat = generate_catalog()
         cat.write('test.xml')
+        cat2 = event.read_events('test.xml')
 
-    # def tearDown(self):
-    #     # Remove the test.xml file after the test
-    #     if os.path.exists('test.xml'):
-    #         os.remove('test.xml')
+        assert cat[0].preferred_origin().arrivals[0].pick.time == \
+               cat2[0].preferred_origin().arrivals[0].pick.time
 
 
 def generate_uncertainty_point_cloud():
@@ -144,21 +148,6 @@ def generate_waveform_id():
     )
 
 
-# def generate_event(n_origin=1, n_picks_per_origin=20):
-#
-#     picks = []
-#     for i in range(0, n_origin):
-#         arrivals = []
-#         for j in range(0, n_picks_per_origin):
-#             pick = generate_pick()
-#             picks.append(pick)
-#             arrivals.append(generate_arrival(pick))
-#
-#         event.Origin()
-#
-#     pass
-
-
 def generate_origin(origin_time: datetime = datetime.datetime(2010, 1, 1, 0, 0, 0),
                     n_picks=20) -> (event.Origin, List[event.Pick]):
     arrivals = []
@@ -249,10 +238,6 @@ def generate_catalog(n_events=1):
 
     cat = event.Catalog(events=events)
     return cat
-
-
-cat = generate_catalog()
-cat.write('test2.xml')
 
 
 if __name__ == '__main__':
