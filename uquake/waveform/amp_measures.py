@@ -22,7 +22,7 @@
 """
 
 # default logger
-from uquake.helpers.logging import logger
+from uquake.core.logging import logger
 
 import matplotlib.pyplot as plt
 import numpy as np

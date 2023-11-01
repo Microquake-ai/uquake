@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from ...core.inventory import (Inventory, Network, Station, Location, Channel,
-                                   geophone_response, SystemResponse)
+                                   SystemResponse)
 from ...core import UTCDateTime
 from datetime import datetime
 from typing import TextIO, Union, List, Dict
