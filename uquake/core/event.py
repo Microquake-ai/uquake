@@ -119,7 +119,7 @@ class Ray(object):
                  takeoff_angle: float = None,
                  azimuth: float = None,
                  velocity_model_id: ResourceIdentifier = None,
-                 coordinate_system: CoordinateSystem = CoordinateSystem('NED')):
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
 
         self.nodes = np.array(nodes)
         self.waveform_id = waveform_id
@@ -302,7 +302,7 @@ class Ray(object):
         phase = Phase(obj_dict['phase'])
         travel_time = obj_dict['travel_time']
         velocity_model_id = ResourceIdentifier(obj_dict['velocity_model_id'])
-        coordinate_system = CoordinateSystem(obj_dict['coordinate_system'])
+        coordinate_system = getattr(CoordinateSystem, obj_dict['coordinate_system'])
         takeoff_angle = obj_dict['takeoff_angle']
         azimuth = obj_dict['azimuth']
 
@@ -590,7 +590,7 @@ class Event(obsevent.Event):
 
 class UncertaintyPointCloud(object):
     def __init__(self, locations: List[float], probabilities: List[float],
-                 coordinate_system: CoordinateSystem = CoordinateSystem('NED')):
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
         if isinstance(locations, np.ndarray):
             locations = locations.tolist()
         if isinstance(probabilities, np.ndarray):
@@ -641,7 +641,7 @@ class UncertaintyPointCloud(object):
     def from_json(cls, json_string):
         in_dict = json.loads(json_string)
         if 'coordinate_system' in in_dict.keys():
-            in_dict['coordinate_system'] = CoordinateSystem(
+            in_dict['coordinate_system'] = getattr(CoordinateSystem,
                 in_dict['coordinate_system'])
         return cls(**in_dict)
 

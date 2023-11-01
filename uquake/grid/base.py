@@ -71,7 +71,7 @@ class Grid(object):
 
     def __init__(self, data_or_dims, spacing=None, origin=None,
                  resource_id=None, value=0,
-                 coordinate_system: CoordinateSystem = CoordinateSystem()):
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
 
         """
         can hold both 2 and 3 dimensional grid
