@@ -1,14 +1,29 @@
+# Copyright (C) 2023, Jean-Philippe Mercier
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 # -*- coding: utf-8 -*-
 # ------------------------------------------------------------------
 # Filename: nlloc.py
-#  Purpose: plugin for reading and writing GridData object into various format 
+#  Purpose: plugin for reading and writing GridData object into various format
 #   Author: uquake development team
 #    Email: devs@uquake.org
 #
 # Copyright (C) 2016 uquake development team
 # --------------------------------------------------------------------
 """
-plugin for reading and writing GridData object into various format 
+plugin for reading and writing GridData object into various format
 
 :copyright:
     uquake development team (devs@uquake.org)
@@ -127,7 +142,7 @@ def write_vtk(grid, filename, **kwargs):
     etc.) using
     the pyevtk module.
     param filename: full path to file with the extension. Note that the
-    extension for vtk image data (grid data) is usually .vti. 
+    extension for vtk image data (grid data) is usually .vti.
     :type filename; str
     :param grid: grid to be saved
     :type grid: ~uquake.core.data.grid.GridData

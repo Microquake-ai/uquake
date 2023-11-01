@@ -1,3 +1,18 @@
+# Copyright (C) 2023, Jean-Philippe Mercier
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 import os
 from glob import glob
 import numpy as np
@@ -22,7 +37,6 @@ class H5TTable(object):
         self.station_locations = self.hf['station_locations'].astype('U2')
         self._sitedict = dict(zip(self.locations, np.arange(len(self.locations))))
 
-        self.locations = self.hf['locations'][:]
         self.coords = self.hf['grid_locs'][:]
 
     def __delete__(self):
@@ -115,7 +129,7 @@ def array_from_travel_time_ensemble(tt_grids):
     for i in range(nsites):
         tts[i] = tt_grids[i].data.reshape(ngrid).astype(np.float32)
 
-    data[phase] = dict(ttable=tts, locations=slocs, shape=shape,
+    data[phase] = dict(ttable=tts, slocs=slocs, shape=shape,
                        origin=origin, spacing=spacing, locations=locations)
 
     return data

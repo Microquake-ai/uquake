@@ -1,3 +1,18 @@
+# Copyright (C) 2023, Jean-Philippe Mercier
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 # -*- coding: utf-8 -*-
 # ------------------------------------------------------------------
 # Filename: <filename>
@@ -30,7 +45,7 @@ from scipy.ndimage.filters import gaussian_filter
 from typing import Union
 from uquake.core.coordinates import CoordinateSystem, Coordinates
 from typing import Union, List
-from uquake.core.inventory import Inventory, Network, Station, Location, Channel
+from uquake.core.inventory import Inventory, Network, Station, Channel
 import random
 
 
@@ -56,7 +71,7 @@ class Grid(object):
 
     def __init__(self, data_or_dims, spacing=None, origin=None,
                  resource_id=None, value=0,
-                 coordinate_system: CoordinateSystem = CoordinateSystem()):
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
 
         """
         can hold both 2 and 3 dimensional grid
@@ -615,7 +630,7 @@ class Grid(object):
         return np.array(self.origin) + np.array(self.shape) * \
                np.array(self.spacing)
 
-    from obspy.core.inventory import Inventory, Network, Station, Channel, Location, Location
+    from obspy.core.inventory import Inventory, Network, Station, Channel
     from obspy.core.util import AttribDict
     import random
     import numpy as np

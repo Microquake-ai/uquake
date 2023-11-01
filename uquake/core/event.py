@@ -1,3 +1,18 @@
+# Copyright (C) 2023, Jean-Philippe Mercier
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 # -*- coding: utf-8 -*-
 # ------------------------------------------------------------------
 # Filename: event.py
@@ -25,7 +40,6 @@ import obspy.core.event as obsevent
 from obspy.core.event import *
 from obspy.core.event import ResourceIdentifier
 from copy import deepcopy
-from uquake.waveform.mag_utils import calc_static_stress_drop
 from pathlib import Path
 from uquake.core.coordinates import Coordinates, CoordinateSystem
 from uquake.core.util.decorators import update_doc
@@ -104,7 +118,7 @@ class Ray(object):
                  takeoff_angle: float = None,
                  azimuth: float = None,
                  velocity_model_id: ResourceIdentifier = None,
-                 coordinate_system: CoordinateSystem = CoordinateSystem('NED')):
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
 
         self.nodes = np.array(nodes)
         self.waveform_id = waveform_id
@@ -287,7 +301,7 @@ class Ray(object):
         phase = Phase(obj_dict['phase'])
         travel_time = obj_dict['travel_time']
         velocity_model_id = ResourceIdentifier(obj_dict['velocity_model_id'])
-        coordinate_system = CoordinateSystem(obj_dict['coordinate_system'])
+        coordinate_system = getattr(CoordinateSystem, obj_dict['coordinate_system'])
         takeoff_angle = obj_dict['takeoff_angle']
         azimuth = obj_dict['azimuth']
 
@@ -575,7 +589,7 @@ class Event(obsevent.Event):
 
 class UncertaintyPointCloud(object):
     def __init__(self, locations: List[float], probabilities: List[float],
-                 coordinate_system: CoordinateSystem = CoordinateSystem('NED')):
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
         if isinstance(locations, np.ndarray):
             locations = locations.tolist()
         if isinstance(probabilities, np.ndarray):
@@ -626,7 +640,7 @@ class UncertaintyPointCloud(object):
     def from_json(cls, json_string):
         in_dict = json.loads(json_string)
         if 'coordinate_system' in in_dict.keys():
-            in_dict['coordinate_system'] = CoordinateSystem(
+            in_dict['coordinate_system'] = getattr(CoordinateSystem,
                 in_dict['coordinate_system'])
         return cls(**in_dict)
 
@@ -1024,7 +1038,7 @@ class Magnitude(obsevent.Magnitude):
             es_ep = self.energy_s / self.energy_p
 
         string = f"""
-             resource_id: {self.resource_id.id}     
+             resource_id: {self.resource_id.id}
                Magnitude: {self.mag:0.1f}
           Magnitude type: {self.magnitude_type}
    Corner frequency (Hz): {self.corner_frequency:0.1f}
@@ -1434,3 +1448,49 @@ def _init_from_obspy_object(uquake_obj, obspy_obj):
             uquake_obj.__setattr__(key, out)
         else:
             uquake_obj.__setattr__(key, val)
+
+def calc_static_stress_drop(Mw, fc, phase='S', v=3.5, use_brune=False):
+    """
+    Calculate static stress drop from moment/corner_freq relation
+    Note the brune model (instantaneous slip) gives stress drops ~ 8 x lower
+    than the Madariaga values for fcP, fcS
+
+    :param Mw: moment magnitude
+    :type Mw: float
+    :param fc: corner frequency [Hz]
+    :type fc: float
+    :param phase: P or S phase
+    :type phase: string
+    :param v: P or S velocity [km/s] at source
+    :type v: float
+    :param use_brune: If true --> use Brune's original scaling
+    :type use_brune: boolean
+    :returns: static stress drop [MPa]
+    :rtype: float
+
+    """
+
+    if use_brune:  # Use Brune scaling
+        c = .375
+    else:  # Use Madariaga scaling
+        if phase == 'S':
+            c = .21
+        else:
+            c = .32
+
+    v *= 1e5  # cm/s
+
+    a = c * v / fc  # radius of circular fault from corner freq
+
+    logM0 = 3 / 2 * Mw + 9.1  # in N-m
+    M0 = 10 ** logM0 * 1e7  # dyn-cm
+
+    stress_drop = 7. / 16. * M0 * (1 / a) ** 3  # in dyn/cm^2
+    stress_drop /= 10.  # convert to Pa=N/m^2
+
+    return stress_drop / 1e6  # MPa
+
+
+cos = np.cos
+sin = np.sin
+degs2rad = np.pi / 180.

@@ -3,7 +3,6 @@ from uquake.core import event
 from uquake.core import coordinates
 from importlib import reload
 import numpy as np
-# from datetime import datetime, timedelta
 import datetime
 import string
 import random
@@ -50,7 +49,7 @@ class TestEventMethods(unittest.TestCase):
 def generate_uncertainty_point_cloud():
     locations = np.random.randn(3, 100)
     probabilities = np.random.rand(3, 100)
-    coordinate_system = coordinates.CoordinateSystem('ENU')
+    coordinate_system = coordinates.CoordinateSystem.ENU
 
     uncertainty_point_cloud = event.UncertaintyPointCloud(locations, probabilities,
                                                           coordinate_system)
@@ -68,7 +67,7 @@ def generate_ray():
                     travel_time=10.0,
                     takeoff_angle=10, azimuth=2,
                     velocity_model_id=event.ResourceIdentifier(),
-                    coordinate_system=coordinates.CoordinateSystem('ENU'))
+                    coordinate_system=coordinates.CoordinateSystem.ENU)
 
     return ray
 
