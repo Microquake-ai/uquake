@@ -34,6 +34,9 @@ class CoordinateSystem(Enum):
     def __repr__(self):
         return "North, East, Down (NED)" if self.name == "NED" else "East, North, Up (ENU)"
 
+    def __str__(self):
+        return str(self.name)
+
 
 class CoordinateTransformation:
     """
@@ -277,7 +280,8 @@ class Coordinates:
         coordinate_system = getattr(CoordinateSystem, in_dict["coordinate_system"])
 
         if in_dict["transformation"] is not None:
-            transformation = CoordinateTransformation.from_json(in_dict["transformation"])
+            transformation = CoordinateTransformation.from_json(
+                in_dict["transformation"])
         else:
             transformation = None
 

@@ -13,22 +13,20 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from uquake.core.stream import Stream, Trace
-from uquake.core.event import Catalog
+from uquake.core.stream import Stream
+from uquake.core.event import Catalog, Event
 from uquake.core.inventory import Inventory
 from uquake.core import read, read_events, read_inventory
-from pathlib import Path
 import random
 import tarfile
-from io import BytesIO, StringIO
-import tempfile
+from io import BytesIO
 import string
 import pyasdf
 
 
 class MicroseismicDataExchange(object):
     """
-    A class to handle the exchange of microseismic data (stream, catalog, and inventory) using the Zarr format.
+    A class to handle the exchange of microseismic data (stream, catalog, and inventory) using the ASDF format.
 
     :ivar stream: The ObsPy/uQuake Stream object representing the seismic waveform data.
     :type stream: Stream, optional
@@ -54,11 +52,19 @@ class MicroseismicDataExchange(object):
         self.catalog = catalog
         self.inventory = inventory
 
+    def __eq__(self, other):
+        if isinstance(other, MicroseismicDataExchange):
+            return self.stream == other.stream and \
+                   self.catalog == other.catalog and \
+                   self.inventory == other.inventory
+        else:
+            return False
+
     def write(self, file_path: str, waveform_tag):
         """
-        Writes the stream, catalog, and inventory data to a Zarr file.
+        Writes the stream, catalog, and inventory data to a ASDF file.
 
-        :param file_path: The path to the Zarr file where the data will be written.
+        :param file_path: The path to the ASDF file where the data will be written.
         :type file_path: str
         """
         asdf_handler = ASDFHandler(file_path)
@@ -69,9 +75,9 @@ class MicroseismicDataExchange(object):
     @classmethod
     def read(cls, file_path: str) -> 'MicroseismicDataExchange':
         """
-        Reads the stream, catalog, and inventory data from a Zarr file.
+        Reads the stream, catalog, and inventory data from a ASDF file.
 
-        :param file_path: The path to the Zarr file from which the data will be read.
+        :param file_path: The path to the ASDF file from which the data will be read.
         :type file_path: str
         :return: An instance of the MicroseismicDataExchange class with the read data.
         :rtype: MicroseismicDataExchange
@@ -105,7 +111,8 @@ class ASDFHandler:
         Retrieve the seismic catalog from the ASDF dataset.
         :return: ObsPy Catalog object
         """
-        return Catalog(self.ds.events)
+
+        return Catalog(obspy_obj=self.ds.events)
 
     def add_inventory(self, inventory):
         """
@@ -120,20 +127,21 @@ class ASDFHandler:
         :return: uQuake Inventory object
         """
 
-        inventories = []
+        network = {}
         for station_name in self.ds.waveforms.list():
             inv = self.ds.waveforms[station_name].StationXML
-            if inv:
-                inventories.append(inv)
+            if inv.networks[0].code in network.keys():
+                network[inv.networks[0].code].stations += inv[0].stations
+            else:
+                network[inv.networks[0].code] = inv[0]
 
-        if not inventories:
-            return None
+        networks = []
+        for key in network.keys():
+            networks.append(network[key])
 
-        merged_inv = inventories[0]
-        for inv in inventories[1:]:
-            merged_inv += inv
+        inv = Inventory.from_obspy_inventory_object(Inventory(networks=networks))
 
-        return Inventory(merged_inv)
+        return inv
 
     def add_waveforms(self, stream, tag):
         """
@@ -145,7 +153,7 @@ class ASDFHandler:
             self.ds.add_waveforms(tr, tag)
 
     def get_waveforms(self, network=None, station=None, location=None, channel=None,
-                      starttime=None, endtime=None):
+                      tag=None, starttime=None, endtime=None):
 
         network = network or "*"
         station = station or "*"
@@ -172,7 +180,7 @@ class ASDFHandler:
 
 
 # Note: Other functions (e.g., select_traces) can be added as needed. However, with ASDF and ObsPy's capabilities,
-# the need for manual traversal, as seen in the Zarr example, is greatly reduced.
+# the need for manual traversal, as seen in the ASDF example, is greatly reduced.
 
 
 def read_mde(file_path):
@@ -181,13 +189,13 @@ def read_mde(file_path):
 
 def stream_to_zarr_group(stream, zarr_group_path):
     """
-    Converts an ObsPy/uQuake stream to a Zarr group.
-    Each trace is stored as a separate Zarr array with its associated metadata.
+    Converts an ObsPy/uQuake stream to a ASDF group.
+    Each trace is stored as a separate ASDF array with its associated metadata.
     :param stream: ObsPy/uQuake Stream object
-    :param zarr_group_path: Path to create/save the Zarr group
+    :param zarr_group_path: Path to create/save the ASDF group
     """
 
-    # Create or open a Zarr group
+    # Create or open a ASDF group
     root_group = zarr.open_group(zarr_group_path, mode='a')
 
     for tr in stream:
@@ -197,7 +205,7 @@ def stream_to_zarr_group(stream, zarr_group_path):
         location = tr.stats.location_code
         channel = tr.stats.channel_code
 
-        # Create nested Zarr groups and dataset following the hierarchy
+        # Create nested ASDF groups and dataset following the hierarchy
         network_group = root_group.require_group(network)
         station_group = network_group.require_group(station)
         location_group = station_group.require_group(location)
@@ -205,7 +213,7 @@ def stream_to_zarr_group(stream, zarr_group_path):
                                             shape=(len(tr.data),),
                                             dtype='float32', overwrite=True)
 
-        # Store selected stats as Zarr attributes
+        # Store selected stats as ASDF attributes
         for key in ['network_code', 'station_code', 'location_code',
                     'channel_code', 'sampling_rate', 'starttime', 'calib', 'resource_id']:
             # Convert non-string objects to strings for easier storage and retrieval

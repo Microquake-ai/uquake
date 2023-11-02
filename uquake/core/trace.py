@@ -38,23 +38,25 @@ from obspy.core.trace import Stats as ObspyStats
 from obspy import UTCDateTime
 from obspy.core.event import WaveformStreamID
 from obspy.core.trace import AttribDict
+from uquake.core.util.decorators import update_doc
 
 from .event import Pick
 from .util import tools
 
 
+@update_doc
 class Stats(ObspyStats, ABC):
     __doc__ = ObspyStats.__doc__.replace('obspy', 'uquake')
 
     def __init__(self, stats=None, **kwargs):
-        super(Stats, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         if stats:
             for item in stats.__dict__.keys():
                 self.__dict__[item] = stats.__dict__[item]
 
     @property
-    def location(self):
+    def site(self):
         return f'{self.station}.{self.location}'
 
     def __str__(self):

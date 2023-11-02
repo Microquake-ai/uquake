@@ -314,9 +314,10 @@ class Inventory(inventory.Inventory):
         file_in.seek(0)
         return read_inventory(file_in)
 
-    def write(self, path_or_file_obj, format='stationxml', *args, **kwargs):
-        return super().write(path_or_file_obj, format, *args,
-                             nsmap={'mq': namespace}, **kwargs)
+    def write(self, path_or_file_obj, *args, format='stationxml',
+              nsmap={'mq': namespace}, **kwargs):
+        return super().write(path_or_file_obj, *args, format=format,
+                             nsmap=nsmap, **kwargs)
 
     def get_station(self, sta):
         return self.select(sta)
@@ -1143,11 +1144,6 @@ def read_inventory(path_or_file_object, format='STATIONXML',
         read_format = load_entry_point(format_ep.dist.key,
                                        'obspy.io.%s' %
                                        format_ep.name, 'readFormat')
-
-        # kwargs_obspy = kwargs.copy()
-        # kwargs_obspy.pop('xy_from_lat_lon')
-        # kwargs_obspy.pop('input_projection')
-        # kwargs_obspy.pop('output_projection')
 
         return expand_input_format_compatibility(
             read_format(path_or_file_object, **kwargs))

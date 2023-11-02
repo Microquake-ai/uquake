@@ -322,30 +322,6 @@ class Catalog(obsevent.Catalog):
             for event in obspy_obj.events:
                 self.events.append(Event(obspy_obj=event))
 
-        # if obspy_obj and len(kwargs) > 0:
-        #     raise AttributeError("Initialize from either \
-        #                           obspy_obj or kwargs, not both")
-        #
-        # if obspy_obj:
-        #
-        #     for key in obspy_obj.__dict__.keys():
-        #         if key == 'events':
-        #             event_type_lookup = EventTypeLookup()
-        #             events = []
-        #             for event in obspy_obj:
-        #                 uquake_event = Event(obspy_obj=event)
-        #                 if event_type_lookup.is_valid_quakeml(uquake_event.event_type):
-        #                     uquake_event.event_type = \
-        #                         event_type_lookup.inverse_lookup_table[event.event_type]
-        #                 events.append(uquake_event)
-        #             self.events = events
-        #         else:
-        #             self.__dict__[key] = obspy_obj.__dict__[key]
-
-        # else:
-        #     super(type(self), self).__init__(
-        #         **kwargs)
-
     def __setattr__(self, name, value):
         super(type(self), self).__setattr__(name, value)
 
@@ -376,6 +352,8 @@ class Catalog(obsevent.Catalog):
                 for ar in ori.arrivals:
                     ars.append(Arrival(obspy_obj=ar))
                 ori.arrivals = ars
+
+
 
         return result
 
