@@ -17,6 +17,22 @@ from uquake.core import inventory
 from uquake.core.coordinates import Coordinates
 import random
 import numpy as np
+import string
+
+
+def generate_unique_location_code(n_codes: int = 1):
+
+    codes = set()
+
+    while len(codes) < n_codes:
+        # Ensure station code is unique
+        part1 = ''.join(random.choices(string.ascii_uppercase, k=5))
+        part2 = ''.join(random.choices('0123456789', k=2))
+        new_code = f'{part1}_{part2}'
+        if new_code not in codes:
+            codes.add(new_code)
+
+    return list(codes)
 
 
 def generate_inventory(n_station=30):

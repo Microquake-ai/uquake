@@ -15,7 +15,7 @@
 
 # -*- coding: utf-8 -*-
 # ------------------------------------------------------------------
-# Filename: nlloc.py
+# Filename: extended.py
 #  Purpose: plugin for reading and writing GridData object into various format
 #   Author: uquake development team
 #    Email: devs@uquake.org
@@ -35,8 +35,8 @@ plugin for reading and writing GridData object into various format
 import numpy as np
 from pathlib import Path
 from uuid import uuid4
-from ...grid.nlloc import (valid_float_types, VelocityGrid3D, TTGrid,
-                           AngleGrid, NLLocGrid, __default_float_type__)
+from ...grid.extended import (valid_float_types, VelocityGrid3D, TTGrid,
+                              AngleGrid, TypedGrid, __default_float_type__)
 import os
 
 
@@ -274,7 +274,7 @@ def read_nlloc(filename, float_type=__default_float_type__):
                          model_id=model_id)
 
     else:
-        grid = NLLocGrid(data, origin, spacing, phase,
+        grid = TypedGrid(data, origin, spacing, phase,
                          grid_type=grid_type, model_id=model_id,
                          grid_units=grid_unit)
 

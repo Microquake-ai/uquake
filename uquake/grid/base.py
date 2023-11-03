@@ -47,6 +47,7 @@ from uquake.core.coordinates import CoordinateSystem, Coordinates
 from typing import Union, List
 from uquake.core.inventory import Inventory, Network, Station, Channel
 import random
+from uquake.core.event import ResourceIdentifier
 
 
 def read_grid(filename, format='PICKLE', **kwargs):
@@ -70,7 +71,7 @@ class Grid(object):
     """
 
     def __init__(self, data_or_dims, spacing=None, origin=None,
-                 resource_id=None, value=0,
+                 resource_id: ResourceIdentifier = ResourceIdentifier(), value=0,
                  coordinate_system: CoordinateSystem = CoordinateSystem.NED):
 
         """
@@ -79,7 +80,7 @@ class Grid(object):
         dimensions. If grid dimensions are specified, the grid is initialized
         with value
         :param spacing: Spacing
-        :type spacing: typle
+        :type spacing: tuple
         :param origin: tuple, list or array containing the origin of the grid
         :type origin: tuple
         :param resource_id: unique identifier for the grid, if set to None,
@@ -88,8 +89,6 @@ class Grid(object):
         uuid4 is used to define a unique identifier.
         :param coordinate_system: Coordinate system
         :type coordinate_system: ~uquake.core.coordinates.CoordinateSystem
-
-
         """
 
         data_or_dims = np.array(data_or_dims)
@@ -125,6 +124,8 @@ class Grid(object):
                 raise ValueError
 
             self.coordinate_system = coordinate_system
+
+        self.id = id
 
     def __hash__(self):
         return hash((tuple(self.data.ravel()), tuple(self.spacing),

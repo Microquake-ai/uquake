@@ -732,6 +732,10 @@ class Location:
         return self.channels[0].z
 
     @property
+    def coordinates(self):
+        return self.channels[0].coordinates
+
+    @property
     def station_code(self):
         return self.station.code
 

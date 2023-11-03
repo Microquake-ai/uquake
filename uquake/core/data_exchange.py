@@ -13,15 +13,18 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from uquake.core.stream import Stream
+from uquake.core.stream import Stream, Trace
+from uquake.core.trace import Stats
 from uquake.core.event import Catalog, Event
 from uquake.core.inventory import Inventory
 from uquake.core import read, read_events, read_inventory
+from obspy.core.trace import Trace as ObspyTrace
 import random
 import tarfile
 from io import BytesIO
 import string
 import pyasdf
+from typing import List, Union
 
 
 class MicroseismicDataExchange(object):
@@ -60,12 +63,14 @@ class MicroseismicDataExchange(object):
         else:
             return False
 
-    def write(self, file_path: str, waveform_tag):
+    def write(self, file_path: str, waveform_tag: str):
         """
         Writes the stream, catalog, and inventory data to a ASDF file.
 
         :param file_path: The path to the ASDF file where the data will be written.
         :type file_path: str
+        :param waveform_tag: Tag describing the waveforms.
+        :type waveform_tag: str
         """
         asdf_handler = ASDFHandler(file_path)
         asdf_handler.add_catalog(self.catalog)
@@ -73,17 +78,19 @@ class MicroseismicDataExchange(object):
         asdf_handler.add_waveforms(self.stream, waveform_tag)
 
     @classmethod
-    def read(cls, file_path: str) -> 'MicroseismicDataExchange':
+    def read(cls, file_path: str, waveform_tag: str) -> 'MicroseismicDataExchange':
         """
         Reads the stream, catalog, and inventory data from a ASDF file.
 
         :param file_path: The path to the ASDF file from which the data will be read.
         :type file_path: str
+        :param waveform_tag: Tag describing the waveforms.
+        :type waveform_tag: str
         :return: An instance of the MicroseismicDataExchange class with the read data.
         :rtype: MicroseismicDataExchange
         """
         asdf_handler = ASDFHandler(file_path)
-        stream = asdf_handler.get_all_waveforms()
+        stream = asdf_handler.get_all_waveforms(tags=[waveform_tag])[waveform_tag]
         catalog = asdf_handler.get_catalog()
         inventory = asdf_handler.get_inventory()
 
@@ -91,13 +98,16 @@ class MicroseismicDataExchange(object):
 
 
 class ASDFHandler:
-    def __init__(self, asdf_file_path):
+    def __init__(self, asdf_file_path, compression=None, **kwargs):
         """
         Initialize the ASDFHandler with a given ASDF file path.
         :param asdf_file_path: Path to the ASDF file.
-        """
+        :param kwargs: Keyword arguments to be passed to pyasdf.ASDFDataSet.__init__().
+        """ + pyasdf.ASDFDataSet.__init__.__doc__
         self.asdf_file_path = asdf_file_path
-        self.ds = pyasdf.ASDFDataSet(self.asdf_file_path, mode='a')
+        self.ds = pyasdf.ASDFDataSet(self.asdf_file_path, mode='a',
+                                     compression=compression,
+                                     **kwargs)
 
     def add_catalog(self, catalog):
         """
@@ -143,129 +153,72 @@ class ASDFHandler:
 
         return inv
 
-    def add_waveforms(self, stream, tag):
+    def add_waveforms(self, stream, tag: str):
         """
         Add a seismic stream to the ASDF dataset.
         :param stream: ObsPy Stream object
-        :param tag: Tag describing the waveforms
+        :param tag: tag describing the waveforms to retrieve (e.g. 'raw', 'processed')
         """
         for tr in stream:
             self.ds.add_waveforms(tr, tag)
 
     def get_waveforms(self, network=None, station=None, location=None, channel=None,
-                      tag=None, starttime=None, endtime=None):
+                      tag='*', starttime=None, endtime=None):
 
         network = network or "*"
         station = station or "*"
         location = location or "*"
         channel = channel or "*"
 
-        return Stream(self.ds.get_waveforms(network, station, location, channel,
-                                            starttime=starttime, endtime=endtime))
-
-    def get_all_waveforms(self):
-        """
-        Retrieve specific waveforms from the ASDF dataset.
-        :return: ObsPy Stream object
-        """
+        obj = self.ds.get_waveforms(network, station, location, channel, tag=tag,
+                                    starttime=starttime, endtime=endtime)
 
         traces = []
-        for net in self.ds.waveforms:
-            for sta in net.list():
-                st = net[sta]
-                for tr in st:
-                    traces.append(tr)
+        for item in obj:
+            if isinstance(item, ObspyTrace):
+                data = item.data
+                stats = Stats()
+                for key in item.stats.__dict__.keys():
+                    stats.__dict__[key] = item.stats.__dict__[key]
+                data.stats[key] = item.stats[key]
+                trace = Trace(data=data, header=stats)
+                traces.append(trace)
 
         return Stream(traces=traces)
 
+    def get_all_waveforms(self, tags: Union[List[str], str] = []):
+        """
+        Retrieve specific waveforms from the ASDF dataset for a specific tag.
+        :param tags: Tag describing the waveforms if None data for all tags will be
+        retrieved.
+        :type tags: str or list[str]
+        :return: a dictionary of uquake.core.stream.Stream objects
+        """
 
-# Note: Other functions (e.g., select_traces) can be added as needed. However, with ASDF and ObsPy's capabilities,
-# the need for manual traversal, as seen in the ASDF example, is greatly reduced.
+        stations = self.ds.waveforms.list()
+
+        stream_dict = {}
+        for station in stations:
+            station_code = station.replace('.', '_')
+            sta = self.ds.waveforms[station_code]
+
+            if tags:
+                tags = sta.get_waveform_tags()
+            elif isinstance(tag, str):
+                tags = [tags]
+
+            for tag in tags:
+                if tag in stream_dict.keys():
+                    stream_dict[tag] += sta[tag]
+                else:
+                    stream_dict[tag] = sta[tag]
+
+        return stream_dict
 
 
 def read_mde(file_path):
     return MicroseismicDataExchange.read(file_path)
 
-
-def stream_to_zarr_group(stream, zarr_group_path):
-    """
-    Converts an ObsPy/uQuake stream to a ASDF group.
-    Each trace is stored as a separate ASDF array with its associated metadata.
-    :param stream: ObsPy/uQuake Stream object
-    :param zarr_group_path: Path to create/save the ASDF group
-    """
-
-    # Create or open a ASDF group
-    root_group = zarr.open_group(zarr_group_path, mode='a')
-
-    for tr in stream:
-        # Get metadata values
-        network = tr.stats.network_code
-        station = tr.stats.station_code
-        location = tr.stats.location_code
-        channel = tr.stats.channel_code
-
-        # Create nested ASDF groups and dataset following the hierarchy
-        network_group = root_group.require_group(network)
-        station_group = network_group.require_group(station)
-        location_group = station_group.require_group(location)
-        arr = location_group.create_dataset(channel, data=tr.data,
-                                            shape=(len(tr.data),),
-                                            dtype='float32', overwrite=True)
-
-        # Store selected stats as ASDF attributes
-        for key in ['network_code', 'station_code', 'location_code',
-                    'channel_code', 'sampling_rate', 'starttime', 'calib', 'resource_id']:
-            # Convert non-string objects to strings for easier storage and retrieval
-            arr.attrs[key] = str(tr.stats[key])
-
-
-
-def validate_mde(filepath: str) -> dict:
-    """
-    Validates the contents of an .mde file.
-
-    :param filepath: Path to the .mde file to be validated.
-    :return: A dictionary containing the validation results.
-    """
-    validation_report = {
-        'catalog': False,
-        'stream': False,
-        'inventory': False
-    }
-
-    # Open and extract files from the tarball
-    with tarfile.open(filepath, 'r:gz') as tar:
-        # Check for necessary files
-        if 'catalog.xml' not in tar.getnames():
-            raise ValueError("Missing catalog.xml in the .mde file!")
-        if 'stream.mseed' not in tar.getnames():
-            raise ValueError("Missing stream.mseed in the .mde file!")
-        if 'inventory.xml' not in tar.getnames():
-            raise ValueError("Missing inventory.xml in the .mde file!")
-
-        # Validate catalog
-        with tar.extractfile('catalog.xml') as f:
-            catalog_bytes = f.read()
-            catalog = read_events(BytesIO(catalog_bytes), format='quakeml')
-            # ... perform more in-depth validation if necessary
-            validation_report['catalog'] = True
-
-        # Validate stream
-        with tar.extractfile('stream.mseed') as f:
-            stream_bytes = f.read()
-            stream = read(BytesIO(stream_bytes), format='MSEED')
-            # ... perform more in-depth validation if necessary
-            validation_report['stream'] = True
-
-        # Validate inventory
-        with tar.extractfile('inventory.xml') as f:
-            inventory_bytes = f.read()
-            inventory = read_inventory(BytesIO(inventory_bytes), format='stationxml')
-            # ... perform more in-depth validation if necessary
-            validation_report['inventory'] = True
-
-    return validation_report
 
 
 def generate_unique_names(n):
