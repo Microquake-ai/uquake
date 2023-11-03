@@ -35,8 +35,12 @@ plugin for reading and writing GridData object into various format
 import numpy as np
 from pathlib import Path
 from uuid import uuid4
-from ...grid.extended import (valid_float_types, VelocityGrid3D, TTGrid,
-                              AngleGrid, TypedGrid, __default_float_type__)
+from ...grid.extended import (valid_float_types, VelocityGrid3D, VelocityGridEnsemble,
+                              TTGrid, AngleGrid, TypedGrid, __default_float_type__,
+                              Phases)
+import h5py
+from datetime import datetime
+from typing import Union, List, Tuple, Dict, Any, Optional
 import os
 
 
@@ -282,3 +286,122 @@ def read_nlloc(filename, float_type=__default_float_type__):
             return VelocityGrid3D.from_slow_len(grid, network_code)
 
         return grid
+
+
+def write_velocity_grid_to_hdf5(
+        velocity_grid: Union[VelocityGridEnsemble, VelocityGrid3D], file_name: str):
+    """
+    Writes a VelocityGrid3D object to an HDF5 file with a specified structure.
+
+    :param velocity_grid: VelocityGridEnsemble or VelocityGrid3D object to be written
+    to the file.
+    :param file_name: Name of the HDF5 file.
+    """
+    # Open or create the HDF5 file
+    with h5py.File(file_name, 'w') as h5file:
+        # Create group based on the phase (P or S)
+        if isinstance(velocity_grid, VelocityGrid3D):
+            phases = [Phases(velocity_grid.phase)]
+
+        else:
+            phases = [Phases.P, Phases.S]
+
+        for phase in phases:
+
+            if isinstance(velocity_grid, VelocityGridEnsemble):
+                v_grid = velocity_grid[phase.value]
+            else:
+                v_grid = velocity_grid
+
+            phase_group = h5file.create_group(f"/Phase {phase.value}")
+
+            # Set attributes
+            phase_group.attrs['Grid ID'] = str(v_grid.grid_id)
+            phase_group.attrs['Schema Version'] = "1.0"
+            phase_group.attrs['Creation Timestamp'] = datetime.utcnow().isoformat() + "Z"
+            # ISO 8601 format
+            phase_group.attrs['Type'] = "VELOCITY"
+            phase_group.attrs['Units'] = "m/s"  # or the appropriate units
+            phase_group.attrs['Coordinate System'] = "cartesian"  # or another system
+            phase_group.attrs['Data Order'] = "Row-major"
+            # or "Column-major" based on the data
+            phase_group.attrs['Origin'] = v_grid.origin
+            phase_group.attrs['Spacing'] = v_grid.spacing
+            phase_group.attrs['Dimensions'] = v_grid.data.shape
+            phase_group.attrs['Compression'] = "None"
+            # or describe the compression if used
+
+        # Add data set
+            data = v_grid.data.astype(v_grid.float_type.value)
+            data_set = phase_group.create_dataset("Data", data=data,
+                                                  dtype=v_grid.float_type.value)
+            data_set.attrs['Checksum'] = v_grid.checksum
+
+
+# import h5py
+# from uquake.grid.nlloc import VelocityGrid3D, VelocityGridEnsemble, Phases
+# from obspy.core.util.attribdict import AttribDict
+
+
+def read_velocity_grid_from_hdf5(file_name: str):
+    """
+    Reads an HDF5 file and converts it into a VelocityGrid3D or VelocityGridEnsemble object.
+
+    :param file_name: Name of the HDF5 file to read from.
+    :return: VelocityGrid3D or VelocityGridEnsemble object initialized with data from the HDF5 file.
+    """
+    with h5py.File(file_name, 'r') as h5file:
+        # Initialize a dict to hold VelocityGrid3D objects for each phase
+        velocity_grids = {}
+
+        # Iterate over potential phase groups
+        for phase in Phases:
+            phase_group_name = f"/Phase {phase.value}"
+            if phase_group_name in h5file:
+                phase_group = h5file.get(phase_group_name)
+
+                # Extract attributes
+                attributes = {
+                    'grid_id': phase_group.attrs['Grid ID'],
+                    'schema_version': phase_group.attrs['Schema Version'],
+                    'creation_timestamp': phase_group.attrs['Creation Timestamp'],
+                    'type': phase_group.attrs['Type'],
+                    'units': phase_group.attrs['Units'],
+                    'coordinate_system': phase_group.attrs['Coordinate System'],
+                    'data_order': phase_group.attrs['Data Order'],
+                    'origin': phase_group.attrs['Origin'],
+                    'spacing': phase_group.attrs['Spacing'],
+                    'dimensions': phase_group.attrs['Dimensions'],
+                    'compression': phase_group.attrs['Compression']
+                }
+
+                # Read the data set
+                data = phase_group['Data'][:]
+
+                # Create the VelocityGrid3D object for the phase
+                velocity_grid = VelocityGrid3D(network_code=attributes['grid_id'],
+                                               data_or_dims=data,
+                                               origin=attributes['origin'],
+                                               spacing=attributes['spacing'],
+                                               phase=phase)  # Set the phase here
+                velocity_grids[phase] = velocity_grid
+
+        # Check if both P and S wave data are present
+        if Phases.P in velocity_grids and Phases.S in velocity_grids:
+            # Return a VelocityGridEnsemble object containing both
+            return VelocityGridEnsemble(velocity_grids[Phases.P],
+                                        velocity_grids[Phases.S])
+        elif Phases.P in velocity_grids:
+            # Return the P-wave VelocityGrid3D object
+            return velocity_grids[Phases.P]
+        elif Phases.S in velocity_grids:
+            # Return the S-wave VelocityGrid3D object
+            return velocity_grids[Phases.S]
+        else:
+            # Handle the case where no recognized phase data is found
+            raise ValueError("No valid phase data found in the HDF5 file.")
+
+# Example of using the function
+# my_velocity_object = read_velocity_grid_from_hdf5('velocity_grid.hdf5')
+
+

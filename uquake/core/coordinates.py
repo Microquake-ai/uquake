@@ -233,11 +233,15 @@ class Coordinates:
             return self.transformation.convert_elevation_depth(self.z, to_depth=True)
         return self.z if self.coordinate_system == CoordinateSystem.NED else -self.z
 
+    @property
+    def loc(self):
+        return [self.x, self.y, self.z]
+
     def __repr__(self):
         out_str = f"""
-                        x: {self.x}
-                        y: {self.y}
-                        z: {self.z}
+                        x: {self.x: 0.2f}
+                        y: {self.y: 0.2f}
+                        z: {self.z: 0.2f}
         coordinate system: {self.coordinate_system}
            transformation: {self.transformation}
         """

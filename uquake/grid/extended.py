@@ -54,7 +54,7 @@ from scipy.interpolate import interp1d
 from uquake.core.event import WaveformStreamID
 from enum import Enum
 from typing import List
-from uquake.core.coordinates import Coordinates
+from uquake.core.coordinates import Coordinates, CoordinateSystem
 from uquake.core.inventory import Inventory
 from uquake.synthetic.inventory import generate_unique_location_code
 from uquake.core.event import ResourceIdentifier
@@ -161,7 +161,12 @@ class Seed:
         self.elevation = elevation
 
     def __repr__(self):
-        return f'{self.station}_{self.location} {self.coordinates}'
+        return f'label (station.location): {self.station}.{self.location}\n' \
+               f'                       x: {self.coordinates.x:0.2f}\n' \
+               f'                       y: {self.coordinates.y:0.2f}\n' \
+               f'                       z: {self.coordinates.z:0.2f}\n' \
+               f'               elevation: {self.elevation:0.2f}\n' \
+               f'       coordinate_system: {self.coordinates.coordinate_system}\n'
 
     def __str__(self):
         return self.__repr__()
@@ -179,17 +184,25 @@ class Seed:
         return self.coordinates.z
 
     @property
+    def loc(self):
+        return self.coordinates.loc
+
+    @property
     def label(self):
         return f'{self.station}_{self.location}'
 
+    @property
+    def T(self):
+        return np.array(self.coordinates.loc).T
+
     @classmethod
-    def random_in_grid(cls, grid: Grid, n_locations: int = 1) -> 'List[Seed]':
+    def random_in_grid(cls, grid: Grid, n_seeds: int = 1) -> 'List[Seed]':
         """
         Generate a random point within the grid boundary
         :param grid: a grid object
         :type grid: uquake.grid.base.Grid or an object inheriting from Grid
-        :param n_locations: number of locations to generate
-        :type n_locations: int
+        :param n_seeds: number of locations to generate
+        :type n_seeds: int
         :return: a list of Location objects
 
         :example:
@@ -202,17 +215,17 @@ class Seed:
         >> locations = Location.random_in_grid(grid, n_location=10)
         """
 
-        codes = generate_unique_location_code(n_codes=n_locations)
-        locations = []
+        codes = generate_unique_location_code(n_codes=n_seeds)
+        seeds = []
 
         for i, (point, code) in enumerate(zip(grid.generate_random_points_in_grid(
-                n_points=n_locations), codes)):
+                n_points=n_seeds), codes)):
             station_code = code.split('_')[0]
             location_code = code.split('_')[1]
             coordinates = Coordinates(point[0], point[1], point[2])
-            locations.append(cls(station_code, location_code, coordinates))
+            seeds.append(cls(station_code, location_code, coordinates))
 
-        return locations
+        return seeds
 
 
 class SeedEnsemble:
@@ -281,7 +294,7 @@ class SeedEnsemble:
         :type location: Seed
         """
 
-        self.locations.append(location)
+        self.seeds.append(location)
 
     @classmethod
     def generate_random_seeds_in_grid(cls, grid, n_seeds=1):
@@ -302,21 +315,21 @@ class SeedEnsemble:
         >>> seeds = SeedEnsemble.generate_random_seeds_in_grid(grid, n_seeds=10)
         """
 
-        seeds = cls()
-        for location in Seed.random_in_grid(grid, n_locations=n_seeds):
+        seeds = []
+        for seed in Seed.random_in_grid(grid, n_seeds=n_seeds):
             # import ipdb
             # ipdb.set_trace()
-            seeds.add(location)
+            seeds.append(seed)
 
-        return seeds
+        return cls(seeds)
 
     def __repr__(self):
         line = ""
 
         divider = 1000 if self.units == GridUnits.KILOMETER else 1
 
-        return f'{self.units}\n' + '\n'.join([str(location)
-                                              for location in self.locations])
+        return f'{self.units}\n' + '\n'.join([f'{seed}'
+                                              for seed in self.seeds])
 
     @property
     def nlloc(self):
@@ -324,14 +337,14 @@ class SeedEnsemble:
 
         divider = 1000 if self.units == GridUnits.KILOMETER else 1
 
-        for location in self.locations:
+        for seed in self.seeds:
             # test if location name is shorter than 6 characters
 
-            line += f'GTSRCE {location.label} XYZ ' \
-                    f'{location.x / divider:>15.6f} ' \
-                    f'{location.x / divider:>15.6f} ' \
-                    f'{location.x / divider:>15.6f} ' \
-                    f'{location.elevation:0.2f}\n'
+            line += f'GTSRCE {seed.label} XYZ ' \
+                    f'{seed.x / divider:>15.6f} ' \
+                    f'{seed.y / divider:>15.6f} ' \
+                    f'{seed.z / divider:>15.6f} ' \
+                    f'{seed.elevation:0.2f}\n'
 
         return line
 
@@ -387,8 +400,12 @@ class TypedGrid(Grid):
 
         self.phase = phase
         self.grid_type = grid_type
-        self.grid_units = grid_units.upper()
-        self.float_type = float_type.upper()
+        self.grid_units = grid_units
+        self.float_type = float_type
+
+    @property
+    def grid_id(self):
+        return self.resource_id
 
     def mv(self, base_name, origin, destination):
         """
@@ -430,6 +447,11 @@ class TypedGrid(Grid):
         return self.resource_id
 
 
+class Direction(Enum):
+    UP = 'UP'
+    DOWN = 'DOWN'
+
+
 class ModelLayer:
     """
     1D model varying in Z
@@ -449,20 +471,34 @@ class ModelLayer:
 
 class LayeredVelocityModel(object):
 
-    def __init__(self, velocity_model_layers=None,
+    def __init__(self, network_code, velocity_model_layers=None,
                  phase: Phases = Phases.P,
                  grid_units: GridUnits = __default_grid_units__,
                  float_type=__default_float_type__,
-                 gradient=False, grid_id: ResourceIdentifier = ResourceIdentifier()):
+                 gradient=False, grid_id: ResourceIdentifier = ResourceIdentifier(),
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
         """
         Initialize
+        :param network_code: network code
+        :type network_code: str
         :param velocity_model_layers: a list of VelocityModelLayer
         :type velocity_model_layers: list
-        :param phase: Phase either 'P' or 'S'
-        :type phase: Phases
+        :param phase: Phase either Phases.P or Phases.S
+        :type phase: Phases default = Phases.P
+        :param grid_units: units of measurement used to express x, y, and z
+        :type grid_units: GridUnits
+        :param float_type: float type either 'FLOAT' or 'DOUBLE'
+        :type float_type: FloatTypes default = 'FLOAT'
+        :param gradient: whether the model is a gradient model or not
+        (no control layer by layer)
+        :type gradient: bool default = False
         :param grid_id: the grid id
         :type grid_id: uquake.core.event.ResourceIdentifier
+        :param coordinate_system: coordinate system either NED or ENU
+        :type coordinate_system: CoordinateSystem
         """
+
+        self.network_code = network_code
 
         if velocity_model_layers is None:
             self.velocity_model_layers = []
@@ -493,6 +529,7 @@ class LayeredVelocityModel(object):
         self.grid_id = grid_id
 
         self.gradient = gradient
+        self.coordinate_system = coordinate_system
 
     def __repr__(self):
         output = ''
@@ -501,11 +538,11 @@ class LayeredVelocityModel(object):
 
         return output
 
-    def add_layer(self, layer):
+    def add_layer(self, layer: ModelLayer):
         """
         Add a layer to the model. The layers must be added in sequence from the
         top to the bottom
-        :param layer: a LayeredModel object
+        :param layer: a ModelLayer object
         """
         if not (type(layer) is ModelLayer):
             raise TypeError('layer must be a VelocityModelLayer object')
@@ -556,11 +593,9 @@ class LayeredVelocityModel(object):
 
         return z_interp, v_interp
 
-    def to_3d_grid(self, network_code, dims, origin, spacing):
-        model_grid_3d = VelocityGrid3D.from_layered_model(self,
-                                                          network_code,
-                                                          dims, origin,
-                                                          spacing, grid_id=self.grid_id)
+    def to_3d_grid(self, dims, origin, spacing):
+        model_grid_3d = VelocityGrid3D.from_layered_model(self, dims, origin,
+                                                          spacing)
         return model_grid_3d
 
     def plot(self, z_min, z_max, spacing, invert_z_axis=True, *args, **kwargs):
@@ -644,7 +679,7 @@ class VelocityGrid3D(TypedGrid):
         pass
 
     @classmethod
-    def from_layered_model(cls, layered_model, network_code, dims, origin,
+    def from_layered_model(cls, layered_model, dims, origin,
                            spacing, **kwargs):
         """
         Generating a 3D grid model from
@@ -667,7 +702,7 @@ class VelocityGrid3D(TypedGrid):
         for i, v in enumerate(v_interp):
             data[:, :, i] = v_interp[i]
 
-        return cls(network_code, data, origin, spacing,
+        return cls(layered_model.network_code, data, origin, spacing,
                    phase=layered_model.phase,
                    float_type=layered_model.float_type,
                    grid_id=layered_model.grid_id, **kwargs)
@@ -711,7 +746,7 @@ class VelocityGrid3D(TypedGrid):
         if isinstance(seed, list):
             seed = np.array(seed)
 
-        if not self.in_grid(seed):
+        if not self.in_grid(seed.loc):
             logger.warning(f'{seed.label} is outside the grid. '
                            f'The travel time grid will not be calculated')
             return
@@ -733,9 +768,9 @@ class VelocityGrid3D(TypedGrid):
         y_i = np.arange(0, n_pts_inner_grid[1]) * sub_grid_spacing[1]
         z_i = np.arange(0, n_pts_inner_grid[2]) * sub_grid_spacing[2]
 
-        x_i = x_i - np.mean(x_i) + seed[0]
-        y_i = y_i - np.mean(y_i) + seed[1]
-        z_i = z_i - np.mean(z_i) + seed[2]
+        x_i = x_i - np.mean(x_i) + seed.x
+        y_i = y_i - np.mean(y_i) + seed.y
+        z_i = z_i - np.mean(z_i) + seed.z
 
         X_i, Y_i, Z_i = np.meshgrid(x_i, y_i, z_i, indexing='ij')
 
@@ -750,12 +785,17 @@ class VelocityGrid3D(TypedGrid):
 
         tt_tmp = skfmm.travel_time(phi, vel, dx=sub_grid_spacing)
 
-        tt_tmp_grid = TTGrid(self.network_code, tt_tmp, [x_i[0], y_i[0],
-                                                         z_i[0]],
-                             sub_grid_spacing, seed, seed_label,
-                             phase=self.phase, float_type=self.float_type,
-                             velocity_model_id=self.grid_id,
+        tt_tmp_grid = TTGrid(self.network_code, tt_tmp, [x_i[0], y_i[0], z_i[0]],
+                             sub_grid_spacing, seed, self.grid_id,
+                             phase=self.phase,
+                             float_type=self.float_type,
                              grid_units=self.grid_units)
+
+        # __init__(self, data_or_dims, origin, spacing, seed: Seed,
+        # phase: Phases = Phases.P, value: float = 0,
+        # float_type: FloatTypes = __default_float_type__,
+        # grid_id: ResourceIdentifier = ResourceIdentifier(),
+        # grid_units: GridUnits = __default_grid_units__):
 
         data = self.data
 
@@ -836,14 +876,13 @@ class VelocityGrid3D(TypedGrid):
 
         data = []
         for seed in seeds:
-            if not self.in_grid(seed):
+            if not self.in_grid(seed.loc):
                 logger.warning(f'{seed.label} is outside the grid. '
                                f'The travel time grid will not be calculated')
                 continue
-            data.append((seed, seed.label))
 
         with Pool(num_threads) as pool:
-            results = pool.starmap(self.to_time, data)
+            results = pool.map(self.to_time, seeds)
 
         tt_grid_ensemble = TravelTimeEnsemble(results)
 
@@ -856,7 +895,7 @@ class VelocityGrid3D(TypedGrid):
 
     def mv(self, origin, destination):
         """
-        move a the velocity grid files from {origin} to {destination}
+        move the velocity grid files from {origin} to {destination}
         :param origin: origin
         :param destination:
         :return:
@@ -950,10 +989,8 @@ class VelocityGridEnsemble:
 
 
 class SeededGridType(Enum):
-    time: 'TIME'
-    time2d: 'TIME2D'
-    angle: 'ANGLE'
-    angle2d: 'ANGLE2D'
+    TIME = 'TIME'
+    ANGLE = 'ANGLE'
 
     def __str__(self):
         return str(self.value)
@@ -966,24 +1003,36 @@ class SeededGrid(TypedGrid):
 
     __doc__ = f'{TypedGrid.__doc__}\n'
 
-    def __init__(self, data_or_dims, origin, spacing, seed: Seed,
+    def __init__(self, network, data_or_dims, origin, spacing, seed: Seed,
+                 velocity_model_id: ResourceIdentifier,
                  phase: Phases = Phases.P, value: float = 0,
                  grid_units=__default_grid_units__,
                  grid_type: SeededGridType = SeededGridType.TIME,
                  float_type: FloatTypes = __default_float_type__,
                  grid_id: ResourceIdentifier = ResourceIdentifier()):
 
-
+        self.network = network
         self.seed = seed
+        self.velocity_model_id = velocity_model_id
 
         self.seed_label = seed.label
 
-        self.grid_type = SeededGridType(grid_type)
+        if isinstance(grid_type, str):
+            self.grid_type = SeededGridType(grid_type)
+        elif isinstance(grid_type, SeededGridType):
+            self.grid_type = grid_type
+        elif isinstance(grid_type, GridTypes):
+            self.grid_type = SeededGridType(grid_type.value)
+        else:
+            raise TypeError('grid_type must be a SeededGridType object')
 
         super().__init__(data_or_dims, origin, spacing,
                          phase=phase, value=value,
                          grid_type=grid_type, grid_units=grid_units,
-                         float_type=float_type, model_id=model_id)
+                         float_type=float_type, grid_id=grid_id)
+
+        # ensure the data are expressed in the appropriate float_type
+        self.data.astype(float_type.value)
 
     def __repr__(self):
         line = f'{self.grid_type} Grid\n' \
@@ -1035,19 +1084,18 @@ class SeededGrid(TypedGrid):
 
 
 class TTGrid(SeededGrid):
-    def __init__(self, data_or_dims, origin, spacing, seed: Seed,
+    def __init__(self, network, data_or_dims, origin, spacing, seed: Seed,
                  velocity_model_id: ResourceIdentifier,
                  phase: Phases = Phases.P, value: float = 0,
                  float_type: FloatTypes = __default_float_type__,
                  grid_id: ResourceIdentifier = ResourceIdentifier(),
                  grid_units: GridUnits = __default_grid_units__):
 
-        self.velocity_model_id = velocity_model_id
-
         # network_code = self.waveform_stream_id.network_code
-        super().__init__(data_or_dims, origin, spacing, seed,phase=phase, value=value,
-                         grid_type=GridTypes.TIME, float_type=float_type,
-                         model_id=grid_id, grid_units=grid_units)
+        super().__init__(network, data_or_dims, origin, spacing, seed,
+                         velocity_model_id=velocity_model_id, phase=phase,
+                         value=value, grid_type=GridTypes.TIME, float_type=float_type,
+                         grid_id=grid_id, grid_units=grid_units)
 
     def to_azimuth(self):
         """

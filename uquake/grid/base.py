@@ -22,15 +22,7 @@
 #
 # Copyright (C) <copyright>
 # --------------------------------------------------------------------
-"""
 
-
-:copyright:
-    <copyright>
-:license:
-    GNU Lesser General Public License, Version 3
-    (http://www.gnu.org/copyleft/lesser.html)
-"""
 
 import numpy as np
 from uuid import uuid4
@@ -39,15 +31,15 @@ from pkg_resources import load_entry_point
 from ..core.util import ENTRY_POINTS
 from pathlib import Path
 from scipy.ndimage.interpolation import map_coordinates
-from ..core.event import WaveformStreamID
 import matplotlib.pyplot as plt
 from scipy.ndimage.filters import gaussian_filter
-from typing import Union
 from uquake.core.coordinates import CoordinateSystem, Coordinates
 from typing import Union, List
 from uquake.core.inventory import Inventory, Network, Station, Channel
 import random
 from uquake.core.event import ResourceIdentifier
+from copy import deepcopy
+from hashlib import sha256
 
 
 def read_grid(filename, format='PICKLE', **kwargs):
@@ -568,47 +560,47 @@ class Grid(object):
 
     def smooth(self,
                sigma: Union[np.ndarray, List[Union[int, float]], Union[int, float]],
-               grid_space: bool = False, preserve_statistic: bool = True) -> None:
+               grid_space: bool = False,
+               preserve_statistic: bool = True,
+               in_place: bool = True) -> 'YourClass':
         """
         Smooth the data using a Gaussian filter.
 
-        :param sigma: Standard deviation for the Gaussian filter.
+        :param sigma: Standard deviation for Gaussian filter.
                       Can be a single number or a numpy array.
-        :type sigma: Union[np.ndarray, List[Union[int, float]], Union[int, float]]
-
-        :param grid_space: If True, the smoothing is performed in grid space.
-        :type grid_space: bool
-
-        :param preserve_statistic: If True, the original mean and standard deviation are preserved.
-        :type preserve_statistic: bool
-
-        :return: None
+        :param grid_space: If True, smoothing is performed in grid space.
+        :param preserve_statistic: If True, original mean and standard deviation are preserved.
+        :param in_place: If True, modifies the object's data in place. Otherwise, returns a new object.
+        :return: self if in_place is True, otherwise a new instance of YourClass.
         """
 
-        original_mean = np.mean(self.data)
-        original_std = np.std(self.data)
+        # Use self's properties or create a copy for a new object.
+        obj = self if in_place else deepcopy(
+            self)  # You need to import deepcopy from the copy module
+
+        original_mean = np.mean(obj.data)
+        original_std = np.std(obj.data)
 
         if isinstance(sigma, (int, float)):
-            sigma = np.array([sigma] * self.data.ndim)
+            sigma = np.array([sigma] * obj.data.ndim)
 
         if isinstance(sigma, list):
             sigma = np.array(sigma)
 
         if not grid_space:
-            sigma = sigma / self.spacing
+            sigma = sigma / obj.spacing
 
-        smoothed_data = gaussian_filter(self.data, sigma)
+        smoothed_data = gaussian_filter(obj.data, sigma)
 
         if preserve_statistic:
             smoothed_mean = np.mean(smoothed_data)
             smoothed_std = np.std(smoothed_data)
-
-            self.data = (smoothed_data - smoothed_mean) * (
+            obj.data = (smoothed_data - smoothed_mean) * (
                         original_std / smoothed_std) + original_mean
         else:
-            self.data = smoothed_data
+            obj.data = smoothed_data
 
-        return self
+        return obj
 
     @property
     def ndim(self):
@@ -631,10 +623,17 @@ class Grid(object):
         return np.array(self.origin) + np.array(self.shape) * \
                np.array(self.spacing)
 
-    from obspy.core.inventory import Inventory, Network, Station, Channel
-    from obspy.core.util import AttribDict
-    import random
-    import numpy as np
+    @property
+    def checksum(self):
+        """
+        Compute the SHA-256 checksum of a numpy array.
+        """
+        if self.data.flags['C_CONTIGUOUS']:
+            data_bytes = self.data.data
+        else:
+            contiguous_data = np.ascontiguousarray(self.data)
+            data_bytes = contiguous_data.data
+        return sha256(data_bytes).hexdigest()
 
     def generate_random_inventory_in_grid(self, num_station: int = 1,
                                           ratio_uni_tri: float = 3) -> Inventory:
