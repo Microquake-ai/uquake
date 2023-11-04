@@ -57,6 +57,9 @@ def read_grid(filename, format='PICKLE', **kwargs):
     return read_format(filename, **kwargs)
 
 
+__default_grid_label__ = 'Default'
+
+
 class Grid(object):
     """
     Object containing a regular grid
@@ -64,7 +67,8 @@ class Grid(object):
 
     def __init__(self, data_or_dims, spacing=None, origin=None,
                  resource_id: ResourceIdentifier = ResourceIdentifier(), value=0,
-                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED,
+                 label: str = __default_grid_label__):
 
         """
         can hold both 2 and 3 dimensional grid
@@ -81,6 +85,8 @@ class Grid(object):
         uuid4 is used to define a unique identifier.
         :param coordinate_system: Coordinate system
         :type coordinate_system: ~uquake.core.coordinates.CoordinateSystem
+        :param label: Label providing additional information on the grid usage
+        :type label: str
         """
 
         data_or_dims = np.array(data_or_dims)
@@ -118,6 +124,7 @@ class Grid(object):
             self.coordinate_system = coordinate_system
 
         self.id = id
+        self.label = label
 
     def __hash__(self):
         return hash((tuple(self.data.ravel()), tuple(self.spacing),

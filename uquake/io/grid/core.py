@@ -36,8 +36,8 @@ import numpy as np
 from pathlib import Path
 from uuid import uuid4
 from ...grid.extended import (valid_float_types, VelocityGrid3D, VelocityGridEnsemble,
-                              TTGrid, AngleGrid, TypedGrid, __default_float_type__,
-                              Phases)
+                              TTGrid, TravelTimeEnsemble, AngleGrid, TypedGrid,
+                              __default_float_type__, Phases)
 import h5py
 from datetime import datetime
 from typing import Union, List, Tuple, Dict, Any, Optional
@@ -345,10 +345,12 @@ def write_velocity_grid_to_hdf5(
 
 def read_velocity_grid_from_hdf5(file_name: str):
     """
-    Reads an HDF5 file and converts it into a VelocityGrid3D or VelocityGridEnsemble object.
+    Reads an HDF5 file and converts it into a VelocityGrid3D or VelocityGridEnsemble
+    object.
 
     :param file_name: Name of the HDF5 file to read from.
-    :return: VelocityGrid3D or VelocityGridEnsemble object initialized with data from the HDF5 file.
+    :return: VelocityGrid3D or VelocityGridEnsemble object initialized with data from the
+    HDF5 file.
     """
     with h5py.File(file_name, 'r') as h5file:
         # Initialize a dict to hold VelocityGrid3D objects for each phase
@@ -400,6 +402,82 @@ def read_velocity_grid_from_hdf5(file_name: str):
         else:
             # Handle the case where no recognized phase data is found
             raise ValueError("No valid phase data found in the HDF5 file.")
+
+
+def write_travel_time_ensemble_to_hdf5(travel_times: TravelTimeEnsemble, filename):
+    with h5py.File(filename, 'w') as f:
+        for label, tt_grid in travel_times.travel_time_grids.items():
+            instrument_group = f.create_group(label)
+            instrument_group.attrs['Network'] = tt_grid.grid_id[tt_grid.network_code]
+            instrument_group.attrs['Grid ID'] = str(tt_grid.grid_id)
+            instrument_group.attrs['Velocity Model ID'] = str(tt_grid.velocity_model_id)
+            instrument_group.attrs['Schema Version'] = '1.0'
+            instrument_group.attrs[
+                'Modification Timestamp'] = datetime.utcnow().isoformat()
+            instrument_group.attrs['Type'] = 'TIME'
+            instrument_group.attrs['Units'] = 'SECOND'
+            instrument_group.attrs[
+                'Coordinate System'] = 'Geocentric'  # Assuming geocentric for example
+            instrument_group.attrs['Data Order'] = 'Row-major'
+            instrument_group.attrs['Origin'] = tt_grid.origin
+            instrument_group.attrs['Spacing'] = tt_grid.spacing
+            instrument_group.attrs['Dimensions'] = tt_grid.data.shape
+            instrument_group.attrs[
+                'Compression'] = 'None'  # Or specify if any compression is used
+
+            # Writing the data
+
+            data = tt_grid.data.astype(tt_grid.float_type.value)
+            data_set = instrument_group.create_dataset(" Data", data=data,
+                                                       dtype=tt_grid.float_type.value)
+
+
+def read_travel_time_ensemble_from_hdf5(filename):
+    travel_time_grids = []
+    with h5py.File(filename, 'r') as f:
+        for instrument_id in f:
+            instrument_group = f[instrument_id]
+            data = instrument_group['Data'][:]
+            attributes = {
+                'grid_id': instrument_group.attrs['Grid ID'],
+                'velocity_model_id': instrument_group.attrs['Velocity Model ID'],
+                'schema_version': instrument_group.attrs['Schema Version'],
+                'modification_timestamp': instrument_group.attrs['Modification Timestamp'],
+                'type': instrument_group.attrs['Type'],
+                'units': instrument_group.attrs['Units'],
+                'coordinate_system': instrument_group.attrs['Coordinate System'],
+                'data_order': instrument_group.attrs['Data Order'],
+                'origin': instrument_group.attrs['Origin'],
+                'spacing': instrument_group.attrs['Spacing'],
+                'dimensions': instrument_group.attrs['Dimensions'],
+                'compression': instrument_group.attrs['Compression']
+            }
+
+
+
+            tt_grid = TTGrid(
+                network=instrument_id,
+                data_or_dims=data.shape,
+                origin=instrument_group.attrs['Origin'],
+                spacing=instrument_group.attrs['Spacing'],
+                seed=AttribDict({'label': instrument_id}),
+                # Update with actual seed creation
+                velocity_model_id=AttribDict({'id': "velocity_model_id_placeholder"}),
+                # Adjust as necessary
+                phase=Phases.P,  # Update with actual phase if needed
+                float_type=FloatTypes(instrument_group['Data'].dtype)
+                # Update this accordingly
+            )
+            travel_time_grids.append(tt_grid)
+
+    return TravelTimeEnsemble(travel_time_grids)
+
+
+# Usage example
+tte = TravelTimeEnsemble(
+    [tt_grid1, tt_grid2])  # Assuming tt_grid1 and tt_grid2 are TTGrid objects
+write_travel_time_ensemble_to_hdf5(tte, 'travel_time_ensemble.hdf5')
+tte_read = read_travel_time_ensemble_from_hdf5('travel_time_ensemble.hdf5')
 
 # Example of using the function
 # my_velocity_object = read_velocity_grid_from_hdf5('velocity_grid.hdf5')

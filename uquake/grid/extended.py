@@ -58,6 +58,7 @@ from uquake.core.coordinates import Coordinates, CoordinateSystem
 from uquake.core.inventory import Inventory
 from uquake.synthetic.inventory import generate_unique_instrument_code
 from uquake.core.event import ResourceIdentifier
+from .base import __default_grid_label__
 import string
 
 __cpu_count__ = cpu_count()
@@ -378,7 +379,8 @@ class TypedGrid(Grid):
                  value=0, grid_type=GridTypes.VELOCITY_METERS,
                  grid_units=__default_grid_units__,
                  float_type="FLOAT",
-                 grid_id: ResourceIdentifier = ResourceIdentifier()):
+                 grid_id: ResourceIdentifier = ResourceIdentifier(),
+                 label: str = __default_grid_label__):
         """
         :param data_or_dims: data or data dimensions. If dimensions are
         provided a homogeneous grid is created with value=value
@@ -398,10 +400,12 @@ class TypedGrid(Grid):
         :type float_type: str
         :param grid_id:
         :type grid_id: str
+        :param label: label of the grid
+        :type label: str
         """
 
         super().__init__(data_or_dims, spacing=spacing, origin=origin,
-                         value=value, resource_id=grid_id)
+                         value=value, resource_id=grid_id, label=label)
 
         self.phase = phase
         self.grid_type = grid_type
@@ -481,7 +485,8 @@ class LayeredVelocityModel(object):
                  grid_units: GridUnits = __default_grid_units__,
                  float_type=__default_float_type__,
                  gradient=False, grid_id: ResourceIdentifier = ResourceIdentifier(),
-                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED,
+                 label=__default_grid_label__):
         """
         Initialize
         :param network_code: network code
@@ -501,6 +506,8 @@ class LayeredVelocityModel(object):
         :type grid_id: uquake.core.event.ResourceIdentifier
         :param coordinate_system: coordinate system either NED or ENU
         :type coordinate_system: CoordinateSystem
+        :param label: label of the grid
+        :type label: str
         """
 
         self.network_code = network_code
@@ -600,7 +607,7 @@ class LayeredVelocityModel(object):
 
     def to_3d_grid(self, dims, origin, spacing):
         model_grid_3d = VelocityGrid3D.from_layered_model(self, dims, origin,
-                                                          spacing)
+                                                          spacing, label=self.label)
         return model_grid_3d
 
     def plot(self, z_min, z_max, spacing, invert_z_axis=True, *args, **kwargs):
@@ -647,7 +654,8 @@ class VelocityGrid3D(TypedGrid):
 
     def __init__(self, network_code, data_or_dims, origin, spacing,
                  phase: Phases = Phases.P, value=0, float_type=__default_float_type__,
-                 grid_id: ResourceIdentifier = ResourceIdentifier(), **kwargs):
+                 grid_id: ResourceIdentifier = ResourceIdentifier(),
+                 label: str = __default_grid_label__, **kwargs):
 
         self.network_code = network_code
 
@@ -657,7 +665,7 @@ class VelocityGrid3D(TypedGrid):
         super().__init__(data_or_dims, origin, spacing, phase,
                          value=value, grid_type='VELOCITY_METERS',
                          grid_units='METER', float_type=float_type,
-                         grid_id=grid_id)
+                         grid_id=grid_id, label=label)
 
     @staticmethod
     def get_base_name(network_code, phase):
@@ -685,15 +693,16 @@ class VelocityGrid3D(TypedGrid):
 
     @classmethod
     def from_layered_model(cls, layered_model, dims, origin,
-                           spacing, **kwargs):
+                           spacing, label=__default_grid_label__, **kwargs):
         """
         Generating a 3D grid model from
-        :param layered_model:
-        :param dims:
-        :param origin:
-        :param spacing:
-        :param kwargs:
-        :return:
+        :param layered_model: a LayeredVelocityModel object
+        :param dims: dimensions of the grid
+        :param origin: origin of the grid
+        :param spacing: spacing of the grid
+        :param label: label of the grid
+        :param kwargs: additional arguments
+        :return: a VelocityGrid3D object
         """
 
         z_min = origin[-1]
@@ -709,7 +718,7 @@ class VelocityGrid3D(TypedGrid):
         return cls(layered_model.network_code, data, origin, spacing,
                    phase=layered_model.phase,
                    float_type=layered_model.float_type,
-                   grid_id=layered_model.grid_id, **kwargs)
+                   grid_id=layered_model.grid_id, label=label, **kwargs)
 
     def to_slow_lens(self):
         data = self.spacing[0] / self.data
@@ -718,14 +727,14 @@ class VelocityGrid3D(TypedGrid):
                          self.phase, grid_type='SLOW_LEN',
                          grid_units=self.grid_units,
                          float_type=self.float_type,
-                         grid_id=self.grid_id)
+                         grid_id=self.grid_id, label=self.label)
 
     @classmethod
     def from_slow_len(cls, grid: TypedGrid, network_code: str):
         data = np.mean(grid.spacing) / grid.data
         return cls(network_code, data, grid.origin, grid.spacing,
                    phase=grid.phase, float_type=grid.float_type,
-                   grid_id=grid.grid_id)
+                   grid_id=grid.grid_id, label=grid.label)
 
     def to_time(self, seed: Seed, sub_grid_resolution=0.1,
                 *args, **kwargs):
@@ -793,7 +802,7 @@ class VelocityGrid3D(TypedGrid):
                              sub_grid_spacing, seed, self.grid_id,
                              phase=self.phase,
                              float_type=self.float_type,
-                             grid_units=self.grid_units)
+                             grid_units=self.grid_units, label=self.label)
 
         # __init__(self, data_or_dims, origin, spacing, seed: Seed,
         # phase: Phases = Phases.P, value: float = 0,
@@ -845,7 +854,8 @@ class VelocityGrid3D(TypedGrid):
                              self.spacing, seed, phase=self.phase,
                              float_type=self.float_type,
                              velocity_model_id=self.grid_id,
-                             grid_units=self.grid_units)
+                             grid_units=self.grid_units,
+                             label=self.label)
 
         tt_out_grid.data -= tt_out_grid.interpolate(seed.T,
                                                     grid_space=False,
@@ -1013,7 +1023,23 @@ class SeededGrid(TypedGrid):
                  grid_units=__default_grid_units__,
                  grid_type: SeededGridType = SeededGridType.TIME,
                  float_type: FloatTypes = __default_float_type__,
-                 grid_id: ResourceIdentifier = ResourceIdentifier()):
+                 grid_id: ResourceIdentifier = ResourceIdentifier(),
+                 label=__default_grid_label__):
+        """
+        :param network: network code
+        :param data_or_dims:
+        :param origin:
+        :param spacing:
+        :param seed:
+        :param velocity_model_id:
+        :param phase:
+        :param value:
+        :param grid_units:
+        :param grid_type:
+        :param float_type:
+        :param grid_id:
+        :param label:
+        """
 
         self.network = network
         self.seed = seed
@@ -1033,7 +1059,7 @@ class SeededGrid(TypedGrid):
         super().__init__(data_or_dims, origin, spacing,
                          phase=phase, value=value,
                          grid_type=grid_type, grid_units=grid_units,
-                         float_type=float_type, grid_id=grid_id)
+                         float_type=float_type, grid_id=grid_id, label=label)
 
         # ensure the data are expressed in the appropriate float_type
         self.data.astype(float_type.value)
@@ -1092,7 +1118,8 @@ class TTGrid(SeededGrid):
                  velocity_model_id: ResourceIdentifier,
                  phase: Phases = Phases.P, value: float = 0,
                  float_type: FloatTypes = __default_float_type__,
-                 grid_id: ResourceIdentifier = ResourceIdentifier()):
+                 grid_id: ResourceIdentifier = ResourceIdentifier(),
+                 label=__default_grid_label__):
 
         grid_units = GridUnits.SECOND
 
@@ -1100,7 +1127,8 @@ class TTGrid(SeededGrid):
         super().__init__(network, data_or_dims, origin, spacing, seed,
                          velocity_model_id=velocity_model_id, phase=phase,
                          value=value, grid_type=GridTypes.TIME, float_type=float_type,
-                         grid_id=grid_id, grid_units=grid_units)
+                         grid_id=grid_id, grid_units=grid_units,
+                         label=label)
 
     def to_azimuth(self):
         """
@@ -1208,7 +1236,7 @@ class TravelTimeEnsemble:
     def __init__(self, travel_time_grids):
         """
         Combine a list of travel time grids together providing meta
-        functionality (multi-threaded ray tracing, sorting, travel-time
+        functionality (multithreaded ray tracing, sorting, travel-time
         calculation for a specific location etc.). It is assumed that
         all grids are compatible, i.e., that all the grids have the same
         origin, spacing and dimensions.
