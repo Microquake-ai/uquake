@@ -325,16 +325,16 @@ class Inventory(inventory.Inventory):
     def get_channel(self, sta=None, cha=None):
         return self.select(sta, cha_code=cha)
 
-    def select_site(self, locations=None):
-        if isinstance(locations, list):
-            for location in locations:
-                for obj_site in self.locations:
+    def select_instrument(self, instruments=None):
+        if isinstance(instruments, list):
+            for location in instruments:
+                for obj_site in self.instruments:
                     if location.code == obj_site.code:
                         yield obj_site
 
-        elif isinstance(locations, str):
-            location = locations
-            for obj_site in self.locations:
+        elif isinstance(instruments, str):
+            location = instruments
+            for obj_site in self.instruments:
                 if location.code == obj_site.code:
                     return obj_site
 
@@ -345,20 +345,20 @@ class Inventory(inventory.Inventory):
         return file_out.getvalue()
 
     def __eq__(self, other):
-        return np.all(self.locations == other.locations)
+        return np.all(self.instruments == other.instruments)
 
     # def write(self, filename):
     #     super().write(self, filename, format='stationxml', nsmap={ns: ns})
 
     @property
-    def locations(self):
-        locations = []
+    def instruments(self):
+        instruments = []
         for network in self.networks:
             for station in network.stations:
-                for location in station.locations:
-                    locations.append(location)
+                for instrument in station.instruments:
+                    instruments.append(instrument)
 
-        return np.sort(locations)
+        return np.sort(instruments)
 
 
 class Network(inventory.Network):
@@ -415,7 +415,7 @@ class Network(inventory.Network):
         for station in self.stations:
             if station.code in ignore_stations:
                 continue
-            for location in station.locations:
+            for location in station.instruments:
                 if location.code in ignore_sites:
                     continue
                 coordinates.append(location.loc)
@@ -444,18 +444,18 @@ class Network(inventory.Network):
         return np.array([station.loc for station in self.stations])
 
     @property
-    def locations(self):
-        locations = []
+    def instruments(self):
+        instruments = []
         for station in self.stations:
-            for location in station.locations:
-                locations.append(location)
-        return locations
+            for instrument in station.instruments:
+                instruments.append(instrument)
+        return instruments
 
     @property
-    def site_coordinates(self):
+    def instrument_coordinates(self):
         coordinates = []
-        for location in self.locations:
-            coordinates.append(location.loc)
+        for instrument in self.instruments:
+            coordinates.append(instrument.loc)
 
 
 class Station(inventory.Station):
@@ -579,10 +579,10 @@ class Station(inventory.Station):
             raise AttributeError
 
     @property
-    def locations(self):
+    def instruments(self):
         location_codes = []
         channel_dict = {}
-        locations = []
+        instruments = []
         for channel in self.channels:
             location_codes.append(channel.location_code)
             channel_dict[channel.location_code] = []
@@ -591,15 +591,15 @@ class Station(inventory.Station):
             channel_dict[channel.location_code].append(channel)
 
         for key in channel_dict.keys():
-            locations.append(Location(self, channel_dict[key]))
+            instruments.append(Instrument(self, channel_dict[key]))
 
-        return locations
+        return instruments
 
     @property
-    def location_coordinates(self):
+    def instrument_coordinates(self):
         coordinates = []
-        for location in self.locations:
-            coordinates.append(location.loc)
+        for instrument in self.instruments:
+            coordinates.append(instrument.loc)
         return np.array(coordinates)
 
     def __str__(self):
@@ -609,7 +609,7 @@ class Station(inventory.Station):
         y = self.y
         z = self.z
 
-        location_count = len(self.locations)
+        location_count = len(self.instruments)
         channel_count = len(self.channels)
 
         format_dict = {
@@ -647,7 +647,7 @@ class Station(inventory.Station):
         ret = ret.format(
             station_name=contents["stations"][0],
             station_code=self.code,
-            site_count=len(self.locations),
+            site_count=len(self.instruments),
             selected=self.selected_number_of_channels,
             total=self.total_number_of_channels,
             start_date=str(self.start_date),
@@ -670,12 +670,12 @@ class Station(inventory.Station):
         return self.__str__()
 
 
-class Location:
+class Instrument:
     """
     This class is a container for grouping the channels into coherent entity
     that are Locations. From the uquake package perspective a station is
     the physical location where data acquisition instruments are grouped.
-    One or multiple locations can be connected to a station.
+    One or multiple instruments can be connected to a station.
     """
 
     def __init__(self, station, channels):
@@ -700,7 +700,7 @@ class Location:
         return ret
 
     def __str__(self):
-        return self.location_code
+        return self.instrument_code
 
     def __eq__(self, other):
         return str(self) == str(other)
@@ -740,8 +740,16 @@ class Location:
         return self.station.code
 
     @property
-    def location_code(self):
+    def instrument_code(self):
         return self.channels[0].location_code
+
+    @property
+    def instrument_code(self):
+        return self.code
+
+    @property
+    def simplified_code(self):
+        return f'{self.station_code}{self.location_code}'
 
     @property
     def code(self):
@@ -994,8 +1002,8 @@ def load_from_excel(file_name) -> Inventory:
     person = Person(names=[contact_name], agencies=[site_operator],
                     emails=[contact_email], phones=[phone_number])
     operator = Operator(site_operator, contacts=[person])
-    location = Location(name=site_name, description=site_name,
-                country=site_country)
+    location = Instrument(name=site_name, description=site_name,
+                          country=site_country)
 
     # Merge Stations+Components+Locations+Cables info into sorted stations +
     # channels dicts:

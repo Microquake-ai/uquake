@@ -20,7 +20,7 @@ import numpy as np
 import string
 
 
-def generate_unique_location_code(n_codes: int = 1):
+def generate_unique_instrument_code(n_codes: int = 1):
 
     codes = set()
 

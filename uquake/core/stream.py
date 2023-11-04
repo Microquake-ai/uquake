@@ -165,7 +165,7 @@ class Stream(obsstream.Stream, ABC):
         return np.sort(np.unique([tr.stats.station for tr in self]))
 
     @property
-    def unique_sites(self):
+    def unique_instruments(self):
         return np.sort(np.unique([tr.stats.location for tr in self]))
 
     @property
@@ -173,8 +173,8 @@ class Stream(obsstream.Stream, ABC):
         return self.unique_stations
 
     @property
-    def locations(self):
-        return self.unique_sites
+    def instruments(self):
+        return self.unique_instruments
 
     def zpad_names(self):
         for tr in self.traces:
@@ -425,7 +425,7 @@ def composite_traces(st_in):
     st = st_in.copy()
     st.detrend('demean')
 
-    for location in st.unique_sites:
+    for location in st.unique_instruments:
         trs = st.select(location=location)
 
         if len(trs) == 1:

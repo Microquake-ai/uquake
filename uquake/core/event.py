@@ -449,8 +449,8 @@ class EventTypeLookup(object):
     def convert_from_quakeml(self, quakeml_type):
         return self.lookup_table[quakeml_type]
 
-    def convert_to_quakeml(self, uquakem_type):
-        return self.inverse_lookup_table[uquakem_type]
+    def convert_to_quakeml(self, uquakeml_type):
+        return self.inverse_lookup_table[uquakeml_type]
 
     @property
     def valid_quakeml_types(self):
@@ -878,26 +878,26 @@ class Origin(obsevent.Origin):
 
         return magnitudes
 
-    def get_incidence_baz_angles(self, site_code, phase):
+    def get_incidence_baz_angles(self, instrument_code, phase):
         baz = None
         inc = None
         for ray in self.rays:
-            if (ray.site_code == site_code) and (ray.phase == phase):
+            if (ray.instrument_code == instrument_code) and (ray.phase == phase):
                 baz = ray.back_azimuth
                 inc = ray.incidence_angle
                 break
         return baz, inc
 
-    def get_ray_station_phase(self, site_code, phase):
+    def get_ray_station_phase(self, instrument_code, phase):
         out_ray = None
         for ray in self.rays:
-            if (ray.site_code == site_code) and (ray.phase == phase):
+            if (ray.instrument_code == instrument_code) and (ray.phase == phase):
                 out_ray = ray
                 break
         return out_ray
 
-    def distance_station(self, site_code, phase='P'):
-        ray = self.get_ray_station_phase(self, site_code, phase)
+    def distance_station(self, instrument_code, phase='P'):
+        ray = self.get_ray_station_phase(self, instrument_code, phase)
         if ray is None:
             return None
 

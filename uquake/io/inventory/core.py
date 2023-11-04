@@ -13,8 +13,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from ...core.inventory import (Inventory, Network, Station, Location, Channel,
-                                   SystemResponse)
+from ...core.inventory import (Inventory, Network, Station, Instrument, Channel,
+                               SystemResponse)
 from ...core import UTCDateTime
 from datetime import datetime
 from typing import TextIO, Union, List, Dict
