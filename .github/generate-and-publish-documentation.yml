@@ -1,0 +1,39 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies with poetry
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create false
+          poetry install
+
+      - name: Generate Documentation
+        run: |
+          # Assuming you have a script or makefile to generate documentation
+          poetry run pdoc -o ./uquake/docs uquake 
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+          publish_dir: ./uquake/docs
+          external_repository: your-username/uquake-docs
+          keep_files: true
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'Deploy documentation updates'

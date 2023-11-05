@@ -474,10 +474,10 @@ def read_travel_time_ensemble_from_hdf5(filename):
 
 
 # Usage example
-tte = TravelTimeEnsemble(
-    [tt_grid1, tt_grid2])  # Assuming tt_grid1 and tt_grid2 are TTGrid objects
-write_travel_time_ensemble_to_hdf5(tte, 'travel_time_ensemble.hdf5')
-tte_read = read_travel_time_ensemble_from_hdf5('travel_time_ensemble.hdf5')
+# tte = TravelTimeEnsemble(
+#     [tt_grid1, tt_grid2])  # Assuming tt_grid1 and tt_grid2 are TTGrid objects
+# write_travel_time_ensemble_to_hdf5(tte, 'travel_time_ensemble.hdf5')
+# tte_read = read_travel_time_ensemble_from_hdf5('travel_time_ensemble.hdf5')
 
 # Example of using the function
 # my_velocity_object = read_velocity_grid_from_hdf5('velocity_grid.hdf5')
