@@ -24,16 +24,19 @@ jobs:
 
       - name: Generate Documentation
         run: |
-          # Assuming you have a script or makefile to generate documentation
+          # Your command to generate documentation
           poetry run pdoc -o ./uquake/docs uquake 
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
-          deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+          # Use a deployment token instead of a deploy key
+          github_token: ${{ secrets.REPO_TOKEN }}
           publish_dir: ./uquake/docs
-          external_repository: your-username/uquake-docs
+          # Update the external repository to your GitHub pages repository
+          external_repository: microquake-ai/uquake-docs
           keep_files: true
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: 'Deploy documentation updates'
+
