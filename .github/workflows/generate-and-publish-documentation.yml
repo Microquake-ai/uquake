@@ -31,7 +31,7 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           # Use a deployment token instead of a deploy key
-          github_token: ${{ secrets.REPO_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./uquake/docs
           # Update the external repository to your GitHub pages repository
           external_repository: microquake-ai/uquake-docs
