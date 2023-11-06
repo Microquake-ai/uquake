@@ -37,11 +37,15 @@ from pathlib import Path
 from uuid import uuid4
 from ...grid.extended import (valid_float_types, VelocityGrid3D, VelocityGridEnsemble,
                               TTGrid, TravelTimeEnsemble, AngleGrid, TypedGrid,
-                              __default_float_type__, Phases)
+                              __default_float_type__, Phases, FloatTypes, GridTypes,
+                              GridUnits, Seed)
+from uquake.core.event import ResourceIdentifier
+from uquake.core.coordinates import CoordinateSystem, Coordinates
 import h5py
 from datetime import datetime
 from typing import Union, List, Tuple, Dict, Any, Optional
 import os
+from enum import Enum
 
 
 def read_pickle(filename, protocol=-1, **kwargs):
@@ -288,70 +292,121 @@ def read_nlloc(filename, float_type=__default_float_type__):
         return grid
 
 
-def write_velocity_grid_to_hdf5(
-        velocity_grid: Union[VelocityGridEnsemble, VelocityGrid3D], file_name: str):
+class HDF5Compression(Enum):
     """
-    Writes a VelocityGrid3D object to an HDF5 file with a specified structure.
+    Enumerates the compression types supported by the HDF5 format.
+    """
+    NONE = None
+    GZIP = 'gzip'
+    LZF = 'lzf'
+    SZIP = 'szip'
+    BZIP2 = 'bzip2'
 
-    :param velocity_grid: VelocityGridEnsemble or VelocityGrid3D object to be written
-    to the file.
-    :param file_name: Name of the HDF5 file.
+
+def write_grid_to_hdf5(
+        file_name: str,
+        grid_ensemble: Union[VelocityGridEnsemble, TravelTimeEnsemble],
+        compression: Optional[HDF5Compression] = HDF5Compression.NONE,
+        compression_opts: Optional[Union[int, tuple]] = None):
     """
-    # Open or create the HDF5 file
+    Writes a VelocityGrid3D object to an HDF5 file with the specified structure.
+
+    :param file_name: The name of the HDF5 file.
+    :param grid_ensemble: The VelocityGridEnsemble or TravelTimeEnsemble object to be
+    written to the file.
+    :param compression: The type of compression to use for storing the dataset. If None,
+    no compression is applied.
+                        Accepts 'gzip', 'lzf', or 'szip'. Defaults to None.
+    :param compression_opts: For 'gzip', an integer from 0 to 9 indicating the
+                             compression level.
+                             For 'szip', it can be a tuple specifying the compression
+                             options.
+                             Not applicable for 'lzf'. Defaults to None.
+    """
+
+    # Open the file and create the dataset with the specified compression
+
     with h5py.File(file_name, 'w') as h5file:
-        # Create group based on the phase (P or S)
-        if isinstance(velocity_grid, VelocityGrid3D):
-            phases = [Phases(velocity_grid.phase)]
 
-        else:
-            phases = [Phases.P, Phases.S]
+        # Create the phase groups
+        for phase in Phases:
 
-        for phase in phases:
+            if isinstance(grid_ensemble, TravelTimeEnsemble):
+                if len(grid_ensemble.select(phases=[phase.value])) == 0:
+                    continue
+                phase_group = h5file.create_group(f'Phase {phase.value}')
+                tmp_ensemble = grid_ensemble.select(phases=[phase.value])
+                for time_grid in tmp_ensemble:
+                    instrument_group = phase_group.create_group(
+                        time_grid.instrument_code)
+                    instrument_group.attrs[
+                        'Velocity_Model_ID'] = str(time_grid.velocity_model_id)
 
-            if isinstance(velocity_grid, VelocityGridEnsemble):
-                v_grid = velocity_grid[phase.value]
-            else:
-                v_grid = velocity_grid
+                    # seed = time_grid.seed.__dict__
+                    # seed['coordinates'] = seed['coordinates'].to_json()
 
-            phase_group = h5file.create_group(f"/Phase {phase.value}")
+                    instrument_group.attrs['Seed_Station'] = time_grid.seed.station
+                    instrument_group.attrs['Seed_Location'] = time_grid.seed.location
+                    instrument_group.attrs['Seed_Coordinates'] = \
+                        time_grid.seed.coordinates.loc
+                    instrument_group.attrs['Seed_Coordinate_System'] = \
+                        time_grid.seed.coordinates.coordinate_system.value
+                    write_grid_attributes_and_data_hdf5(instrument_group, time_grid,
+                                                        compression, compression_opts)
 
-            # Set attributes
-            phase_group.attrs['Grid ID'] = str(v_grid.grid_id)
-            phase_group.attrs['Schema Version'] = "1.0"
-            phase_group.attrs['Creation Timestamp'] = datetime.utcnow().isoformat() + "Z"
-            # ISO 8601 format
-            phase_group.attrs['Type'] = "VELOCITY"
-            phase_group.attrs['Units'] = "m/s"  # or the appropriate units
-            phase_group.attrs['Coordinate System'] = "cartesian"  # or another system
-            phase_group.attrs['Data Order'] = "Row-major"
-            # or "Column-major" based on the data
-            phase_group.attrs['Origin'] = v_grid.origin
-            phase_group.attrs['Spacing'] = v_grid.spacing
-            phase_group.attrs['Dimensions'] = v_grid.data.shape
-            phase_group.attrs['Compression'] = "None"
-            # or describe the compression if used
-
-        # Add data set
-            data = v_grid.data.astype(v_grid.float_type.value)
-            data_set = phase_group.create_dataset("Data", data=data,
-                                                  dtype=v_grid.float_type.value)
-            data_set.attrs['Checksum'] = v_grid.checksum
+            elif isinstance(grid_ensemble, VelocityGridEnsemble):
+                if grid_ensemble[phase.value] is None:
+                    continue
+                phase_group = h5file.create_group(f'Phase {phase.value}')
+                v_grid = grid_ensemble[phase.value]
+                write_grid_attributes_and_data_hdf5(phase_group, v_grid, compression,
+                                                    compression_opts)
 
 
-# import h5py
-# from uquake.grid.nlloc import VelocityGrid3D, VelocityGridEnsemble, Phases
-# from obspy.core.util.attribdict import AttribDict
+def write_grid_attributes_and_data_hdf5(
+        group, grid: VelocityGrid3D,
+        compression: Optional[HDF5Compression] = HDF5Compression.NONE,
+        compression_opts: Optional[Union[int, tuple]] = None):
+    """
+    Writes the attributes and data of a VelocityGrid3D object to an HDF5 group.
+    :param group:
+    :param grid:
+    :param compression:
+    :param compression_opts:
+    :return:
+    """
+
+    group.attrs['Creation Timestamp'] = datetime.utcnow().isoformat() + "Z"
+    group.attrs['Network'] = grid.network_code
+    group.attrs['Origin'] = grid.origin
+    group.attrs['Spacing'] = grid.spacing
+    group.attrs['Dimensions'] = grid.data.shape
+    group.attrs['Grid ID'] = str(grid.grid_id)
+    group.attrs['Schema Version'] = "1.0"
+    group.attrs['Type'] = grid.grid_type.value
+    group.attrs['Units'] = grid.grid_units.value  # or the appropriate units
+    group.attrs['float_type'] = grid.float_type.value
+    group.attrs['Coordinate_System'] = grid.coordinate_system.value
+    group.attrs['Label'] = grid.label
+
+    # Add data set
+    data = grid.data.astype(grid.float_type.value)
+    data_set = group.create_dataset("Data", data=data, dtype=grid.float_type.value,
+                                    compression=compression.value,
+                                    compression_opts=compression_opts)
+    data_set.attrs['Checksum'] = grid.checksum
 
 
 def read_velocity_grid_from_hdf5(file_name: str):
     """
-    Reads an HDF5 file and converts it into a VelocityGrid3D or VelocityGridEnsemble
+    Reads an HDF5 file and converts it into a VelocityGridEnsemble
     object.
 
     :param file_name: Name of the HDF5 file to read from.
     :return: VelocityGrid3D or VelocityGridEnsemble object initialized with data from the
     HDF5 file.
     """
+
     with h5py.File(file_name, 'r') as h5file:
         # Initialize a dict to hold VelocityGrid3D objects for each phase
         velocity_grids = {}
@@ -362,30 +417,14 @@ def read_velocity_grid_from_hdf5(file_name: str):
             if phase_group_name in h5file:
                 phase_group = h5file.get(phase_group_name)
 
-                # Extract attributes
-                attributes = {
-                    'grid_id': phase_group.attrs['Grid ID'],
-                    'schema_version': phase_group.attrs['Schema Version'],
-                    'creation_timestamp': phase_group.attrs['Creation Timestamp'],
-                    'type': phase_group.attrs['Type'],
-                    'units': phase_group.attrs['Units'],
-                    'coordinate_system': phase_group.attrs['Coordinate System'],
-                    'data_order': phase_group.attrs['Data Order'],
-                    'origin': phase_group.attrs['Origin'],
-                    'spacing': phase_group.attrs['Spacing'],
-                    'dimensions': phase_group.attrs['Dimensions'],
-                    'compression': phase_group.attrs['Compression']
-                }
+                attributes = get_attribute_and_data_from_group(phase_group)
+
+                attributes['phase'] = phase
 
                 # Read the data set
-                data = phase_group['Data'][:]
 
                 # Create the VelocityGrid3D object for the phase
-                velocity_grid = VelocityGrid3D(network_code=attributes['grid_id'],
-                                               data_or_dims=data,
-                                               origin=attributes['origin'],
-                                               spacing=attributes['spacing'],
-                                               phase=phase)  # Set the phase here
+                velocity_grid = VelocityGrid3D(**attributes)
                 velocity_grids[phase] = velocity_grid
 
         # Check if both P and S wave data are present
@@ -404,82 +443,52 @@ def read_velocity_grid_from_hdf5(file_name: str):
             raise ValueError("No valid phase data found in the HDF5 file.")
 
 
-def write_travel_time_ensemble_to_hdf5(travel_times: TravelTimeEnsemble, filename):
-    with h5py.File(filename, 'w') as f:
-        for label, tt_grid in travel_times.travel_time_grids.items():
-            instrument_group = f.create_group(label)
-            instrument_group.attrs['Network'] = tt_grid.grid_id[tt_grid.network_code]
-            instrument_group.attrs['Grid ID'] = str(tt_grid.grid_id)
-            instrument_group.attrs['Velocity Model ID'] = str(tt_grid.velocity_model_id)
-            instrument_group.attrs['Schema Version'] = '1.0'
-            instrument_group.attrs[
-                'Modification Timestamp'] = datetime.utcnow().isoformat()
-            instrument_group.attrs['Type'] = 'TIME'
-            instrument_group.attrs['Units'] = 'SECOND'
-            instrument_group.attrs[
-                'Coordinate System'] = 'Geocentric'  # Assuming geocentric for example
-            instrument_group.attrs['Data Order'] = 'Row-major'
-            instrument_group.attrs['Origin'] = tt_grid.origin
-            instrument_group.attrs['Spacing'] = tt_grid.spacing
-            instrument_group.attrs['Dimensions'] = tt_grid.data.shape
-            instrument_group.attrs[
-                'Compression'] = 'None'  # Or specify if any compression is used
+def get_attribute_and_data_from_group(group):
 
-            # Writing the data
+    data = np.array(group['Data'][:]).astype(
+        group.attrs['float_type'])
+    # Extract attributes
+    attributes = {
+        'network_code': group.attrs['Network'],
+        'data_or_dims': data,
+        'origin': group.attrs['Origin'],
+        'spacing': group.attrs['Spacing'],
+        'float_type': FloatTypes(group.attrs['float_type']),
+        'grid_id': ResourceIdentifier(group.attrs['Grid ID']),
+        'type': GridTypes(group.attrs['Type']),
+        'units': GridUnits(group.attrs['Units']),
+        'coordinate_system':
+            CoordinateSystem(group.attrs['Coordinate_System']),
+        'label': group.attrs['Label'],
+    }
 
-            data = tt_grid.data.astype(tt_grid.float_type.value)
-            data_set = instrument_group.create_dataset(" Data", data=data,
-                                                       dtype=tt_grid.float_type.value)
+    return attributes
 
 
-def read_travel_time_ensemble_from_hdf5(filename):
+def read_travel_time_ensemble_from_hdf5(file_name):
+
     travel_time_grids = []
-    with h5py.File(filename, 'r') as f:
-        for instrument_id in f:
-            instrument_group = f[instrument_id]
-            data = instrument_group['Data'][:]
-            attributes = {
-                'grid_id': instrument_group.attrs['Grid ID'],
-                'velocity_model_id': instrument_group.attrs['Velocity Model ID'],
-                'schema_version': instrument_group.attrs['Schema Version'],
-                'modification_timestamp': instrument_group.attrs['Modification Timestamp'],
-                'type': instrument_group.attrs['Type'],
-                'units': instrument_group.attrs['Units'],
-                'coordinate_system': instrument_group.attrs['Coordinate System'],
-                'data_order': instrument_group.attrs['Data Order'],
-                'origin': instrument_group.attrs['Origin'],
-                'spacing': instrument_group.attrs['Spacing'],
-                'dimensions': instrument_group.attrs['Dimensions'],
-                'compression': instrument_group.attrs['Compression']
-            }
-
-
-
-            tt_grid = TTGrid(
-                network=instrument_id,
-                data_or_dims=data.shape,
-                origin=instrument_group.attrs['Origin'],
-                spacing=instrument_group.attrs['Spacing'],
-                seed=AttribDict({'label': instrument_id}),
-                # Update with actual seed creation
-                velocity_model_id=AttribDict({'id': "velocity_model_id_placeholder"}),
-                # Adjust as necessary
-                phase=Phases.P,  # Update with actual phase if needed
-                float_type=FloatTypes(instrument_group['Data'].dtype)
-                # Update this accordingly
-            )
-            travel_time_grids.append(tt_grid)
+    with h5py.File(file_name, 'r') as f:
+        for phase in f:
+            for instrument_id in f[phase]:
+                instrument_group = f[phase][instrument_id]
+                attributes = get_attribute_and_data_from_group(instrument_group)
+                attributes['phase'] = Phases.P if ' P' in phase else Phases.S
+                attributes['velocity_model_id'] = instrument_group.attrs[
+                    'Velocity_Model_ID']
+                station_code = instrument_group.attrs['Seed_Station']
+                location_code = instrument_group.attrs['Seed_Location']
+                x, y, z = instrument_group.attrs['Seed_Coordinates']
+                coordinate_system = CoordinateSystem(instrument_group.attrs[
+                                                         'Seed_Coordinate_System'])
+                coordinates = Coordinates(x, y, z, coordinate_system=coordinate_system)
+                seed = Seed(station_code, location_code, coordinates)
+                attributes['seed'] = seed
+                attributes.pop('type')
+                attributes.pop('units')
+                tt_grid = TTGrid(**attributes)
+                travel_time_grids.append(tt_grid)
 
     return TravelTimeEnsemble(travel_time_grids)
-
-
-# Usage example
-# tte = TravelTimeEnsemble(
-#     [tt_grid1, tt_grid2])  # Assuming tt_grid1 and tt_grid2 are TTGrid objects
-# write_travel_time_ensemble_to_hdf5(tte, 'travel_time_ensemble.hdf5')
-# tte_read = read_travel_time_ensemble_from_hdf5('travel_time_ensemble.hdf5')
-
-# Example of using the function
-# my_velocity_object = read_velocity_grid_from_hdf5('velocity_grid.hdf5')
 
 

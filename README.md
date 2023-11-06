@@ -100,19 +100,6 @@ Features
 License
 uquake is released under the AGPL License.
 
-Citation
-If you use uquake in your research, please cite it as follows:
-
-bibtex
-Copy code
-@misc{uquake,
-  author = {Your Name},
-  title = {uquake: Microseismic Data Processing Library},
-  year = {Year of Release},
-  publisher = {GitHub},
-  journal = {GitHub repository},
-  howpublished = {\url{https://github.com/microquake-ai/uquake}}
-}
 Support
 If you have any questions or need support, please file an issue in the GitHub issue tracker.
 

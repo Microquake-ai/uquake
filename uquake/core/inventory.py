@@ -673,7 +673,7 @@ class Station(inventory.Station):
 class Instrument:
     """
     This class is a container for grouping the channels into coherent entity
-    that are Locations. From the uquake package perspective a station is
+    that are Instruments. From the uquake package perspective a station is
     the physical location where data acquisition instruments are grouped.
     One or multiple instruments can be connected to a station.
     """
@@ -683,6 +683,11 @@ class Instrument:
         location_codes = []
         for channel in channels:
             location_codes.append(channel.location_code)
+            if len(np.unique(location_codes)) > 1:
+                raise ValueError('the channels in the channel list should have a unique '
+                                 'location code')
+
+        self.location_code = location_codes[0]
 
         if len(np.unique(location_codes)) > 1:
             logger.error('the channels in the channel list should have a'
@@ -741,10 +746,6 @@ class Instrument:
 
     @property
     def instrument_code(self):
-        return self.channels[0].location_code
-
-    @property
-    def instrument_code(self):
         return self.code
 
     @property
@@ -753,11 +754,15 @@ class Instrument:
 
     @property
     def code(self):
-        return f'{self.station_code}.{self.location_code}'
+        return self.make_instrument_code(self.station_code, self.location_code)
 
     @property
     def sensor_type_code(self):
         return self.channels[0].code[0:-1]
+
+    @staticmethod
+    def make_instrument_code(station_code, location_code):
+        return f'{station_code}.{location_code}'
 
 
 class Channel(inventory.Channel):

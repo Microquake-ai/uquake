@@ -3,8 +3,10 @@ from uquake.grid import extended
 import random
 import numpy as np
 from uquake.grid.base import Grid
-from uquake.grid.extended import VelocityGrid3D, VelocityGridEnsemble, Phases
-from uquake.io.grid.core import read_velocity_grid_from_hdf5, write_velocity_grid_to_hdf5
+from uquake.grid.extended import (VelocityGrid3D, VelocityGridEnsemble, Phases,
+                                  SeedEnsemble)
+from uquake.io.grid.core import (read_velocity_grid_from_hdf5, write_grid_to_hdf5,
+                                 read_travel_time_ensemble_from_hdf5)
 from tempfile import NamedTemporaryFile
 
 
@@ -103,7 +105,7 @@ class TestGridOperations(unittest.TestCase):
                               spacing=self.grid_spacing,
                               phase=phase)
 
-    def test_write_and_read_velocity_grid(self):
+    def test_write_and_read_grids(self):
         """
         Test writing to and reading from an HDF5 file for velocity grid data.
         """
@@ -114,7 +116,7 @@ class TestGridOperations(unittest.TestCase):
 
         with NamedTemporaryFile() as temp_file:
             # Write to a temporary file
-            write_velocity_grid_to_hdf5(velocity_ensemble, temp_file.name)
+            write_grid_to_hdf5(temp_file.name, velocity_ensemble)
 
             # Read the velocity grid back from the temporary file
             read_velocity_ensemble = read_velocity_grid_from_hdf5(temp_file.name)
@@ -129,15 +131,25 @@ class TestGridOperations(unittest.TestCase):
                 read_velocity_ensemble['S'].data, s_velocity_grid.data, decimal=3,
                 err_msg="Mismatch between written and read S-wave velocity data!")
 
-            # # Verify checksum for P-wave grid
-            # checksum = p_velocity_grid.checksum
-            # self.assertEqual(read_velocity_ensemble['P'].checksum, checksum,
-            #                  "Checksum mismatch for P-wave grid data.")
-            #
-            # # Verify checksum for S-wave grid
-            # checksum = s_velocity_grid.checksum
-            # self.assertEqual(read_velocity_ensemble['S'].checksum, checksum,
-            #                  "Checksum mismatch for S-wave grid data.")
+            velocity_grids = VelocityGridEnsemble(p_velocity_grid, s_velocity_grid)
+
+        with NamedTemporaryFile() as temp_file:
+            inventory = velocity_grids.P.generate_random_inventory_in_grid(
+                num_station=20)
+            seeds = SeedEnsemble.from_inventory(inventory)
+
+            tt_grids = velocity_grids.to_time_multi_threaded(seeds)
+
+            write_grid_to_hdf5(temp_file.name, tt_grids)
+
+            read_tt_grids = read_travel_time_ensemble_from_hdf5(temp_file.name)
+
+            for tt_grid, read_tt_grid in zip(tt_grids, read_tt_grids):
+                np.testing.assert_array_almost_equal(
+                    tt_grid.data, read_tt_grid.data, decimal=3,
+                    err_msg="Mismatch between written and read P-wave velocity data!")
+
+            print('successfully write and read the travel time grids')
 
 
 if __name__ == '__main__':

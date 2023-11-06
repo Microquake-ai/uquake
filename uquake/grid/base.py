@@ -34,7 +34,7 @@ from scipy.ndimage.interpolation import map_coordinates
 import matplotlib.pyplot as plt
 from scipy.ndimage.filters import gaussian_filter
 from uquake.core.coordinates import CoordinateSystem, Coordinates
-from typing import Union, List
+from typing import Union, List, Tuple
 from uquake.core.inventory import Inventory, Network, Station, Channel
 import random
 from uquake.core.event import ResourceIdentifier
@@ -65,20 +65,23 @@ class Grid(object):
     Object containing a regular grid
     """
 
-    def __init__(self, data_or_dims, spacing=None, origin=None,
-                 resource_id: ResourceIdentifier = ResourceIdentifier(), value=0,
+    def __init__(self, data_or_dims: Union[np.ndarray, List, Tuple],
+                 spacing: Union[np.ndarray, List, Tuple] = None,
+                 origin: Union[np.ndarray, List, Tuple] = None,
+                 resource_id: ResourceIdentifier = ResourceIdentifier(),
+                 value: float = 0,
                  coordinate_system: CoordinateSystem = CoordinateSystem.NED,
                  label: str = __default_grid_label__):
 
         """
         can hold both 2 and 3 dimensional grid
-        :param data_or_dims: either a numpy array or a tuple/list with the grid
+        :param data_or_dims: either a numpy array or a Tuple/List with the grid
         dimensions. If grid dimensions are specified, the grid is initialized
         with value
-        :param spacing: Spacing
-        :type spacing: tuple
-        :param origin: tuple, list or array containing the origin of the grid
-        :type origin: tuple
+        :param spacing: a set of two or three values containing the grid spacing
+        :type spacing: Tuple, List or numpy.ndarray
+        :param origin: a set of two or three values origin of the grid
+        :type origin: tuple, List or numpy.ndarray
         :param resource_id: unique identifier for the grid, if set to None,
         :param value: value to fill the grid should dims be specified
         :type value:
@@ -668,15 +671,15 @@ class Grid(object):
             coordinates = Coordinates(point[0], point[1], point[2],
                                       coordinate_system=self.coordinate_system)
 
-            station = Station(code=f"ST{i:02d}", coordinates=coordinates,
-                              evaluation_mode='manual', evaluation_status='preliminary')
+            station = Station(code=f"ST{i:02d}", coordinates=coordinates)
 
             # Determine if this station should be uniaxial or triaxial
             is_uni = random.choices([True, False], [ratio_uni_tri, 1])[0]
 
             # Create Channel(s)
             if is_uni:
-                channel = Channel(code="HHZ", location_code="00")
+                channel = Channel(code="HHZ", location_code="00",
+                                  coordinates=coordinates)
                 station.channels.append(channel)
             else:
                 for axis in ["Z", "N", "E"]:

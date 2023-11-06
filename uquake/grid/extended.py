@@ -283,8 +283,8 @@ class SeedEnsemble:
 
         srces = []
         for instrument in inventory.instruments:
-            srce = Seed(location.station_code, location.location_code,
-                        location.coordinates)
+            srce = Seed(instrument.station_code, instrument.location_code,
+                        instrument.coordinates)
             srces.append(srce)
 
         return cls(srces)
@@ -380,7 +380,8 @@ class TypedGrid(Grid):
                  grid_units=__default_grid_units__,
                  float_type="FLOAT",
                  grid_id: ResourceIdentifier = ResourceIdentifier(),
-                 label: str = __default_grid_label__):
+                 label: str = __default_grid_label__,
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
         """
         :param data_or_dims: data or data dimensions. If dimensions are
         provided a homogeneous grid is created with value=value
@@ -390,22 +391,25 @@ class TypedGrid(Grid):
         :type spacing: list
         :param phase: Phase
         :type phase: Phases
-        :param value:
+        :param value: a value to fill the grid with if data_or_dims is a list
         :type value: float
-        :param grid_type:
-        :type grid_type: str
-        :param grid_units:
-        :type grid_units: str
-        :param float_type:
-        :type float_type: str
-        :param grid_id:
+        :param grid_type: grid type
+        :type grid_type: GridTypes
+        :param grid_units: grid units
+        :type grid_units: GridUnits
+        :param float_type:  the float type either 'FLOAT' or 'DOUBLE'
+        :type float_type: FloatTypes
+        :param grid_id: the grid id
         :type grid_id: str
         :param label: label of the grid
         :type label: str
+        :param coordinate_system: coordinate system either NED or ENU
+        :type coordinate_system: CoordinateSystem
         """
 
         super().__init__(data_or_dims, spacing=spacing, origin=origin,
-                         value=value, resource_id=grid_id, label=label)
+                         value=value, resource_id=grid_id, label=label,
+                         coordinate_system=coordinate_system)
 
         self.phase = phase
         self.grid_type = grid_type
@@ -480,7 +484,7 @@ class ModelLayer:
 
 class LayeredVelocityModel(object):
 
-    def __init__(self, network_code, velocity_model_layers=None,
+    def __init__(self, network_code: str, velocity_model_layers: List = None,
                  phase: Phases = Phases.P,
                  grid_units: GridUnits = __default_grid_units__,
                  float_type=__default_float_type__,
@@ -506,7 +510,7 @@ class LayeredVelocityModel(object):
         :type grid_id: uquake.core.event.ResourceIdentifier
         :param coordinate_system: coordinate system either NED or ENU
         :type coordinate_system: CoordinateSystem
-        :param label: label of the grid
+        :param label: grid label
         :type label: str
         """
 
@@ -542,6 +546,7 @@ class LayeredVelocityModel(object):
 
         self.gradient = gradient
         self.coordinate_system = coordinate_system
+        self.label = label
 
     def __repr__(self):
         output = ''
@@ -655,7 +660,27 @@ class VelocityGrid3D(TypedGrid):
     def __init__(self, network_code, data_or_dims, origin, spacing,
                  phase: Phases = Phases.P, value=0, float_type=__default_float_type__,
                  grid_id: ResourceIdentifier = ResourceIdentifier(),
+                 grid_type=GridTypes.VELOCITY_METERS,
+                 grid_units=__default_grid_units__,
+                 coordinate_system=CoordinateSystem.NED,
                  label: str = __default_grid_label__, **kwargs):
+
+        """
+
+        :param network_code:
+        :param data_or_dims:
+        :param origin:
+        :param spacing:
+        :param phase:
+        :param value:
+        :param float_type:
+        :param grid_id:
+        :param grid_type:
+        :param grid_units:
+        param coordinate_system:
+        :param label:
+        :param kwargs:
+        """
 
         self.network_code = network_code
 
@@ -663,8 +688,9 @@ class VelocityGrid3D(TypedGrid):
             spacing = [spacing, spacing, spacing]
 
         super().__init__(data_or_dims, origin, spacing, phase,
-                         value=value, grid_type='VELOCITY_METERS',
-                         grid_units='METER', float_type=float_type,
+                         value=value, grid_type=grid_type,
+                         grid_units=grid_units, coordinate_system=coordinate_system,
+                         float_type=float_type,
                          grid_id=grid_id, label=label)
 
     @staticmethod
@@ -743,9 +769,7 @@ class VelocityGrid3D(TypedGrid):
         :param seed: numpy array location of the seed or origin of useis wave
          in model coordinates
         (usually location of a station or an event)
-        :type seed: numpy.array or list
-        :param seed_label: seed label (name of station)
-        :type seed_label: basestring
+        :type seed: numpy.ndarray or list
         :param sub_grid_resolution: resolution of the grid around the seed.
         Propagating the wavefront on a denser grid around the seed,
         significantly improves the travel time accuracy. The value represents
@@ -801,8 +825,7 @@ class VelocityGrid3D(TypedGrid):
         tt_tmp_grid = TTGrid(self.network_code, tt_tmp, [x_i[0], y_i[0], z_i[0]],
                              sub_grid_spacing, seed, self.grid_id,
                              phase=self.phase,
-                             float_type=self.float_type,
-                             grid_units=self.grid_units, label=self.label)
+                             float_type=self.float_type, label=self.label)
 
         # __init__(self, data_or_dims, origin, spacing, seed: Seed,
         # phase: Phases = Phases.P, value: float = 0,
@@ -854,7 +877,6 @@ class VelocityGrid3D(TypedGrid):
                              self.spacing, seed, phase=self.phase,
                              float_type=self.float_type,
                              velocity_model_id=self.grid_id,
-                             grid_units=self.grid_units,
                              label=self.label)
 
         tt_out_grid.data -= tt_out_grid.interpolate(seed.T,
@@ -870,8 +892,6 @@ class VelocityGrid3D(TypedGrid):
         based on scikit fast marching solver
         :param seeds: array of seed
         :type seeds: np.ndarray
-        :param seed_labels: array of seed_labels
-        :type seed_labels: np.ndarray
         :param cpu_utilisation: fraction of the cpu core to be used for the
         processing task (between 0 and 1)
         :type cpu_utilisation: float between 0 and 1
@@ -931,10 +951,21 @@ class VelocityGridEnsemble:
         :type p_velocity_grid: VelocityGrid3D
         :param s_velocity_grid: s-wave 3D velocity grid
         :type s_velocity_grid: VelocityGrid3D
+
+        :NOTE: the p and s velocity grids must have the same dimensions and the same
+        label
         """
+
+        if p_velocity_grid.dims != s_velocity_grid.dims:
+            raise ValueError('p and s velocity grids must have the same '
+                             'dimensions')
+        if p_velocity_grid.label != s_velocity_grid.label:
+            raise ValueError('p and s velocity grids must have the same '
+                             'label')
 
         self.p_velocity_grid = p_velocity_grid
         self.s_velocity_grid = s_velocity_grid
+        self.label = p_velocity_grid.label
         self.__i__ = 0
 
     def __getitem__(self, item):
@@ -969,13 +1000,21 @@ class VelocityGridEnsemble:
         for key in self.keys():
             self[key].write(path=path)
 
-    def to_time_multi_threaded(self, seeds, seed_labels, cpu_utilisation=0.9,
+    def to_time_multi_threaded(self, seeds: SeedEnsemble, cpu_utilisation=0.9,
                                *args, **kwargs):
+        """
+        Multithreaded version of the Eikonal solver
+        :param seeds:
+        :param cpu_utilisation:
+        :param args:
+        :param kwargs:
+        :return:
+        """
 
         tt_grid_ensemble = TravelTimeEnsemble([])
 
         for key in self.keys():
-            tt_grids = self[key].to_time_multi_threaded(seeds, seed_labels,
+            tt_grids = self[key].to_time_multi_threaded(seeds,
                                                         cpu_utilisation=
                                                         cpu_utilisation,
                                                         *args, **kwargs)
@@ -996,10 +1035,19 @@ class VelocityGridEnsemble:
 
     @property
     def p(self):
-        return self['p']
+        return self['P']
 
+    @property
     def s(self):
-        return self['s']
+        return self['S']
+
+    @property
+    def P(self):
+        return self['P']
+
+    @property
+    def S(self):
+        return self['S']
 
 
 class SeededGridType(Enum):
@@ -1017,31 +1065,34 @@ class SeededGrid(TypedGrid):
 
     __doc__ = f'{TypedGrid.__doc__}\n'
 
-    def __init__(self, network, data_or_dims, origin, spacing, seed: Seed,
+    def __init__(self, network_code, data_or_dims, origin, spacing, seed: Seed,
                  velocity_model_id: ResourceIdentifier,
                  phase: Phases = Phases.P, value: float = 0,
-                 grid_units=__default_grid_units__,
+                 grid_units: GridUnits = __default_grid_units__,
                  grid_type: SeededGridType = SeededGridType.TIME,
                  float_type: FloatTypes = __default_float_type__,
                  grid_id: ResourceIdentifier = ResourceIdentifier(),
-                 label=__default_grid_label__):
+                 label: str = __default_grid_label__,
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
         """
         :param network: network code
-        :param data_or_dims:
-        :param origin:
-        :param spacing:
-        :param seed:
-        :param velocity_model_id:
-        :param phase:
-        :param value:
-        :param grid_units:
-        :param grid_type:
-        :param float_type:
-        :param grid_id:
-        :param label:
+        :param data_or_dims: data or data dimensions.
+        If dimensions not provided a grid with value=value is created
+        :param origin: origin of the grid
+        :param spacing: the spacing between grid nodes
+        :param seed: seed location of the grid - The seed or instrument location
+        :param velocity_model_id: velocity model id
+        :param phase: Seismic Phase
+        :param value: value of the grid when only specifying the dimensions
+        :param grid_units: units of measurement used to express values
+        :param grid_type: type of grid (e.g., travel time, azimuth, take off angle)
+        :param float_type: float type either 'FLOAT' or 'DOUBLE'
+        :param grid_id: the grid id
+        :param label: label of the grid
+        :param coordinate_system: coordinate system either NED or ENU
         """
 
-        self.network = network
+        self.network = network_code
         self.seed = seed
         self.velocity_model_id = velocity_model_id
 
@@ -1059,7 +1110,8 @@ class SeededGrid(TypedGrid):
         super().__init__(data_or_dims, origin, spacing,
                          phase=phase, value=value,
                          grid_type=grid_type, grid_units=grid_units,
-                         float_type=float_type, grid_id=grid_id, label=label)
+                         float_type=float_type, grid_id=grid_id, label=label,
+                         coordinate_system=coordinate_system)
 
         # ensure the data are expressed in the appropriate float_type
         self.data.astype(float_type.value)
@@ -1114,20 +1166,21 @@ class SeededGrid(TypedGrid):
 
 
 class TTGrid(SeededGrid):
-    def __init__(self, network, data_or_dims, origin, spacing, seed: Seed,
+    def __init__(self, network_code, data_or_dims, origin, spacing, seed: Seed,
                  velocity_model_id: ResourceIdentifier,
                  phase: Phases = Phases.P, value: float = 0,
                  float_type: FloatTypes = __default_float_type__,
                  grid_id: ResourceIdentifier = ResourceIdentifier(),
-                 label=__default_grid_label__):
+                 label=__default_grid_label__,
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
 
-        grid_units = GridUnits.SECOND
-
-        # network_code = self.waveform_stream_id.network_code
-        super().__init__(network, data_or_dims, origin, spacing, seed,
+        super().__init__(network_code, data_or_dims, origin, spacing, seed,
                          velocity_model_id=velocity_model_id, phase=phase,
-                         value=value, grid_type=GridTypes.TIME, float_type=float_type,
-                         grid_id=grid_id, grid_units=grid_units,
+                         value=value, grid_type=GridTypes.TIME,
+                         grid_units=GridUnits.SECOND,
+                         float_type=float_type,
+                         grid_id=grid_id,
+                         coordinate_system = coordinate_system,
                          label=label)
 
     def to_azimuth(self):
@@ -1212,7 +1265,7 @@ class TTGrid(SeededGrid):
         :param max_iter: maximum number of iteration
         :param arrival_id: id of the arrival associated to the ray if
         applicable
-        :rtype: numpy.array
+        :rtype: numpy.ndarray
         """
 
         return ray_tracer(self, start, grid_space=grid_space,
@@ -1241,12 +1294,17 @@ class TravelTimeEnsemble:
         all grids are compatible, i.e., that all the grids have the same
         origin, spacing and dimensions.
         :param travel_time_grids: a list of TTGrid objects
+
+        :NOTE: The travel time grids must all have the same grid labels if not,
+        the object will not be created.
         """
 
-        # self.travel_time_grids =
-        self.travel_time_grids = {}
+        self.travel_time_grids = []
         for travel_time_grid in travel_time_grids:
-            self.travel_time_grids[travel_time_grid.seed.label] = travel_time_grid
+            if travel_time_grid.label != travel_time_grids[0].label:
+                raise ValueError('all travel time grids must have the same '
+                                 'label')
+            self.travel_time_grids.append(travel_time_grid)
 
         self.__i__ = 0
 
@@ -1279,12 +1337,11 @@ class TravelTimeEnsemble:
 
     def __getitem__(self, item):
         if isinstance(item, int):
-            keys = self.travel_time_grids.keys()
-            return self.travel_time_grids[keys[item]]
-        if isinstance(item, str):
-            if item not in self.travel_time_grids.keys():
-                raise KeyError(f'{item} is not a valid key. ')
             return self.travel_time_grids[item]
+        if isinstance(item, str):
+            for tt_grid in self.travel_time_grids:
+                if tt_grid.seed_label == item:
+                    return tt_grid
 
     def __repr__(self):
         line = f'Number of travel time grids: {len(self)}'
@@ -1309,35 +1366,38 @@ class TravelTimeEnsemble:
 
         return cls(tt_grids)
 
-    def select(self, seed_labels: Optional[list] = None,
-               phase: Optional[list] = None):
+    def select(self, seed_labels: Optional[List[str]] = None,
+               phases: Optional[List[Phases]] = None):
         """
-        return the a list of grid corresponding to seed_labels.
+        return a list of grid corresponding to seed_labels.
         :param seed_labels: seed labels of the travel time grids to return
-        :param phase: the phase {'P' or 'S'}, both if None.
+        :param phases: the phase {'P' or 'S'}, both if None.
         :return: a list of travel time grids
         :rtype: TravelTimeEnsemble
         """
 
-        if (seed_labels is None) and (phase is None):
+        if (seed_labels is None) and (phases is None):
             return self
 
         tmp = []
         if seed_labels is None:
             seed_labels = np.unique(self.seed_labels)
 
-        if phase is None:
-            phase = ['P', 'S']
+        if phases is None:
+            phases = [Phases.P.value, Phases.S.value]
+        else:
+            phases = [phase.value if isinstance(phase, Phases) else Phases(phase).value
+                      for phase in phases]
 
         returned_grids = []
         for travel_time_grid in self.travel_time_grids:
             if travel_time_grid.seed_label in seed_labels:
-                if travel_time_grid.phase in phase:
+                if travel_time_grid.phase.value in phases:
                     returned_grids.append(travel_time_grid)
 
         return TravelTimeEnsemble(returned_grids)
 
-    def sort(self, ascending:bool = True):
+    def sort(self, ascending: bool = True):
         """
         sorting the travel time grid by seed_label
         :param ascending: if true the grids are sorted in ascending order
@@ -1518,12 +1578,22 @@ class TravelTimeEnsemble:
         return np.array(seeds)
 
     @property
+    def label(self):
+        return self.travel_time_grids[0].label
+
+    @property
     def seed_labels(self):
         seed_labels = []
         for grid in self.travel_time_grids:
             seed_labels.append(grid.seed_label)
-
         return np.unique(np.array(seed_labels))
+
+    @property
+    def labels(self):
+        labels = []
+        for grid in self.travel_time_grids:
+            labels.append(grid.label)
+        return np.unique(np.array(labels))
 
     @property
     def shape(self):
@@ -1536,17 +1606,6 @@ class TravelTimeEnsemble:
     @property
     def spacing(self):
         return self.travel_time_grids[0].spacing
-
-    # def write(self, path='.'):
-    #     for travel_time_grid in self.travel_time_grids:
-    #         travel_time_grid.write(path=path)
-
-    # def write_hdf5(self, file_name):
-    #     write_hdf5(file_name, self)
-    #
-    # def to_hdf5(self, file_name):
-    #     self.write_hdf5(file_name)
-    #     return H5TTable(file_name)
 
 
 class AngleGrid(SeededGrid):
