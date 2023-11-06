@@ -30,13 +30,12 @@ jobs:
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
-          # Use a deployment token instead of a deploy key
-          github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./uquake/docs
-          # Update the external repository to your GitHub pages repository
           external_repository: microquake-ai/uquake-docs
           keep_files: true
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: 'Deploy documentation updates'
-
+          # Use the deploy key
+          ssh_key: ${{ secrets.DEPLOY_KEY }}
+          
