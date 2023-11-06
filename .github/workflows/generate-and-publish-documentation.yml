@@ -30,12 +30,10 @@ jobs:
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
+          deploy_key: ${{ secrets.DEPLOY_KEY }}
           publish_dir: ./uquake/docs
           external_repository: microquake-ai/uquake-docs
           keep_files: true
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: 'Deploy documentation updates'
-          # Use the deploy key
-          ssh_key: ${{ secrets.DEPLOY_KEY }}
-          
