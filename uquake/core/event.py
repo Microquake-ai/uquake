@@ -994,6 +994,14 @@ class Magnitude(obsevent.Magnitude):
         return app_stress
 
     @property
+    def uncertainty(self):
+        return self.mag_errors.uncertainty
+
+    @property
+    def error(self):
+        return self.mag_errors.uncertainty
+
+    @property
     def seismic_moment(self):
         seismic_moment = None
         if self.magnitude_type == 'Mw':
