@@ -618,6 +618,8 @@ class UncertaintyPointCloud(object):
 
     @classmethod
     def from_json(cls, json_string):
+        if json_string is None:
+            return None
         in_dict = json.loads(json_string)
         if 'coordinate_system' in in_dict.keys():
             in_dict['coordinate_system'] = getattr(CoordinateSystem,
