@@ -70,6 +70,8 @@ class RayCollection(list):
     @classmethod
     def from_json(cls, encoded_rays):
         out_list = cls()
+        if encoded_rays is None:
+            return out_list
         for encoded_ray in json.loads(encoded_rays):
             out_list.append(Ray.from_json(encoded_ray))
         return out_list
