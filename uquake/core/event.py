@@ -978,7 +978,7 @@ class Magnitude(obsevent.Magnitude):
 
     @property
     def static_stress_drop(self):
-        ssd = None
+        ssd = 0
         if self.magnitude_type == "Mw":
             if self.mag and self.corner_frequency:
                 ssd = calc_static_stress_drop(self.mag,
@@ -987,7 +987,7 @@ class Magnitude(obsevent.Magnitude):
 
     @property
     def apparent_stress(self):
-        app_stress = None
+        app_stress = 0
         if self.magnitude_type == 'Mw':
             if self.energy and self.mag:
                 app_stress = 2 * self.energy / self.potency
@@ -996,6 +996,7 @@ class Magnitude(obsevent.Magnitude):
     @property
     def es_ep(self):
         es_ep = self.energy_s / self.energy_p if self.energy_p > 0 else 0
+        return es_ep
 
     @property
     def uncertainty(self):
