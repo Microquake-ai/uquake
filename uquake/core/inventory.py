@@ -698,7 +698,7 @@ class Instrument:
         self.channels = channels
 
     def __repr__(self):
-        ret = f'\tLocation {self.location_code}\n' \
+        ret = f'\tInstrument {self.instrument_code}\n' \
               f'\tx: {self.x:.0f} m, y: {self.y:.0f} m z: {self.z:0.0f} m\n' \
               f'\tChannel Count: {len(self.channels)}'
 
