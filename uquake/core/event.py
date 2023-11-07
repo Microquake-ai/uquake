@@ -994,6 +994,10 @@ class Magnitude(obsevent.Magnitude):
         return app_stress
 
     @property
+    def es_ep(self):
+        es_ep = self.energy_s / self.energy_p if self.energy_p > 0 else 0
+
+    @property
     def uncertainty(self):
         return self.mag_errors.uncertainty
 
@@ -1019,17 +1023,13 @@ class Magnitude(obsevent.Magnitude):
 
     def __str__(self, **kwargs):
 
-        es_ep = None
-        if self.energy_p and self.energy_s:
-            es_ep = self.energy_s / self.energy_p
-
         string = f"""
              resource_id: {self.resource_id.id}
                Magnitude: {self.mag:0.1f}
           Magnitude type: {self.magnitude_type}
    Corner frequency (Hz): {self.corner_frequency:0.1f}
  Radiated Energy (joule): {self.energy:.3e}
-                   Es/Ep: {es_ep:0.1f}
+                   Es/Ep: {self.es_ep:0.1f}
           Seismic moment: {self.seismic_moment:.3e}
        Source volume(m3): {self.potency:.3e}
  Static stress drop (Pa): {self.static_stress_drop:.3e}
