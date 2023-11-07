@@ -447,10 +447,10 @@ class EventTypeLookup(object):
         return inverse_lookup_table
 
     def convert_from_quakeml(self, quakeml_type):
-        return self.lookup_table[quakeml_type]
+        return self.inverse_lookup_table[quakeml_type]
 
     def convert_to_quakeml(self, uquakeml_type):
-        return self.inverse_lookup_table[uquakeml_type]
+        return self.lookup_table[uquakeml_type]
 
     @property
     def valid_quakeml_types(self):
