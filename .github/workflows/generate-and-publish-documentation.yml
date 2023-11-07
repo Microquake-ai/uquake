@@ -25,7 +25,9 @@ jobs:
       - name: Generate Documentation
         run: |
           # Your command to generate documentation
-          poetry run pdoc -o ./uquake/docs uquake 
+          poetry run pdoc -o ./uquake/docs uquake
+          cd docs
+          touch .nojekyll
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
