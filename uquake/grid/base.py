@@ -23,6 +23,8 @@
 # Copyright (C) <copyright>
 # --------------------------------------------------------------------
 
+from __future__ import annotations
+
 
 import numpy as np
 from uuid import uuid4
@@ -40,7 +42,6 @@ import random
 from uquake.core.event import ResourceIdentifier
 from copy import deepcopy
 from hashlib import sha256
-
 
 def read_grid(filename, format='PICKLE', **kwargs):
     format = format.upper()
@@ -572,7 +573,7 @@ class Grid(object):
                sigma: Union[np.ndarray, List[Union[int, float]], Union[int, float]],
                grid_space: bool = False,
                preserve_statistic: bool = True,
-               in_place: bool = True) -> 'YourClass':
+               in_place: bool = True) -> Grid:
         """
         Smooth the data using a Gaussian filter.
 
@@ -581,7 +582,7 @@ class Grid(object):
         :param grid_space: If True, smoothing is performed in grid space.
         :param preserve_statistic: If True, original mean and standard deviation are preserved.
         :param in_place: If True, modifies the object's data in place. Otherwise, returns a new object.
-        :return: self if in_place is True, otherwise a new instance of YourClass.
+        :return: self if in_place is True, otherwise a new instance of Grid.
         """
 
         # Use self's properties or create a copy for a new object.
