@@ -31,35 +31,27 @@
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
-import random
-
 import numpy as np
-import scipy.ndimage
-
 from .base import Grid
 from pathlib import Path
-from uuid import uuid4
 import matplotlib.pyplot as plt
 from loguru import logger
 import skfmm
 from multiprocessing import Pool, cpu_count
 from functools import partial
 from typing import Optional
-import h5py
 from .base import ray_tracer
 import shutil
 from uquake.grid import read_grid
-# from .hdf5 import H5TTable, write_hdf5
 from scipy.interpolate import interp1d
-from uquake.core.event import WaveformStreamID
 from enum import Enum
 from typing import List
+from uquake.core.event import WaveformStreamID
 from uquake.core.coordinates import Coordinates, CoordinateSystem
 from uquake.core.inventory import Inventory
 from uquake.synthetic.inventory import generate_unique_instrument_code
 from uquake.core.event import ResourceIdentifier
 from .base import __default_grid_label__
-import string
 
 __cpu_count__ = cpu_count()
 

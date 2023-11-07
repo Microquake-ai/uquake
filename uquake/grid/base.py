@@ -24,8 +24,6 @@
 # --------------------------------------------------------------------
 
 from __future__ import annotations
-
-
 import numpy as np
 from uuid import uuid4
 from ..core.logging import logger
@@ -42,6 +40,7 @@ import random
 from uquake.core.event import ResourceIdentifier
 from copy import deepcopy
 from hashlib import sha256
+
 
 def read_grid(filename, format='PICKLE', **kwargs):
     format = format.upper()
