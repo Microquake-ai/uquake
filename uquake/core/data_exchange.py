@@ -63,7 +63,7 @@ class MicroseismicDataExchange(object):
         else:
             return False
 
-    def write(self, file_path: str, waveform_tag: str):
+    def write(self, file_path: str, waveform_tag: str = 'default'):
         """
         Writes the stream, catalog, and inventory data to a ASDF file.
 
@@ -78,7 +78,8 @@ class MicroseismicDataExchange(object):
         asdf_handler.add_waveforms(self.stream, waveform_tag)
 
     @classmethod
-    def read(cls, file_path: str, waveform_tag: str) -> 'MicroseismicDataExchange':
+    def read(cls, file_path: str, waveform_tag: str = 'default') \
+            -> 'MicroseismicDataExchange':
         """
         Reads the stream, catalog, and inventory data from a ASDF file.
 
@@ -216,9 +217,17 @@ class ASDFHandler:
         return stream_dict
 
 
-def read_mde(file_path):
-    return MicroseismicDataExchange.read(file_path)
-
+def read_asdf(file_path, waveform_tag='default'):
+    """
+    Read a ASDF file and return a MicroseismicDataExchange object.
+    :param file_path: path to file
+    :type file_path: str
+    :param waveform_tag: tag describing the waveforms to retrieve
+    (e.g. 'raw', 'processed') default = 'default'
+    :type waveform_tag: str
+    :return: MicroseismicDataExchange object
+    """
+    return MicroseismicDataExchange.read(file_path, waveform_tag=waveform_tag)
 
 
 def generate_unique_names(n):
