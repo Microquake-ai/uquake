@@ -73,9 +73,10 @@ class MicroseismicDataExchange(object):
         :type waveform_tag: str
         """
 
+        event_type_lookup = EventTypeLookup()
         for i, event in enumerate(self.catalog):
             self.catalog[i].event_type = \
-                EventTypeLookup.convert_to_quakeml(self.catalog[i].event_type)
+                event_type_lookup.convert_to_quakeml(self.catalog[i].event_type)
 
         asdf_handler = ASDFHandler(file_path)
         asdf_handler.add_catalog(self.catalog)
@@ -100,9 +101,10 @@ class MicroseismicDataExchange(object):
         catalog = asdf_handler.get_catalog()
         inventory = asdf_handler.get_inventory()
 
+        event_type_lookup = EventTypeLookup()
         for i, event in enumerate(catalog):
             catalog[i].event_type = \
-                EventTypeLookup.convert_from_quakeml(catalog[i].event_type)
+                event_type_lookup.convert_from_quakeml(catalog[i].event_type)
 
         return cls(stream=stream, catalog=catalog, inventory=inventory)
 
