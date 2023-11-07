@@ -15,7 +15,7 @@
 
 from uquake.core.stream import Stream, Trace
 from uquake.core.trace import Stats
-from uquake.core.event import Catalog, Event
+from uquake.core.event import Catalog, EventTypeLookup
 from uquake.core.inventory import Inventory
 from uquake.core import read, read_events, read_inventory
 from obspy.core.trace import Trace as ObspyTrace
@@ -72,6 +72,11 @@ class MicroseismicDataExchange(object):
         :param waveform_tag: Tag describing the waveforms.
         :type waveform_tag: str
         """
+
+        for i, event in enumerate(self.catalog):
+            self.catalog[i].event_type = \
+                EventTypeLookup.inverse_lookup_table(self.catalog[i].event_type)
+
         asdf_handler = ASDFHandler(file_path)
         asdf_handler.add_catalog(self.catalog)
         asdf_handler.add_inventory(self.inventory)
@@ -94,6 +99,9 @@ class MicroseismicDataExchange(object):
         stream = asdf_handler.get_all_waveforms(tags=[waveform_tag])[waveform_tag]
         catalog = asdf_handler.get_catalog()
         inventory = asdf_handler.get_inventory()
+
+        for i, event in enumerate(catalog):
+            catalog[i].event_type = EventTypeLookup.lookup_table(catalog[i].event_type)
 
         return cls(stream=stream, catalog=catalog, inventory=inventory)
 
