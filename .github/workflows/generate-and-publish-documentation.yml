@@ -26,7 +26,7 @@ jobs:
         run: |
           # Your command to generate documentation
           poetry run pdoc -o ./uquake/docs uquake
-          cd docs
+          cd ./uquake/docs
           touch .nojekyll
 
       - name: Deploy to GitHub Pages
