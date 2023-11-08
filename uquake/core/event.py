@@ -740,18 +740,18 @@ class Origin(obsevent.Origin):
         # Start by creating a shallow copy of the instance to get a new, unique instance.
         new_origin = Origin()
 
-        if self is not None:
-            if hasattr(self, 'extra'):
-                extra = self.extra
-                self.extra = {}
-                _init_handler(self, obspy_obj, **kwargs)
-                for key in self.extra_keys:
-                    if key in extra.keys():
-                        if hasattr(self.extra_types[key], 'from_json'):
-                            value = self.extra_types[key].from_json(
-                                extra[key].value
-                            )
-                            self.__setattr__(key, value)
+        # if self is not None:
+        #     if hasattr(new_origin, 'extra'):
+        #         extra = self.extra
+        #         self.extra = {}
+        #         _init_handler(self, None, **kwargs)
+        #         for key in self.extra_keys:
+        #             if key in extra.keys():
+        #                 if hasattr(self.extra_types[key], 'from_json'):
+        #                     value = self.extra_types[key].from_json(
+        #                         extra[key].value
+        #                     )
+        #                     self.__setattr__(key, value)
 
         # Copy the intrinsic properties of the event.
         for key, value in self.__dict__.items():
