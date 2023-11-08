@@ -64,7 +64,7 @@ class MicroseismicDataExchange(object):
             return False
 
     def write(self, file_path: str, waveform_tag: str = 'default',
-              compression: str = 'gzip-3'):
+              compression: str = 'gzip-3', shuffle: bool = True):
         """
         Writes the stream, catalog, and inventory data to a ASDF file.
 
@@ -75,6 +75,8 @@ class MicroseismicDataExchange(object):
         :param compression: The compression type to use when writing the ASDF file
         (see pyasdf documentation) - default 'gzip-3'.
         :type compression: str
+        :shuffle: Whether or not to shuffle the data when writing the ASDF file.
+        Shuffling could increase the compression ratio.
         """
 
         event_type_lookup = EventTypeLookup()
@@ -84,7 +86,8 @@ class MicroseismicDataExchange(object):
                 self.catalog[i].event_type = \
                     event_type_lookup.convert_to_quakeml(self.catalog[i].event_type)
 
-        asdf_handler = ASDFHandler(file_path, compression=compression, mode='a')
+        asdf_handler = ASDFHandler(file_path, compression=compression, mode='a',
+                                   shuffle=shuffle)
         asdf_handler.add_catalog(self.catalog)
         asdf_handler.add_inventory(self.inventory)
 
