@@ -739,33 +739,7 @@ class Origin(obsevent.Origin):
     def __deepcopy__(self, memodict={}):
         # Start by creating a shallow copy of the instance to get a new, unique instance.
         new_origin = Origin()
-
-        # if self is not None:
-        #     if hasattr(new_origin, 'extra'):
-        #         extra = self.extra
-        #         self.extra = {}
-        #         _init_handler(self, None, **kwargs)
-        #         for key in self.extra_keys:
-        #             if key in extra.keys():
-        #                 if hasattr(self.extra_types[key], 'from_json'):
-        #                     value = self.extra_types[key].from_json(
-        #                         extra[key].value
-        #                     )
-        #                     self.__setattr__(key, value)
-
-        # Copy the intrinsic properties of the event.
-        for key, value in self.__dict__.items():
-            if key in self.extra_keys:
-                # Use the appropriate type's constructor or
-                # deepcopy method for custom types.
-                if not new_origin.__dict__.keys().__contains__('extra'):
-                    new_origin.__dict__['extra'] = {}
-                new_origin.__dict__['extra'][key] = self.extra_types[key](value)
-            else:
-                # For all other attributes, use the standard deepcopy.
-                new_origin.__dict__[key] = deepcopy(value, memodict)
-
-        return new_origin
+        _init_handler(new_origin, None, **self.__dict__)
 
     def __str__(self):
         string = f"""
