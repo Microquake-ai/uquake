@@ -94,7 +94,7 @@ class MicroseismicDataExchange(object):
         asdf_handler = ASDFHandler(file_path)
         stream = asdf_handler.get_all_waveforms(tags=[waveform_tag])[waveform_tag]
         catalog = Catalog(obspy_obj=asdf_handler.get_catalog())
-        inventory = Inventory(obspy=asdf_handler.get_inventory())
+        inventory = Inventory.from_obspy_inventory_object(asdf_handler.get_inventory())
 
         event_type_lookup = EventTypeLookup()
         for i, event in enumerate(catalog):
