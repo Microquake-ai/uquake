@@ -919,7 +919,8 @@ class Magnitude(obsevent.Magnitude):
                   'corner_frequency_p', 'corner_frequency_s',
                   'corner_frequency_error', 'corner_frequency_p_error',
                   'corner_frequency_s_error',
-                  'energy_p', 'energy_s', 'energy_p_error', 'energy_s_error']
+                  'energy_p', 'energy_s', 'energy_p_error', 'energy_s_error',
+                  'ppv', 'ppv_error', 'ppa', 'ppa_error']
 
     extra_types = {'corner_frequency': float,
                    'corner_frequency_p': float,
