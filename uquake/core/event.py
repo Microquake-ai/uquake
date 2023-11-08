@@ -758,7 +758,9 @@ class Origin(obsevent.Origin):
             if key in self.extra_keys:
                 # Use the appropriate type's constructor or
                 # deepcopy method for custom types.
-                new_origin.__dict__[key] = self.extra_types[key](value)
+                if not new_origin.__dict__.keys().__contains__('extra'):
+                    new_origin.__dict__['extra'] = {}
+                new_origin.__dict__['extra'][key] = self.extra_types[key](value)
             else:
                 # For all other attributes, use the standard deepcopy.
                 new_origin.__dict__[key] = deepcopy(value, memodict)
