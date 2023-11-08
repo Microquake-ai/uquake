@@ -73,10 +73,25 @@ class MicroseismicDataExchange(object):
         :type waveform_tag: str
         """
 
+
+        event_type_lookup = EventTypeLookup()
+        for i, event in enumerate(self.catalog):
+            self.catalog[i].event_type = \
+                event_type_lookup.convert_to_quakeml(self.catalog[i].event_type)
+
+        import ipdb
+        ipdb.set_trace()
+        event_type_lookup.is_valid_quakeml(self.catalog[0].event_type)
+
+
         asdf_handler = ASDFHandler(file_path)
         asdf_handler.add_catalog(self.catalog)
         asdf_handler.add_inventory(self.inventory)
         asdf_handler.add_waveforms(self.stream, waveform_tag)
+
+        for i, event in enumerate(self.catalog):
+            self.catalog[i].event_type = \
+                event_type_lookup.convert_to_uquakeml(self.catalog[i].event_type)
 
     @classmethod
     def read(cls, file_path: str, waveform_tag: str = 'default') \
@@ -92,7 +107,8 @@ class MicroseismicDataExchange(object):
         :rtype: MicroseismicDataExchange
         """
         asdf_handler = ASDFHandler(file_path)
-        stream = asdf_handler.get_all_waveforms(tags=[waveform_tag])[waveform_tag]
+        stream = \
+            Stream(asdf_handler.get_all_waveforms(tags=[waveform_tag])[waveform_tag])
         catalog = Catalog(obspy_obj=asdf_handler.get_catalog())
         inventory = Inventory.from_obspy_inventory_object(asdf_handler.get_inventory())
 
@@ -121,12 +137,6 @@ class ASDFHandler:
         Add a seismic catalog to the ASDF dataset.
         :param catalog: ObsPy Catalog object
         """
-
-        event_type_lookup = EventTypeLookup()
-        for i, event in enumerate(catalog):
-            catalog[i].event_type = \
-                event_type_lookup.convert_to_quakeml(catalog[i].event_type)
-
         self.ds.add_quakeml(catalog)
 
     def get_catalog(self):
