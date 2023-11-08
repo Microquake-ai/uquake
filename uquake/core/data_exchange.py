@@ -83,6 +83,11 @@ class MicroseismicDataExchange(object):
         asdf_handler = ASDFHandler(file_path)
         asdf_handler.add_catalog(self.catalog)
         asdf_handler.add_inventory(self.inventory)
+
+        # ensuring the waveform are not represented using double but single precision
+        for tr in self.stream:
+            tr.data = tr.data.astype('float32')
+
         asdf_handler.add_waveforms(self.stream, waveform_tag=waveform_tag)
 
         for i, event in enumerate(self.catalog):
