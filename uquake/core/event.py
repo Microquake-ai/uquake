@@ -738,18 +738,7 @@ class Origin(obsevent.Origin):
 
     def __deepcopy__(self, memodict={}):
         # Start by creating a shallow copy of the instance to get a new, unique instance.
-        new_origin = Origin()
-
-        # Copy the intrinsic properties of the event.
-        for key, value in self.__dict__.items():
-            if key in self.extra_keys:
-                # Use the appropriate type's constructor or
-                # deepcopy method for custom types.
-                new_origin.__dict__[key] = self.extra_types[key](value)
-            else:
-                # For all other attributes, use the standard deepcopy.
-                new_origin.__dict__[key] = deepcopy(value, memodict)
-
+        new_origin = Origin(obspy_obj=self)
         return new_origin
 
     def __str__(self):
