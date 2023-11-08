@@ -73,25 +73,20 @@ class MicroseismicDataExchange(object):
         :type waveform_tag: str
         """
 
-
         event_type_lookup = EventTypeLookup()
+        event_types = [event.event_type for event in self.catalog]
         for i, event in enumerate(self.catalog):
-            self.catalog[i].event_type = \
-                event_type_lookup.convert_to_quakeml(self.catalog[i].event_type)
-
-        import ipdb
-        ipdb.set_trace()
-        event_type_lookup.is_valid_quakeml(self.catalog[0].event_type)
-
+            if event_type_lookup.is_valid_uquakeml(event.event_type):
+                self.catalog[i].event_type = \
+                    event_type_lookup.convert_to_quakeml(self.catalog[i].event_type)
 
         asdf_handler = ASDFHandler(file_path)
         asdf_handler.add_catalog(self.catalog)
         asdf_handler.add_inventory(self.inventory)
-        asdf_handler.add_waveforms(self.stream, waveform_tag)
+        asdf_handler.add_waveforms(self.stream, waveform_tag=waveform_tag)
 
         for i, event in enumerate(self.catalog):
-            self.catalog[i].event_type = \
-                event_type_lookup.convert_to_uquakeml(self.catalog[i].event_type)
+            self.catalog[i].event_type = event_types[i]
 
     @classmethod
     def read(cls, file_path: str, waveform_tag: str = 'default') \
@@ -114,21 +109,22 @@ class MicroseismicDataExchange(object):
 
         event_type_lookup = EventTypeLookup()
         for i, event in enumerate(catalog):
-            catalog[i].event_type = \
-                event_type_lookup.convert_from_quakeml(catalog[i].event_type)
+            if event_type_lookup.is_valid_quakeml(event.event_type):
+                catalog[i].event_type = \
+                    event_type_lookup.convert_from_quakeml(catalog[i].event_type)
 
         return cls(stream=stream, catalog=catalog, inventory=inventory)
 
 
 class ASDFHandler:
-    def __init__(self, asdf_file_path, compression=None, **kwargs):
+    def __init__(self, asdf_file_path, compression=None, mode='a', **kwargs):
         """
         Initialize the ASDFHandler with a given ASDF file path.
         :param asdf_file_path: Path to the ASDF file.
         :param kwargs: Keyword arguments to be passed to pyasdf.ASDFDataSet.__init__().
         """ + pyasdf.ASDFDataSet.__init__.__doc__
         self.asdf_file_path = asdf_file_path
-        self.ds = pyasdf.ASDFDataSet(self.asdf_file_path, mode='a',
+        self.ds = pyasdf.ASDFDataSet(self.asdf_file_path, mode=mode,
                                      compression=compression,
                                      **kwargs)
 
@@ -145,6 +141,7 @@ class ASDFHandler:
         :return: ObsPy Catalog object
         """
 
+        return self.ds.events
         return Catalog(obspy_obj=self.ds.events)
 
     def add_inventory(self, inventory):
@@ -176,25 +173,28 @@ class ASDFHandler:
 
         return inv
 
-    def add_waveforms(self, stream, tag: str):
+    def add_waveforms(self, stream, waveform_tag: str = 'default'):
         """
         Add a seismic stream to the ASDF dataset.
         :param stream: ObsPy Stream object
-        :param tag: tag describing the waveforms to retrieve (e.g. 'raw', 'processed')
+        :param waveform_tag: tag describing the waveforms to retrieve
+        (e.g. 'raw', 'processed')
         """
+
         for tr in stream:
-            self.ds.add_waveforms(tr, tag)
+            self.ds.add_waveforms(tr, waveform_tag)
 
     def get_waveforms(self, network=None, station=None, location=None, channel=None,
-                      tag='*', starttime=None, endtime=None):
+                      waveform_tag='*', starttime=None, endtime=None):
 
         network = network or "*"
         station = station or "*"
         location = location or "*"
         channel = channel or "*"
 
-        obj = self.ds.get_waveforms(network, station, location, channel, tag=tag,
-                                    starttime=starttime, endtime=endtime)
+        obj = self.ds.get_waveforms(network, station, location, channel,
+                                    tag=waveform_tag, starttime=starttime,
+                                    endtime=endtime)
 
         traces = []
         for item in obj:
@@ -221,6 +221,7 @@ class ASDFHandler:
         stations = self.ds.waveforms.list()
 
         stream_dict = {}
+
         for station in stations:
             station_code = station.replace('.', '_')
             sta = self.ds.waveforms[station_code]

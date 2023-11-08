@@ -34,7 +34,8 @@ class TestDataExchange(unittest.TestCase):
         self.assertLess(t1 - t0, 10, 'Write time exceeds 10 second')
 
         t0 = time()
-        mde2 = data_exchange.MicroseismicDataExchange.read('test.asdf', 'test_waveform')
+        mde2 = data_exchange.MicroseismicDataExchange.read('test.asdf',
+                                                           waveform_tag='test_waveform')
         t1 = time()
         self.assertLess(t1 - t0, 10, 'Read time exceeds 10 second')
 

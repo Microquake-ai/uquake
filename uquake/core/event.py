@@ -355,8 +355,6 @@ class Catalog(obsevent.Catalog):
                     ars.append(Arrival(obspy_obj=ar))
                 ori.arrivals = ars
 
-
-
         return result
 
     def duplicate(self):
@@ -483,7 +481,7 @@ class Event(obsevent.Event):
         if obspy_obj is None:
             _init_handler(self, obspy_obj, **kwargs)
         else:
-
+            _init_handler(self, obspy_obj, **kwargs)
             pick_dict = {}
             self.picks = []
             for pick in obspy_obj.picks:

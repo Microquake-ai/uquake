@@ -20,6 +20,7 @@ from uquake.core import UTCDateTime
 import string
 import random
 from typing import List
+from obspy.core import event as obspyevent
 
 
 def generate_uncertainty_point_cloud():
@@ -199,9 +200,14 @@ def generate_event(n_origins=5):
         origins.append(origin)
         magnitudes.append(magnitude)
 
+    quakeml_event_type = event.header.EventType('induced or triggered event')
+    uquakeml_event_type = event.EventTypeLookup().convert_from_quakeml(
+        quakeml_event_type)
+
     evt = event.Event(origins=origins, magnitudes=magnitudes, picks=picks,
                       preferred_origin_id=origin.resource_id,
-                      preferred_magnitude_id=magnitude.resource_id)
+                      preferred_magnitude_id=magnitude.resource_id,
+                      event_type=uquakeml_event_type)
 
     return evt
 
