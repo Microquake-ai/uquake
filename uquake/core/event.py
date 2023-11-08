@@ -718,7 +718,7 @@ class Origin(obsevent.Origin):
             if self.extra[key] != other.extra[key]:
                 return False
 
-        if not super().__eq__(self, other):
+        if not super().__eq__(other):
             return False
 
         return True
