@@ -96,10 +96,10 @@ class MicroseismicDataExchange(object):
             self.inventory[0][i].code.replace('.', '_')
 
         for i in range(len(self.stream)):
-            self.stream[i].stats.station_code.replace('.', '_')
+            self.stream[i].stats.station.replace('.', '_')
 
-        import ipdb
-        ipdb.set_trace()
+        # import ipdb
+        # ipdb.set_trace()
 
         asdf_handler.add_catalog(self.catalog)
         asdf_handler.add_inventory(self.inventory)
