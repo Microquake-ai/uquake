@@ -88,6 +88,16 @@ class MicroseismicDataExchange(object):
 
         asdf_handler = ASDFHandler(file_path, compression=compression, mode='a',
                                    shuffle=shuffle)
+
+        for i in range(len(self.catalog[0].picks)):
+            self.catalog.pick[i].waveform_id.station_code.replace('.', '_')
+
+        for i in range(len(self.inventory[0])):
+            self.inventory[0][i].code.replace('.', '_')
+
+        for i in range(len(self.stream)):
+            self.stream[i].stats.station_code.replace('.', '_')
+
         asdf_handler.add_catalog(self.catalog)
         asdf_handler.add_inventory(self.inventory)
 
@@ -145,6 +155,7 @@ class ASDFHandler:
         Add a seismic catalog to the ASDF dataset.
         :param catalog: ObsPy Catalog object
         """
+
         self.ds.add_quakeml(catalog)
 
     def get_catalog(self):
@@ -235,7 +246,7 @@ class ASDFHandler:
         stream_dict = {}
 
         for station in stations:
-            station_code = station.replace('.', '_')
+            # station_code = station.replace('.', '_')
             sta = self.ds.waveforms[station_code]
 
             if tags:
