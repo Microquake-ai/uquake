@@ -75,7 +75,7 @@ class MicroseismicDataExchange(object):
         :param compression: The compression type to use when writing the ASDF file
         (see pyasdf documentation) - default 'gzip-3'.
         :type compression: str
-        :shuffle: Whether or not to shuffle the data when writing the ASDF file.
+        :shuffle: Whether to shuffle the data when writing the ASDF file.
         Shuffling could increase the compression ratio.
         """
 
@@ -90,13 +90,14 @@ class MicroseismicDataExchange(object):
                                    shuffle=shuffle)
 
         for i in range(len(self.catalog[0].picks)):
-            self.catalog[0].pick[i].waveform_id.station_code.replace('.', '_')
+            self.catalog[0].pick[i].waveform_id.station_code = \
+                self.catalog[0].pick[i].waveform_id.station_code.replace('.', '_')
 
         for i in range(len(self.inventory[0])):
-            self.inventory[0][i].code.replace('.', '_')
+            self.inventory[0][i].code = self.inventory[0][i].code.replace('.', '_')
 
         for i in range(len(self.stream)):
-            self.stream[i].stats.station.replace('.', '_')
+            self.stream[i].stats.station = self.stream[i].stats.station.replace('.', '_')
 
         # import ipdb
         # ipdb.set_trace()
