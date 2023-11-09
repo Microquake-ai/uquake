@@ -62,50 +62,49 @@ from uquake.core.util.attribute_handler import set_extra, get_extra, namespace
 
 class SystemResponse(object):
     def __init__(self, sensor_type, **sensor_params):
-        def __init__(self, sensor_type, **sensor_params):
-            """
-            Initialize a SystemResponse object.
+        """
+        Initialize a SystemResponse object.
 
-            Parameters:
-            -----------
-            sensor_type : str
-                Type of the sensor. Accepted values are 'geophone' or 'accelerometer'.
+        Parameters:
+        -----------
+        sensor_type : str
+            Type of the sensor. Accepted values are 'geophone' or 'accelerometer'.
 
-            **sensor_params : keyword arguments
-                Additional parameters for configuring the sensor response. These vary based on the `sensor_type`.
+        **sensor_params : keyword arguments
+            Additional parameters for configuring the sensor response. These vary based on the `sensor_type`.
 
-                For 'geophone':
-                - resonance_frequency : float
-                    The resonance frequency of the geophone, in Hz.
-                - gain : float
-                    The gain of the geophone response.
-                - damping : float, optional
-                    Damping factor. Default is 0.707.
-                - stage_sequence_number : int, optional
-                    Stage sequence number. Default is 1.
+            For 'geophone':
+            - resonance_frequency : float
+                The resonance frequency of the geophone, in Hz.
+            - gain : float
+                The gain of the geophone response.
+            - damping : float, optional
+                Damping factor. Default is 0.707.
+            - stage_sequence_number : int, optional
+                Stage sequence number. Default is 1.
 
-                For 'accelerometer':
-                - resonance_frequency : float
-                    The resonance frequency of the accelerometer, in Hz.
-                - gain : float
-                    The gain of the accelerometer response.
-                - sensitivity : float, optional
-                    Sensitivity of the accelerometer. Default is 1.
-                - damping : float, optional
-                    Damping factor. Default is 0.707.
-                - stage_sequence_number : int, optional
-                    Stage sequence number. Default is 1.
+            For 'accelerometer':
+            - resonance_frequency : float
+                The resonance frequency of the accelerometer, in Hz.
+            - gain : float
+                The gain of the accelerometer response.
+            - sensitivity : float, optional
+                Sensitivity of the accelerometer. Default is 1.
+            - damping : float, optional
+                Damping factor. Default is 0.707.
+            - stage_sequence_number : int, optional
+                Stage sequence number. Default is 1.
 
-            Raises:
-            --------
-            ValueError
-                When an invalid `sensor_type` or unsupported `sensor_params` are supplied.
+        Raises:
+        --------
+        ValueError
+            When an invalid `sensor_type` or unsupported `sensor_params` are supplied.
 
-            Examples:
-            ----------
-            >>> sr = SystemResponse('geophone', resonance_frequency=4.5, gain=2.0)
-            >>> sr = SystemResponse('accelerometer', resonance_frequency=15, gain=3.0, sensitivity=0.2)
-            """
+        Examples:
+        ----------
+        >>> sr = SystemResponse('geophone', resonance_frequency=4.5, gain=2.0)
+        >>> sr = SystemResponse('accelerometer', resonance_frequency=15, gain=3.0, sensitivity=0.2)
+        """
 
         self.components_info = {
             'sensor': {'type': sensor_type,
