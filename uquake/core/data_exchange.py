@@ -250,7 +250,7 @@ class ASDFHandler:
 
         for station in stations:
             # station_code = station.replace('.', '_')
-            sta = self.ds.waveforms[station.code]
+            sta = self.ds.waveforms[station]
 
             if tags:
                 tags = sta.get_waveform_tags()
