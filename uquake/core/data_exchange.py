@@ -25,6 +25,18 @@ from io import BytesIO
 import string
 import pyasdf
 from typing import List, Union
+import re
+
+
+def validate_station_code(code):
+    # Replace non-alphanumeric characters (except spaces) with an underscore
+    valid_code = re.sub(r'[^\w\s]', '_', code.upper())
+    return valid_code
+
+
+# station_name = "7000L SWRM/Crush"
+# valid_station_code = validate_and_correct_station_code(station_name)
+# print(f"Valid station code: {valid_station_code}")
 
 
 class MicroseismicDataExchange(object):
@@ -91,13 +103,15 @@ class MicroseismicDataExchange(object):
 
         for i in range(len(self.catalog[0].picks)):
             self.catalog[0].pick[i].waveform_id.station_code = \
-                self.catalog[0].pick[i].waveform_id.station_code.replace('.', '_')
+                validate_station_code(self.catalog[0].pick[i].waveform_id.station_code)
 
         for i in range(len(self.inventory[0])):
-            self.inventory[0][i].code = self.inventory[0][i].code.replace('.', '_')
+            self.inventory[0][i].code = \
+                validate_station_code(self.inventory[0][i].code)
 
         for i in range(len(self.stream)):
-            self.stream[i].stats.station = self.stream[i].stats.station.replace('.', '_')
+            self.stream[i].stats.station = \
+                validate_station_code(self.stream[i].stats.station)
 
         # import ipdb
         # ipdb.set_trace()
