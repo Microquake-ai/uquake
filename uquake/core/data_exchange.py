@@ -102,8 +102,8 @@ class MicroseismicDataExchange(object):
                                    shuffle=shuffle)
 
         for i in range(len(self.catalog[0].picks)):
-            self.catalog[0].pick[i].waveform_id.station_code = \
-                validate_station_code(self.catalog[0].pick[i].waveform_id.station_code)
+            self.catalog[0].picks[i].waveform_id.station_code = \
+                validate_station_code(self.catalog[0].picks[i].waveform_id.station_code)
 
         for i in range(len(self.inventory[0])):
             self.inventory[0][i].code = \
