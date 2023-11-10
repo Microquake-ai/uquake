@@ -97,6 +97,8 @@ class MicroseismicDataExchange(object):
             if event_type_lookup.is_valid_uquakeml(event.event_type):
                 self.catalog[i].event_type = \
                     event_type_lookup.convert_to_quakeml(self.catalog[i].event_type)
+            else: # if event type is not valid, set it to unknown
+                self.catalog[i].event_type = 'other event'
 
         asdf_handler = ASDFHandler(file_path, compression=compression, mode='a',
                                    shuffle=shuffle)
