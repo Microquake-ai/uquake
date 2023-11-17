@@ -212,10 +212,10 @@ def generate_event(n_origins=5):
     return evt
 
 
-def generate_catalog(n_events=1):
+def generate_catalog(n_events=1, n_origins=1):
     events = []
     for i in range(n_events):
-        events.append(generate_event())
+        events.append(generate_event(n_origins=n_origins))
 
     cat = event.Catalog(events=events)
     return cat
