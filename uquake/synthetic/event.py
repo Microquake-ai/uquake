@@ -183,7 +183,9 @@ def generate_magnitude(origin):
                                 energy_s_error=random.random(),
                                 origin_id=origin.resource_id,
                                 evaluation_mode=evaluation_mode,
-                                evaluation_status=evaluation_status)
+                                evaluation_status=evaluation_status,
+                                ppv=random.random() / 1000,
+                                ppa=random.random())
 
     return magnitude
 
