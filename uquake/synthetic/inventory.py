@@ -35,9 +35,9 @@ def generate_unique_instrument_code(n_codes: int = 1):
     return list(codes)
 
 
-def generate_inventory(n_station=30):
+def generate_inventory(n_stations=30):
     stations = []
-    for i in range(n_station):
+    for i in range(n_stations):
         channels = []
         for channel_code in ['x', 'y', 'z']:
             x, y, z = [random.randint(0, 1000) for _ in range(3)]
