@@ -656,7 +656,10 @@ class Origin(obsevent.Origin):
     extra_keys = ['rays', 'coordinates', 'uncertainty_point_cloud']
     extra_types = {'rays': RayCollection,
                    'coordinates': Coordinates,
-                   'uncertainty_point_cloud': UncertaintyPointCloud
+                   'uncertainty_point_cloud': UncertaintyPointCloud,
+                   'x_error': float,
+                   'y_error': float,
+                   'z_error': float,
                    }
 
     def __init__(self, coordinates: Coordinates = None,
