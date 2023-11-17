@@ -757,44 +757,6 @@ class Origin(obsevent.Origin):
     def __repr__(self):
         return self.__str__()
 
-    # @staticmethod
-    # def __encode_rays__(rays: List):
-    #     encoded_rays = []
-    #     for ray in rays:
-    #         encoded_rays.append(ray.to_json())
-    #     return encoded_rays
-    #
-    # def __decode_rays__(self):
-    #     decoded_rays = []
-    #     if self.__encoded_rays__ is None:
-    #         return
-    #     for encoded_ray in self.__encoded_rays__:
-    #         decoded_rays.append(Ray.from_json(encoded_ray))
-    #
-    #     return decoded_rays
-    #
-    # @staticmethod
-    # def __encode_uncertainty_point_cloud__(
-    #         uncertainty_point_cloud: UncertaintyPointCloud):
-    #     return uncertainty_point_cloud.to_json()
-    #
-    # def __decode_uncertainty_point_cloud__(self):
-    #     return UncertaintyPointCloud.from_json(self.__encoded_uncertainty_point_cloud__)
-    #
-    # @staticmethod
-    # def __encode_coordinates__(value):
-    #     if not isinstance(value, Coordinates):
-    #         raise TypeError(f'the value provided must be of instance '
-    #                         f'{type(Coordinates)}')
-    #
-    #     return value.to_json()
-    #
-    # def __decode_coordinates__(self):
-    #     if self.__cartesian_coordinates__ is None:
-    #         return
-    #     else:
-    #         return Coordinates.from_json(self.__cartesian_coordinates__)
-
     def get_arrival_id(self, phase, station_code):
         arrival_id = None
         for arrival in self.arrivals:
