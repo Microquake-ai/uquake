@@ -26,6 +26,7 @@ import string
 import pyasdf
 from typing import List, Union
 import re
+import zarr
 
 
 def validate_station_code(code):
