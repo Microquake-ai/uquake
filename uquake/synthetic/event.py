@@ -168,8 +168,10 @@ def generate_magnitude(origin):
 
     evaluation_mode = random.choice(list(event.header.EvaluationMode))
     evaluation_status = random.choice(list(event.header.EvaluationStatus))
+    mag_errors = event.QuantityError(uncertainty=random.random())
 
     magnitude = event.Magnitude(mag=random.randrange(-2, 3),
+                                mag_errors=mag_errors,
                                 magnitude_type='Mw',
                                 corner_frequency_p=random.randrange(1, 1000, 10),
                                 corner_frequency_s=random.randrange(1, 1000, 10),
