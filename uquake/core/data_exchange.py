@@ -41,13 +41,19 @@ def validate_station_code(code):
 
 class MicroseismicDataExchange(object):
     """
-    A class to handle the exchange of microseismic data (stream, catalog, and inventory) using the ASDF format.
+    A class to handle the exchange of microseismic data (stream, catalog, and inventory)
+    using a composite format including the streams, the catalog and inventory.
+
+    This object handles the reading and writing of the data to and from a files in
+    various formats including ASDF, Zarr and eventually TileDB.
+
 
     :ivar stream: The ObsPy/uQuake Stream object representing the seismic waveform data.
     :type stream: Stream, optional
     :ivar catalog: The ObsPy/uQuake Catalog object representing the event data.
     :type catalog: Catalog, optional
-    :ivar inventory: The ObsPy/uQuake Inventory object representing the station and channel metadata.
+    :ivar inventory: The ObsPy/uQuake Inventory object representing the station and
+    channel metadata.
     :type inventory: Inventory, optional
     """
 
@@ -56,11 +62,13 @@ class MicroseismicDataExchange(object):
         """
         Initializes the MicroseismicDataExchange object.
 
-        :param stream: The ObsPy/uQuake Stream object representing the seismic waveform data.
+        :param stream: The ObsPy/uQuake Stream object representing the seismic waveform
+        data.
         :type stream: Stream, optional
         :param catalog: The ObsPy/uQuake Catalog object representing the event data.
         :type catalog: Catalog, optional
-        :param inventory: The ObsPy/uQuake Inventory object representing the station and channel metadata.
+        :param inventory: The ObsPy/uQuake Inventory object representing the station and
+        channel metadata.
         :type inventory: Inventory, optional
         """
         self.stream = stream
