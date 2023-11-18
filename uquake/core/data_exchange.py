@@ -20,13 +20,14 @@ from uquake.core.inventory import Inventory
 from uquake.core import read, read_events, read_inventory
 from obspy.core.trace import Trace as ObspyTrace
 import random
-import tarfile
-from io import BytesIO
 import string
 import pyasdf
 from typing import List, Union
 import re
+from uquake.io.data_exchange.zarr import (read_zarr, write_zarr, get_inventory,
+                                          get_catalog)
 import zarr
+import io
 
 
 def validate_station_code(code):
@@ -320,3 +321,83 @@ def generate_unique_names(n):
         names.add(name)
 
     return list(names)
+
+
+class ZarrHandler:
+
+    def __init__(self, file_path):
+        self.file_path = file_path
+
+    def write(self, mde: MicroseismicDataExchange):
+        """
+        Write a MicroseismicDataExchange object to a Zarr file.
+        :param mde:
+        :return:
+        """
+
+        write_zarr(self.file_path, mde)
+
+    def read_zaar(self):
+        """
+        Read a MicroseismicDataExchange object from a Zarr file.
+        :return:
+        """
+        return read_zarr(self.file_path)
+
+    def get_inventory(self):
+        """
+        Retrieve the seismic inventory from the Zarr dataset.
+        :return: uQuake Inventory object
+        """
+        z = zarr.open(self.file_path, mode='r')
+        return get_inventory(z)
+
+    @staticmethod
+    def get_catalog(self):
+        """
+        Retrieve the seismic catalog from the Zarr dataset.
+        :return: uQuake Catalog object
+        """
+
+        z = zarr.open(self.filepath, mode='r')
+        return get_catalog(z)
+
+    def get_stream(self, networks: List[str] = [], stations: List[str] = [],
+                   locations: List[str] = [], channels: List[str] = []):
+        """
+        Retrieve specific waveforms from the Zarr dataset.
+        :param networks: List of network codes
+        :param stations: List of station codes
+        :param locations: List of location codes
+        :param channels: List of channel codes
+        :return: uquake.core.stream.Stream object
+        """
+        stream = Stream()
+
+        stream_group = zarr.open_group(self.file_path / 'stream', mode='r')
+
+        for network in stream_group:
+            if networks and network not in networks:
+                continue
+            for station in stream_group[network]:
+                if stations and station not in stations:
+                    continue
+                for location in stream_group[network][station]:
+                    if locations and location not in locations:
+                        continue
+                    for channel, arr in stream_group[network][station][
+                        location].items():
+                        if channels and channel not in channels:
+                            continue
+                        tr = Trace(data=arr[:])
+                        for key in ['network', 'station', 'location', 'channel',
+                                    'sampling_rate', 'starttime', 'calib']:
+                            tr.stats[key] = arr.attrs[key]
+                        stream.append(tr)
+
+        return stream
+
+
+
+
+

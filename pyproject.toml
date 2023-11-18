@@ -73,6 +73,14 @@ readFormat = "uquake.io.waveform:read_TEXCEL_CSV"
 [tool.poetry.plugins."uquake.io.waveform.IMS_ASCII"]
 readFormat = "uquake.io.waveform:read_IMS_ASCII"
 
+[tool.poetry.plugins."uquake.io.data_exchange.zarr"]
+readFormat = "uquake.io.data_exchange:read_zarr"
+writeFormat = "uquake.io.data_exchange:write_zarr"
+
+[tool.poetry.plugins."uquake.io.data_exchange.asdf"]
+readFormat = "uquake.io.data_exchange:read_asdf"
+writeFormat = "uquake.io.data_exchange:write_asdf"
+
 [tool.poetry.plugins."uquake.io.grid"]
 NLLOC = "uquake.io.grid"
 VTK = "uquake.io.grid"

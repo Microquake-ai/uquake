@@ -1,15 +1,15 @@
-import os
 from uquake.synthetic import event, inventory, stream
 from uquake.core import data_exchange
 from importlib import reload
 from time import time
 from uquake.io.data_exchange.zarr import write_zarr, read_zarr
+import shutil
 
 
 def write_read_test_zarr():
     # Clean up any existing file
     try:
-        os.remove('test.zarr')
+        shutil.rmtree('test.zarr')
     except FileNotFoundError:
         pass
 
@@ -54,7 +54,7 @@ def write_read_test_zarr():
 
     # Clean up
     try:
-        os.remove('test.zarr')
+        shutil.rmtree('test.zarr')
     except FileNotFoundError:
         pass
 

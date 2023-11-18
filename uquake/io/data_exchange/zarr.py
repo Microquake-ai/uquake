@@ -1,8 +1,8 @@
-
 from uquake.core.data_exchange import MicroseismicDataExchange
 from uquake.core.stream import Stream, Trace
 from uquake.core.event import Catalog
 from uquake.core.inventory import Inventory
+from uquake.core import read_inventory, read_events
 import io
 import zarr
 
@@ -19,19 +19,13 @@ def write_zarr(filepath, mde: MicroseismicDataExchange):
 
     # Serialize and store Catalog
     if mde.catalog is not None:
-        catalog_bytes = io.BytesIO()
-        mde.catalog.write(catalog_bytes, format='QUAKEML')
-        catalog_bytes.seek(0)
-        z['catalog'] = catalog_bytes.getvalue()
+        z['catalog'] = mde.catalog.to_bytes
     else:
         z['catalog'] = None
 
     # Serialize and store Inventory
     if mde.inventory is not None:
-        inventory_bytes = io.BytesIO()
-        mde.inventory.write(inventory_bytes, format='STATIONXML')
-        inventory_bytes.seek(0)
-        z['inventory'] = inventory_bytes.getvalue()
+        z['inventory'] = mde.inventory.to_bytes()
     else:
         z['inventory'] = None
 
@@ -68,7 +62,7 @@ def stream_to_zarr_group(stream, zarr_group_path):
 
         # Store selected stats as Zarr attributes
         for key in ['network', 'station', 'location',
-                    'channel', 'sampling_rate', 'starttime', 'calib', 'resource_id']:
+                    'channel', 'sampling_rate', 'starttime', 'calib']:
             # Convert non-string objects to strings for easier storage and retrieval
             arr.attrs[key] = str(tr.stats[key])
 
@@ -83,19 +77,10 @@ def read_zarr(filepath):
 
     z = zarr.open(filepath, mode='r')
 
-    # Deserialize Catalog
-    if 'catalog' in z and z['catalog'] is not None:
-        catalog_bytes = io.BytesIO(z['catalog'][:])
-        catalog = Catalog.read(catalog_bytes, format='QUAKEML')
-    else:
-        catalog = None
-
+    catalog = get_catalog(z)
     # Deserialize Inventory
-    if 'inventory' in z and z['inventory'] is not None:
-        inventory_bytes = io.BytesIO(z['inventory'][:])
-        inventory = Inventory.read(inventory_bytes, format='STATIONXML')
-    else:
-        inventory = None
+
+    inventory = get_inventory(z)
 
     # Reconstruct Stream
     if 'stream' in z:
@@ -104,6 +89,39 @@ def read_zarr(filepath):
         stream = None
 
     return MicroseismicDataExchange(catalog=catalog, inventory=inventory, stream=stream)
+
+
+def get_catalog(z: zarr.hierarchy.group.Group):
+    """
+    Deserialize a Catalog from a Zarr group
+    :param z: Zarr group
+    :return:
+    """
+    if 'catalog' in z and z['catalog'] is not None:
+        catalog_array = z['catalog']
+        if catalog_array.ndim == 0:  # Check if it is a scalar (zero-dimensional)
+            catalog_bytes = io.BytesIO(catalog_array[()])  # Access as a scalar
+        else:
+            catalog_bytes = io.BytesIO(catalog_array[:])  # Access normally for higher dimensions
+        catalog = Catalog.read(catalog_bytes, format='QUAKEML')
+    else:
+        catalog = None
+
+    return catalog
+
+
+def get_inventory(z):
+    if 'inventory' in z and z['inventory'] is not None:
+        inventory_array = z['inventory']
+        if inventory_array.ndim == 0:  # Check if it is a scalar (zero-dimensional)
+            inventory_bytes = io.BytesIO(inventory_array[()])  # Access as a scalar
+        else:
+            inventory_bytes = io.BytesIO(inventory_array[:])  # Access normally for higher dimensions
+        inventory = Inventory.read(inventory_bytes, format='STATIONXML')
+    else:
+        inventory = None
+
+    return inventory
 
 
 def zarr_to_stream(zarr_group_path):
@@ -115,23 +133,39 @@ def zarr_to_stream(zarr_group_path):
 
     root_group = zarr.open_group(zarr_group_path, mode='r')
     stream = Stream()
+    traces = []
 
     for network in root_group:
-        for station in network:
-            for location in station:
-                for channel, arr in location.items():
-                    # Reconstruct Trace object
+        for station in root_group[network]:
+            for location in root_group[network][station]:
+                # Iterate over each channel within the location
+                for channel in root_group[network][station][location]:
+                    # Access the Zarr array for the channel
+                    arr = root_group[network][station][location][channel]
+
+                    # Process the array (e.g., reconstruct the Trace object)
                     tr = Trace(data=arr[:])
+
                     # Retrieve and set stats from Zarr attributes
-                    for key in ['network', 'station', 'location',
-                                'channel', 'sampling_rate', 'starttime', 'calib',
-                                'resource_id']:
+                    for key in ['network', 'station', 'location', 'channel',
+                                'sampling_rate', 'starttime', 'calib']:
+                        # Assigning attributes to the Trace object from Zarr attributes
                         tr.stats[key] = arr.attrs[key]
-                    stream.append(tr)
 
-    return stream
+                    traces.append(tr)
+
+    return Stream(traces=traces)
 
 
-
+def process_channel(arr, stream):
+    """
+    Process a single channel and add it to the stream.
+    :param arr: Zarr array representing the channel data
+    :param stream: Stream object to append the Trace to
+    """
+    tr = Trace(data=arr[:])
+    for key in ['network', 'station', 'location', 'channel', 'sampling_rate', 'starttime', 'calib']:
+        tr.stats[key] = arr.attrs[key]
+    stream.append(tr)
 
 

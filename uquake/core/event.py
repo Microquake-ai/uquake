@@ -405,6 +405,24 @@ class Catalog(obsevent.Catalog):
     def copy(self):
         return deepcopy(self)
 
+    @property
+    def to_bytes(self):
+
+        file_out = io.BytesIO()
+        self.write(file_out, format='quakeml')
+        file_out.seek(0)
+        return file_out.getvalue()
+
+    @staticmethod
+    def from_bytes(byte_string):
+        file_in = io.BytesIO(byte_string)
+        file_in.read()
+        return read_events(file_in, format='quakeml')
+
+    @staticmethod
+    def read(filename, **kwargs):
+        return read_events(filename, **kwargs)
+
 
 class EventTypeLookup(object):
 

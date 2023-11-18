@@ -306,17 +306,9 @@ class Inventory(inventory.Inventory):
 
         return inventory
 
-    @staticmethod
-    def from_bytes(byte_string):
-        file_in = io.BytesIO(byte_string)
-        file_in.read()
-        file_in.seek(0)
-        return read_inventory(file_in)
-
-    def write(self, path_or_file_obj, *args, format='stationxml',
-              nsmap={'mq': namespace}, **kwargs):
+    def write(self, path_or_file_obj, *args, format='stationxml', **kwargs):
         return super().write(path_or_file_obj, *args, format=format,
-                             nsmap=nsmap, **kwargs)
+                             nsmap={'mq': namespace}, **kwargs)
 
     def get_station(self, sta):
         return self.select(sta)
@@ -340,8 +332,19 @@ class Inventory(inventory.Inventory):
     def to_bytes(self):
 
         file_out = BytesIO()
-        self.write(file_out)
+        self.write(file_out, format='stationxml')
+        file_out.seek(0)
         return file_out.getvalue()
+
+    @staticmethod
+    def from_bytes(byte_string):
+        file_in = io.BytesIO(byte_string)
+        file_in.read()
+        return read_inventory(file_in, format='stationxml')
+
+    @staticmethod
+    def read(path_or_file_obj, format='stationxml', **kwargs):
+        return read_inventory(path_or_file_obj, format=format, **kwargs)
 
     def __eq__(self, other):
         return np.all(self.instruments == other.instruments)
