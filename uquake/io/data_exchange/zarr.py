@@ -1,4 +1,3 @@
-from uquake.core.data_exchange import MicroseismicDataExchange
 from uquake.core.stream import Stream, Trace
 from uquake.core.event import Catalog
 from uquake.core.inventory import Inventory
@@ -7,7 +6,7 @@ import io
 import zarr
 
 
-def write_zarr(filepath, mde: MicroseismicDataExchange):
+def write_zarr(filepath, mde):
     """
     Write a MicroseismicDataExchange object to a zarr file
 

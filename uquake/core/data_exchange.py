@@ -26,7 +26,6 @@ from typing import List, Union
 import re
 from uquake.io.data_exchange.zarr import (read_zarr, write_zarr, get_inventory,
                                           get_catalog)
-import zarr
 import io
 
 

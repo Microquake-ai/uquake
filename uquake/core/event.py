@@ -1428,6 +1428,7 @@ def _init_from_obspy_object(uquake_obj, obspy_obj):
         else:
             uquake_obj.__setattr__(key, val)
 
+
 def calc_static_stress_drop(Mw, fc, phase='S', v=3.5, use_brune=False):
     """
     Calculate static stress drop from moment/corner_freq relation
