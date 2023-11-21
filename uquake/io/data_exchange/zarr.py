@@ -90,7 +90,7 @@ def read_zarr(filepath):
     return MicroseismicDataExchange(catalog=catalog, inventory=inventory, stream=stream)
 
 
-def get_catalog(z: zarr.hierarchy.group.Group):
+def get_catalog(z):
     """
     Deserialize a Catalog from a Zarr group
     :param z: Zarr group
