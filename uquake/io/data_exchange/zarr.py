@@ -4,6 +4,7 @@ from uquake.core.inventory import Inventory
 from uquake.core import read_inventory, read_events
 import io
 import zarr
+from pathlib import Path
 
 
 def write_zarr(filepath, mde):
@@ -13,6 +14,9 @@ def write_zarr(filepath, mde):
     :param filepath: The path of the zarr file to write to
     :param mde: The MicroseismicDataExchange object to write to the zarr file
     """
+
+    if isinstance(filepath, Path):
+        filepath = str(filepath)
 
     z = zarr.open(filepath, mode='w')
 
@@ -73,6 +77,9 @@ def read_zarr(filepath):
     :param filepath: The path of the zarr file to read from
     :return: A reconstructed MicroseismicDataExchange object
     """
+
+    if isinstance(filepath, Path):
+        filepath = str(filepath)
 
     z = zarr.open(filepath, mode='r')
 
