@@ -58,6 +58,7 @@ from tempfile import NamedTemporaryFile
 import os
 from .util.requests import download_file_from_url
 from uquake.core.util.attribute_handler import set_extra, get_extra, namespace
+import hashlib
 
 
 class SystemResponse(object):
@@ -361,6 +362,28 @@ class Inventory(inventory.Inventory):
                     instruments.append(instrument)
 
         return np.sort(instruments)
+
+    @property
+    def short_ids(self):
+        unique_ids = set()
+        short_ids = []
+
+        for network in self.networks:
+            for station in network.stations:
+                for instrument in station.instruments:
+                    if len(instrument) > 6:
+                        hash = hashlib.md5(instrument.code).hexdigest()[:5]
+                        if hash not in unique_ids:
+                            unique_ids.add(hash + '0')
+                            short_ids.append(hash + '0')
+                        else:
+                            for i in range(1, 10):
+                                if hash + str(i) not in unique_ids:
+                                    unique_ids.add(hash + str(i))
+                                    short_ids.append(hash + str(i))
+                                    break
+
+        return short_ids
 
 
 class Network(inventory.Network):
