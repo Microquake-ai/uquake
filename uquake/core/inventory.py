@@ -388,7 +388,7 @@ class Inventory(inventory.Inventory):
 
                             # If all numbers are used, start appending letters
                             if not found_unique:
-                                for letter in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                                for letter in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ':
                                     potential_id = hash + letter
                                     if potential_id not in unique_ids:
                                         unique_ids.add(potential_id)
