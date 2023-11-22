@@ -363,7 +363,6 @@ class Inventory(inventory.Inventory):
 
         return np.sort(instruments)
 
-    @property
     def short_ids(self):
         unique_ids = set()
         short_ids = []
@@ -371,18 +370,30 @@ class Inventory(inventory.Inventory):
         for network in self.networks:
             for station in network.stations:
                 for instrument in station.instruments:
-                    if len(instrument) > 6:
-                        hash = hashlib.md5(instrument.code).hexdigest()[:5]
-                        if hash not in unique_ids:
+                    if len(instrument.code) > 6:
+                        hash = hashlib.md5(instrument.code.encode()).hexdigest()[:5]
+                        if hash + '0' not in unique_ids:
                             unique_ids.add(hash + '0')
                             short_ids.append(hash + '0')
                         else:
+                            # First try appending numbers
+                            found_unique = False
                             for i in range(1, 10):
-                                if hash + str(i) not in unique_ids:
-                                    unique_ids.add(hash + str(i))
-                                    short_ids.append(hash + str(i))
+                                potential_id = hash + str(i)
+                                if potential_id not in unique_ids:
+                                    unique_ids.add(potential_id)
+                                    short_ids.append(potential_id)
+                                    found_unique = True
                                     break
 
+                            # If all numbers are used, start appending letters
+                            if not found_unique:
+                                for letter in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+                                    potential_id = hash + letter
+                                    if potential_id not in unique_ids:
+                                        unique_ids.add(potential_id)
+                                        short_ids.append(potential_id)
+                                        break
         return short_ids
 
     def instrument_code_from_shortids(self, short_id):
