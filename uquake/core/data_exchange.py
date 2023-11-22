@@ -324,24 +324,26 @@ def generate_unique_names(n):
 
 class ZarrHandler:
 
-    def __init__(self, file_path):
+    def __init__(self, file_path=None):
         self.file_path = file_path
 
-    def write(self, mde: MicroseismicDataExchange):
+    @staticmethod
+    def write(file_path, mde: MicroseismicDataExchange):
         """
         Write a MicroseismicDataExchange object to a Zarr file.
         :param mde:
         :return:
         """
 
-        write_zarr(self.file_path, mde)
+        write_zarr(file_path, mde)
 
-    def read_zaar(self):
+    @staticmethod
+    def read_zaar(file_path):
         """
         Read a MicroseismicDataExchange object from a Zarr file.
         :return:
         """
-        return read_zarr(self.file_path)
+        return read_zarr(file_path)
 
     def get_inventory(self):
         """
