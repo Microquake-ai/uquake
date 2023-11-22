@@ -8,7 +8,7 @@ license = "AGPL-3.0-or-later"
 # poetry config virtualenvs.create false; poetry env info
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.11"
+python = ">=3.9,<4.0"
 numpy = "^1.18.0"
 loguru = "^0.5.3"
 pandas = "^1.2.1"
