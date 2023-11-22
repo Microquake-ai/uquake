@@ -338,12 +338,14 @@ class ZarrHandler:
         write_zarr(file_path, mde)
 
     @staticmethod
-    def read_zaar(file_path):
+    def read(file_path):
         """
         Read a MicroseismicDataExchange object from a Zarr file.
         :return:
         """
-        return read_zarr(file_path)
+
+        data_dict = read_zarr(file_path)
+        return MicroseismicDataExchange(**data_dict)
 
     def get_inventory(self):
         """

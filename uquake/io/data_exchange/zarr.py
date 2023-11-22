@@ -94,7 +94,9 @@ def read_zarr(filepath):
     else:
         stream = None
 
-    return MicroseismicDataExchange(catalog=catalog, inventory=inventory, stream=stream)
+    return {'catalog': catalog,
+            'inventory': inventory,
+            'stream': stream}
 
 
 def get_catalog(z):
