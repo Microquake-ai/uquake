@@ -385,6 +385,19 @@ class Inventory(inventory.Inventory):
 
         return short_ids
 
+    def instrument_code_from_shortids(self, short_id):
+        """
+        return the instrument code from the short id
+        :param short_id: a string representing the short id
+        :return:
+        """
+
+        short_ids = self.short_ids
+
+        for i, sid in enumerate(short_ids):
+            if sid == short_id:
+                return self.instruments[i].code
+
 
 class Network(inventory.Network):
     __doc__ = inventory.Network.__doc__.replace('obspy', ns)
