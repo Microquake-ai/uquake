@@ -363,6 +363,7 @@ class Inventory(inventory.Inventory):
 
         return np.sort(instruments)
 
+    @property
     def short_ids(self):
         unique_ids = set()
         short_ids = []
