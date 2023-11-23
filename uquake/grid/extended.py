@@ -1073,7 +1073,7 @@ class VelocityGridEnsemble:
         else:
             tt_grid_ensemble = TravelTimeEnsemble([])
             for key in self.keys():
-                for seed in zip(seeds):
+                for seed in seeds:
                     tt_grid_ensemble += self[key].to_time(seed)
 
     @property
