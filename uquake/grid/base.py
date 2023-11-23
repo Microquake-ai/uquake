@@ -509,7 +509,7 @@ class Grid(object):
         """
         format = format.upper()
 
-        Path(filename).parent.mkdirs(parent=True, exist_ok=True)
+        Path(filename).parent.mkdir(parents=True, exist_ok=True)
 
         if format not in ENTRY_POINTS['grid'].keys():
             raise TypeError(f'format {format} is currently not supported '
