@@ -53,6 +53,8 @@ from uquake.synthetic.inventory import generate_unique_instrument_code
 from uquake.core.event import ResourceIdentifier
 from .base import __default_grid_label__
 from typing import Union, Tuple
+from uquake.io.nlloc import (write_nlloc_grid, write_nlloc_model_id,
+                             write_nlloc_grid_header)
 
 __cpu_count__ = cpu_count()
 
@@ -1208,11 +1210,11 @@ class SeededGrid(TypedGrid):
 
     def write(self, path='.'):
         base_name = self.base_name
-        self._write_grid_data(base_name, path=path)
-        self._write_grid_header(base_name, path=path, seed=self.seed,
+        write_grid_data(base_name, path=path)
+        write_grid_header(base_name, path=path, seed=self.seed,
                                 seed_label=self.seed_label,
                                 seed_units=self.grid_units)
-        self._write_grid_model_id(base_name, path=path)
+        write_grid_model_id(base_name, path=path)
 
 
 class TTGrid(SeededGrid):

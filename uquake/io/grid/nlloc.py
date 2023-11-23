@@ -3,7 +3,7 @@ import numpy as np
 from uquake.core.logging import logger
 
 
-def _write_grid_data(grid, base_name, path='.'):
+def write_grid_data(grid, base_name, path='.'):
 
     Path(path).mkdir(parents=True, exist_ok=True)
 
@@ -16,7 +16,7 @@ def _write_grid_data(grid, base_name, path='.'):
             out_file.write(grid.data.astype(np.float64).tobytes())
 
 
-def _write_grid_header(grid, base_name, path='.', seed_label=None,
+def write_grid_header(grid, base_name, path='.', seed_label=None,
                        seed=None, seed_units=None):
 
     # convert 'METER' to 'KILOMETER'
@@ -51,13 +51,7 @@ def _write_grid_header(grid, base_name, path='.', seed_label=None,
         out_file.write(u'TRANSFORM  NONE\n')
 
 
-def _write_grid_model_id(base_name, model_id, path='.'):
+def write_grid_model_id(base_name, model_id, path='.'):
     with open(Path(path) / (base_name + '.mid'), 'w') as out_file:
         out_file.write(f'{model_id}')
 
-
-def write_nlloc(base_name, path='.'):
-
-    _write_grid_data(base_name, path=path)
-    _write_grid_header(base_name, path=path)
-    _write_grid_model_id(base_name, path=path)
