@@ -442,6 +442,9 @@ class Network(inventory.Network):
         else:
             super().__getattr__(item)
 
+    def __setitem__(self, key, value):
+        self.__dict__['key'] = value
+
     @classmethod
     def from_obspy_network(cls, obspy_network, xy_from_lat_lon=False,
                            input_projection=4326, output_projection=None):
