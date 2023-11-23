@@ -65,9 +65,6 @@ def stream_to_zarr_group(stream, zarr_group_path):
 
         # Store selected stats as Zarr attributes
         for key in tr.stats.__dict__.keys():
-        # for key in ['network', 'station', 'location',
-        #             'channel', 'sampling_rate', 'starttime', 'calib', 'npts']:
-            # Convert non-string objects to strings for easier storage and retrieval
             arr.attrs[key] = str(tr.stats[key])
 
 
@@ -157,10 +154,10 @@ def zarr_to_stream(zarr_group_path):
 
                     # Retrieve and set stats from Zarr attributes
                     for key in arr.attrs.keys():
-                        # 'network', 'station', 'location', 'channel',
-                        #         'sampling_rate', 'starttime', 'calib', 'npts']:
-                        # Assigning attributes to the Trace object from Zarr attributes
-                        tr.stats[key] = arr.attrs[key]
+                        try:
+                            tr.stats[key] = arr.attrs[key]
+                        except AttributeError as e:
+                            pass
 
                     traces.append(tr)
 
