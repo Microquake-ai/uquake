@@ -86,7 +86,13 @@ def read_hdf5(filename, **kwargs):
     :param kwargs: additional keyword argument passed from wrapper.
     :return: uquake.core.data.grid.GridCollection
     """
-    pass
+
+
+def write_hdf5(grid, filename, **kwargs):
+    """
+    write a GridData object to disk in hdf5 format using the h5py module
+    """
+    write_grid_to_hdf5(grid, filename, **kwargs)
 
 
 def write_csv(grid, filename, **kwargs):
@@ -345,11 +351,11 @@ def write_grid_to_hdf5(
                     # seed = time_grid.seed.__dict__
                     # seed['coordinates'] = seed['coordinates'].to_json()
 
-                    instrument_group.attrs['Seed_Station'] = time_grid.seed.station
-                    instrument_group.attrs['Seed_Location'] = time_grid.seed.location
-                    instrument_group.attrs['Seed_Coordinates'] = \
+                    instrument_group.attrs['station'] = time_grid.seed.station
+                    instrument_group.attrs['location'] = time_grid.seed.location
+                    instrument_group.attrs['coordinates'] = \
                         time_grid.seed.coordinates.loc
-                    instrument_group.attrs['Seed_Coordinate_System'] = \
+                    instrument_group.attrs['coordinate_System'] = \
                         time_grid.seed.coordinates.coordinate_system.value
                     write_grid_attributes_and_data_hdf5(instrument_group, time_grid,
                                                         compression, compression_opts)

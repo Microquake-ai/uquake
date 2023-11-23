@@ -103,6 +103,10 @@ writeFormat = "uquake.io.grid:write_vtk"
 readFormat = "uquake.io.grid:read_pickle"
 writeFormat = "uquake.io.grid:write_pickle"
 
+[tool.poetry.plugins."uquake.io.grid.HDF5"]
+readFormat = "uquake.io.grid:read_hdf5"
+writeFormat = "uquake.io.grid:write_hdf5"
+
 [tool.poetry.plugins."uquake.io.grid.CSV"]
 writeFormat = "uquake.io.grid:write_csv"
 readFormat = "uquake.io.grid:read_csv"

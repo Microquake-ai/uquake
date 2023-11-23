@@ -53,6 +53,7 @@ from uquake.synthetic.inventory import generate_unique_instrument_code
 from uquake.core.event import ResourceIdentifier
 from .base import __default_grid_label__
 from typing import Union, Tuple
+import h5py
 
 __cpu_count__ = cpu_count()
 
@@ -965,10 +966,9 @@ class VelocityGrid3D(TypedGrid):
 
         return tt_grid_ensemble
 
-    def write(self, path='.'):
+    def write_nlloc(self, path='.'):
 
-        base_name = self.base_name
-        super().write(base_name, path=path)
+        super().write_nlloc(path=path)
 
     def mv(self, origin, destination):
         """
@@ -984,6 +984,31 @@ class VelocityGrid3D(TypedGrid):
     @property
     def base_name(self):
         return self.get_base_name(self.network_code, self.phase)
+
+    def write(self, file_path: str, compression: str = None):
+        """
+        Write the grid to a file
+        :param file_path: path to the file
+        :param compression: compression method
+        """
+        with h5py.File(file_path, 'w') as f:
+            # Create the group for Phase
+            phase_group = f.create_group(f'/{self.phase.name}')
+            phase_group.attrs['Network Code'] = self.network_code
+            phase_group.attrs['Grid ID'] = self.resource_id
+            phase_group.attrs['Schema Version'] = '1.0'
+            phase_group.attrs['Creation Timestamp'] = datetime.now().isoformat()
+            phase_group.attrs['Type'] = 'VELOCITY'
+            phase_group.attrs['Units'] = self.grid_units
+            phase_group.attrs['Coordinate System'] = self.coordinate_system.name
+            phase_group.attrs['Origin'] = self.origin
+            phase_group.attrs['Spacing'] = self.spacing
+            phase_group.attrs['Dimensions'] = self.data.shape
+            phase_group.attrs['Compression'] = compression if compression else 'None'
+
+            # Create the dataset for Data
+            dataset = phase_group.create_dataset('Data', data=self.data,
+                                                 compression=compression)
 
 
 class VelocityGridEnsemble:
@@ -1206,7 +1231,7 @@ class SeededGrid(TypedGrid):
                                        self.seed_label, self.grid_type)
         return base_name
 
-    def write(self, path='.'):
+    def write_nlloc(self, path='.'):
         self._write_grid_data(path=path)
         self._write_grid_header(path=path)
         self._write_grid_model_id(path=path)
@@ -1373,8 +1398,8 @@ class TTGrid(SeededGrid):
     def from_velocity(cls, seed, seed_label, velocity_grid):
         return velocity_grid.to_time(seed, seed_label)
 
-    def write(self, path='.'):
-        return super().write(path=path)
+    def write_nlloc(self, path='.'):
+        return super().write_nlloc(path=path)
 
     @property
     def location(self):
@@ -1560,9 +1585,9 @@ class TravelTimeEnsemble:
 
         return tts_dict
 
-    def write(self, path='.'):
+    def write_nlloc(self, path='.'):
         for tt_grid in self.travel_time_grids:
-            tt_grid.write(path=path)
+            tt_grid.write_nlloc(path=path)
 
     def angles(self, seed, grid_space: bool = False,
                 seed_labels: Optional[list] = None,
@@ -1721,5 +1746,6 @@ class AngleGrid(SeededGrid):
                          grid_type='ANGLE', float_type=float_type,
                          model_id=model_id, grid_units=grid_units)
 
-    def write(self, path='.'):
-        pass
+    def write_nlloc(self, path='.'):
+        super().write_nlloc(path=path)
+
