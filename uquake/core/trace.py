@@ -111,7 +111,8 @@ class Trace(ObspyTrace, ABC):
 
     def plot(self, **kwargs):
         from uquake.imaging.waveform import WaveformPlotting
-        waveform = WaveformPlotting(stream=self, **kwargs)
+        from uquake.core.stream import Stream
+        waveform = WaveformPlotting(stream=Stream(traces=[self], **kwargs))
 
         return waveform.plotWaveform()
 
