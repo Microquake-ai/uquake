@@ -1507,6 +1507,10 @@ class TravelTimeEnsemble:
 
         return tts_dict
 
+    def write(self, path='.'):
+        for tt_grid in self.travel_time_grids:
+            tt_grid.write(path=path)
+
     def angles(self, seed, grid_space: bool = False,
                 seed_labels: Optional[list] = None,
                 phase: Optional[list] = None, **kwargs):
