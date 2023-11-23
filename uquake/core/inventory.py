@@ -840,6 +840,10 @@ class Instrument:
         return self.make_instrument_code(self.station_code, self.location_code)
 
     @property
+    def label(self):
+        return self.simplified_code
+
+    @property
     def sensor_type_code(self):
         return self.channels[0].code[0:-1]
 
