@@ -733,7 +733,7 @@ class VelocityGrid3D(TypedGrid):
             int)
 
         # Create and return the grid object
-        return cls(grid_dims, spacing=spacing, origin=padded_origin,
+        return cls(network_code, grid_dims, spacing=spacing, origin=padded_origin,
                    **kwargs)
 
     @staticmethod
