@@ -198,55 +198,6 @@ class Grid(object):
         cls(data, spacing, spacing=spacing, origin=origin)
         return cls
 
-    @classmethod
-    def from_inventory(cls, inventory: Inventory,
-                       spacing: Union[float, Tuple[float, float, float]],
-                       padding: Union[float, Tuple[float, float, float]] = 0.2,
-                       **kwargs):
-        """
-        Create a grid from an inventory object.
-        :param inventory: Inventory object
-        :param spacing: Grid spacing in grid units
-        :param padding: Padding around the inventory in percent of the model span
-        (default: 0.2 -> 20%)
-
-        keyword arguments are additional arguments to pass to the class constructor or
-        __init__ method.
-        """
-
-        # Get the instrument locations
-        locations_x = [instrument.x for instrument in inventory.instruments]
-        locations_y = [instrument.y for instrument in inventory.instruments]
-        locations_z = [instrument.z for instrument in inventory.instruments]
-
-        # Determine the span of the inventory
-        min_coords = np.array(
-            [np.min(locations_x), np.min(locations_y), np.min(locations_z)])
-        max_coords = np.array(
-            [np.max(locations_x), np.max(locations_y), np.max(locations_z)])
-        inventory_span = max_coords - min_coords
-
-        # Calculate padding in grid units
-        if isinstance(padding, tuple):
-            padding_x, padding_y, padding_z = padding
-        else:
-            padding_x = padding_y = padding_z = padding
-
-        # Calculate the total padding to be added
-        total_padding = inventory_span * np.array([padding_x, padding_y, padding_z])
-
-        # Adjust the origin and corner with the padding
-        padded_origin = min_coords - total_padding / 2
-        padded_corner = max_coords + total_padding / 2
-
-        # Calculate grid dimensions
-        grid_dims = np.ceil((padded_corner - padded_origin) / np.array(spacing)).astype(
-            int)
-
-        # Create and return the grid object
-        return cls(data_or_dims=grid_dims, spacing=spacing, origin=padded_origin,
-                   **kwargs)
-
     def __repr__(self):
         repr_str = """
         spacing: %s
