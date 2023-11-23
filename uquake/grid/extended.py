@@ -1575,6 +1575,7 @@ class TravelTimeEnsemble:
 
         if format == 'PICKLE':
             for tt_grid in self.travel_time_grids:
+                path = Path(path) / f'{tt_grid.seed_label}.pickle'
                 tt_grid.write(path=path, format=format)
         elif format == 'NLLOC':
             self.write_nlloc(path=path)
