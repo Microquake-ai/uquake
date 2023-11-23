@@ -65,7 +65,7 @@ def stream_to_zarr_group(stream, zarr_group_path):
 
         # Store selected stats as Zarr attributes
         for key in tr.stats.__dict__.keys():
-            arr.attrs[key] = tr.stats[key]
+            arr.attrs[key] = str(tr.stats[key])
 
 
 def read_zarr(filepath):
@@ -159,6 +159,7 @@ def zarr_to_stream(zarr_group_path):
                         except AttributeError as e:
                             pass
 
+                    tr.stats.calib = np.float(tr.stats.calib)
                     traces.append(tr)
 
     return Stream(traces=traces)
