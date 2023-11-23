@@ -1214,7 +1214,7 @@ class SeededGrid(TypedGrid):
                                 seed_units=self.grid_units)
         self._write_grid_model_id(base_name, path=path)
 
-    def _write_grid_data(grid, base_name, path='.'):
+    def _write_grid_data(self, grid, base_name, path='.'):
 
         Path(path).mkdir(parents=True, exist_ok=True)
 
@@ -1226,7 +1226,7 @@ class SeededGrid(TypedGrid):
             elif grid.float_type == 'DOUBLE':
                 out_file.write(grid.data.astype(np.float64).tobytes())
 
-    def _write_grid_header(grid, base_name, path='.', seed_label=None,
+    def _write_grid_header(self, grid, base_name, path='.', seed_label=None,
                           seed=None, seed_units=None):
 
         # convert 'METER' to 'KILOMETER'
@@ -1260,7 +1260,7 @@ class SeededGrid(TypedGrid):
 
             out_file.write(u'TRANSFORM  NONE\n')
 
-    def _write_grid_model_id(base_name, model_id, path='.'):
+    def _write_grid_model_id(self, base_name, model_id, path='.'):
         with open(Path(path) / (base_name + '.mid'), 'w') as out_file:
             out_file.write(f'{model_id}')
 
