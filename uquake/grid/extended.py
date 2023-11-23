@@ -1207,62 +1207,60 @@ class SeededGrid(TypedGrid):
         return base_name
 
     def write(self, path='.'):
-        base_name = self.base_name
-        self._write_grid_data(base_name, path=path)
-        self._write_grid_header(base_name, path=path, seed=self.seed,
+        self._write_grid_data(path=path)
+        self._write_grid_header(path=path, seed=self.seed,
                                 seed_label=self.seed_label,
                                 seed_units=self.grid_units)
-        self._write_grid_model_id(base_name, path=path)
+        self._write_grid_model_id(path=path)
 
-    def _write_grid_data(self, grid, base_name, path='.'):
+    def _write_grid_data(self, path='.'):
 
         Path(path).mkdir(parents=True, exist_ok=True)
 
-        with open(Path(path) / (base_name + '.buf'), 'wb') \
+        with open(Path(path) / (self.base_name + '.buf'), 'wb') \
                 as out_file:
-            if grid.float_type == 'FLOAT':
-                out_file.write(grid.data.astype(np.float32).tobytes())
+            if self.float_type.value == 'FLOAT':
+                out_file.write(self.data.astype(np.float32).tobytes())
 
-            elif grid.float_type == 'DOUBLE':
-                out_file.write(grid.data.astype(np.float64).tobytes())
+            elif self.float_type.value == 'DOUBLE':
+                out_file.write(self.data.astype(np.float64).tobytes())
 
-    def _write_grid_header(self, grid, base_name, path='.', seed_label=None,
-                          seed=None, seed_units=None):
+    def _write_grid_header(self, path='.'):
 
         # convert 'METER' to 'KILOMETER'
-        if grid.grid_units == 'METER':
-            origin = grid.origin / 1000
-            spacing = grid.spacing / 1000
+        if self.grid_units.value == 'METER':
+            origin = self.origin / 1000
+            spacing = self.spacing / 1000
         else:
-            origin = grid.origin
-            spacing = grid.spacing
+            origin = self.origin
+            spacing = self.spacing
 
-        line1 = f'{grid.shape[0]:d} {grid.shape[1]:d} {grid.shape[2]:d}  ' \
+        line1 = f'{self.shape[0]:d} {self.shape[1]:d} {self.shape[2]:d}  ' \
                 f'{origin[0]:f} {origin[1]:f} {origin[2]:f}  ' \
                 f'{spacing[0]:f} {spacing[1]:f} {spacing[2]:f}  ' \
-                f'{grid.grid_type}\n'
+                f'{self.grid_type}\n'
 
-        with open(Path(path) / (base_name + '.hdr'), 'w') as out_file:
+        with open(Path(path) / (self.base_name + '.hdr'), 'w') as out_file:
             out_file.write(line1)
 
-            if grid.grid_type in ['TIME', 'ANGLE']:
+            if self.grid_type in ['TIME', 'ANGLE']:
 
-                if seed_units is None:
+                if self.seed_units is None:
                     logger.warning(f'seed_units are not defined. '
                                    f'Assuming same units as grid ('
-                                   f'{grid.grid_units}')
-                if grid.grid_units == 'METER':
-                    seed = seed / 1000
+                                   f'{self.grid_units}')
+                if self.grid_units == 'METER':
+                    seed = self.seed / 1000
 
-                line2 = u"%s %f %f %f\n" % (seed_label,
+                line2 = u"%s %f %f %f\n" % (self.seed_label,
                                             seed[0], seed[1], seed[2])
                 out_file.write(line2)
 
             out_file.write(u'TRANSFORM  NONE\n')
 
-    def _write_grid_model_id(self, base_name, model_id, path='.'):
-        with open(Path(path) / (base_name + '.mid'), 'w') as out_file:
-            out_file.write(f'{model_id}')
+    def _write_grid_model_id(self, path='.'):
+        with open(Path(path) / (self.base_name + '.mid'), 'w') as out_file:
+            out_file.write(f'{self.model_id}')
 
 
 class TTGrid(SeededGrid):
