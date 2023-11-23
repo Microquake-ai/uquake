@@ -159,7 +159,7 @@ def zarr_to_stream(zarr_group_path):
                         except AttributeError as e:
                             pass
 
-                    tr.stats.calib = np.float(tr.stats.calib)
+                    tr.stats.calib = float(tr.stats.calib)
                     traces.append(tr)
 
     return Stream(traces=traces)
