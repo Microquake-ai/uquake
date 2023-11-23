@@ -184,7 +184,7 @@ class Seed:
 
     @property
     def label(self):
-        return f'{self.station}_{self.location}'
+        return f'{self.station}.{self.location}'
 
     @property
     def instrument_code(self):
@@ -286,14 +286,14 @@ class SeedEnsemble:
     def from_json(cls, json):
         pass
 
-    def add(self, location: Seed):
+    def add(self, seed: Seed):
         """
         Add a single location to the source list
         :param location:
         :type location: Seed
         """
 
-        self.seeds.append(location)
+        self.seeds.append(seed)
 
     @classmethod
     def generate_random_seeds_in_grid(cls, grid, n_seeds=1):
@@ -349,16 +349,16 @@ class SeedEnsemble:
 
     @property
     def locs(self):
-        seeds = []
-        for location in self.locations:
-            seeds.append([location['x'], location['y'], location['z']])
-        return np.array(seeds)
+        locations = []
+        for seed in self.seed:
+            locations.append([seed['x'], seed['y'], seed['z']])
+        return np.array(locations)
 
     @property
     def labels(self):
         seed_labels = []
-        for location in self.locations:
-            seed_labels.append(location['label'])
+        for seed in self.seeds:
+            seed_labels.append(seed.label)
 
         return np.array(seed_labels)
 
