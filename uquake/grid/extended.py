@@ -1189,7 +1189,10 @@ class SeededGrid(TypedGrid):
 
         if not isinstance(grid_type, SeededGridType):
             try:
-                grid_type = SeededGridType(grid_type)
+                if isinstance(grid_type, GridTypes):
+                    grid_type = SeededGridType(grid_type.value)
+                else:
+                    grid_type = SeededGridType(grid_type)
             except ValueError:
                 raise ValueError(f'{grid_type} is not a valid grid type')
 
