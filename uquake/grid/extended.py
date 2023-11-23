@@ -350,7 +350,7 @@ class SeedEnsemble:
     @property
     def locs(self):
         locations = []
-        for seed in self.seed:
+        for seed in self.seeds:
             locations.append([seed['x'], seed['y'], seed['z']])
         return np.array(locations)
 
