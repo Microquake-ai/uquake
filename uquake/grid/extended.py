@@ -1186,7 +1186,9 @@ class SeededGrid(TypedGrid):
 
     @classmethod
     def get_base_name(cls, network_code, phase, seed_label, grid_type):
-        if grid_type not in cls.__valid_grid_type__:
+        try:
+            SeededGridType(grid_type)
+        except ValueError:
             raise ValueError(f'{grid_type} is not a valid grid type')
 
         base_name = f'{network_code}.{phase}.{seed_label}.' \
