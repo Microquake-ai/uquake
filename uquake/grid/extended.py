@@ -52,6 +52,7 @@ from uquake.core.inventory import Inventory
 from uquake.synthetic.inventory import generate_unique_instrument_code
 from uquake.core.event import ResourceIdentifier
 from .base import __default_grid_label__
+from typing import Union, Tuple
 
 __cpu_count__ = cpu_count()
 
