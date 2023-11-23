@@ -985,31 +985,6 @@ class VelocityGrid3D(TypedGrid):
     def base_name(self):
         return self.get_base_name(self.network_code, self.phase)
 
-    def write(self, file_path: str, compression: str = None):
-        """
-        Write the grid to a file
-        :param file_path: path to the file
-        :param compression: compression method
-        """
-        with h5py.File(file_path, 'w') as f:
-            # Create the group for Phase
-            phase_group = f.create_group(f'/{self.phase.name}')
-            phase_group.attrs['Network Code'] = self.network_code
-            phase_group.attrs['Grid ID'] = self.resource_id
-            phase_group.attrs['Schema Version'] = '1.0'
-            phase_group.attrs['Creation Timestamp'] = datetime.now().isoformat()
-            phase_group.attrs['Type'] = 'VELOCITY'
-            phase_group.attrs['Units'] = self.grid_units
-            phase_group.attrs['Coordinate System'] = self.coordinate_system.name
-            phase_group.attrs['Origin'] = self.origin
-            phase_group.attrs['Spacing'] = self.spacing
-            phase_group.attrs['Dimensions'] = self.data.shape
-            phase_group.attrs['Compression'] = compression if compression else 'None'
-
-            # Create the dataset for Data
-            dataset = phase_group.create_dataset('Data', data=self.data,
-                                                 compression=compression)
-
 
 class VelocityGridEnsemble:
     def __init__(self, p_velocity_grid, s_velocity_grid):
