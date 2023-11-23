@@ -415,7 +415,32 @@ class Network(inventory.Network):
     __doc__ = inventory.Network.__doc__.replace('obspy', ns)
 
     def __init__(self, *args, **kwargs):
+
+        if 'extra' not in self.__dict__.keys():  # hack for deepcopy to work
+            self['extra'] = {}
+
+        self.extra = AttribDict()
+
+        if 'vp' in kwargs.keys():
+            self.vp = kwargs.pop('vp')
+        if 'vs' in kwargs.keys():
+            self.vs = kwargs.pop('vs')
+
         super().__init__(*args, **kwargs)
+
+    def __setattr__(self, name, value):
+        name = name.lower()
+        if (name == 'vp') or (name == 'vs'):
+            self.extra[name] = AttribDict({"value": f"{value}", "namespace": namespace})
+        else:
+            super().__setattr__(name, value)
+
+    def __getattr__(self, item):
+        item = item.lower()
+        if (item == 'vp') or (item == 'vs'):
+            return float(self.extra[item].value)
+        else:
+            super().__getattr__(item)
 
     @classmethod
     def from_obspy_network(cls, obspy_network, xy_from_lat_lon=False,
@@ -545,12 +570,6 @@ class Station(inventory.Station):
             return Coordinates.from_extra_key(self.extra[item])
         else:
             super().__getattr__(item)
-
-    # def __getitem__(self, key):
-    #     if isinstance(key, int):
-    #         return self[key]
-    #     else:
-    #         return self.__dict__[key]
 
     def __setitem__(self, key, value):
         self.__dict__['key'] = value
