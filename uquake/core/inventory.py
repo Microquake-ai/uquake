@@ -414,6 +414,8 @@ class Inventory(inventory.Inventory):
 class Network(inventory.Network):
     __doc__ = inventory.Network.__doc__.replace('obspy', ns)
 
+    extra_keys = ['vp', 'vs', 'units']
+
     def __init__(self, *args, **kwargs):
 
         if 'extra' not in self.__dict__.keys():  # hack for deepcopy to work
@@ -421,24 +423,33 @@ class Network(inventory.Network):
 
         self.extra = AttribDict()
 
-        if 'vp' in kwargs.keys():
-            self.vp = kwargs.pop('vp')
-        if 'vs' in kwargs.keys():
-            self.vs = kwargs.pop('vs')
+        for extra_key in self.extra_keys:
+            if extra_key in kwargs.keys():
+                self.extra[extra_key] = kwargs.pop(extra_key)
+
+        # if 'vp' in kwargs.keys():
+        #     self.vp = kwargs.pop('vp')
+        # if 'vs' in kwargs.keys():
+        #     self.vs = kwargs.pop('vs')
+        # if 'units' in kwargs.keys():
+        #     self.units = kwargs.pop('units')
 
         super().__init__(*args, **kwargs)
 
     def __setattr__(self, name, value):
         name = name.lower()
-        if (name == 'vp') or (name == 'vs'):
+        if name in self.extra_keys:
             self.extra[name] = AttribDict({"value": f"{value}", "namespace": namespace})
         else:
             super().__setattr__(name, value)
 
     def __getattr__(self, item):
         item = item.lower()
-        if (item == 'vp') or (item == 'vs'):
-            return float(self.extra[item].value)
+        if item in self.extra_keys:
+            try:
+                return float(self.extra[item].value)
+            except:
+                return self.extra[item].value
         else:
             super().__getattr__(item)
 
