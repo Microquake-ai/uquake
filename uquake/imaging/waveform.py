@@ -90,7 +90,7 @@ class WaveformPlotting(object):
         Checks some variables and maps the kwargs to class variables.
         """
         self.kwargs = kwargs
-        self.stream = kwargs.get('stream')
+        self.stream = kwargs.get('stream').copy()
         # Check if it is a Stream or a Trace object.
         if isinstance(self.stream, Trace):
             self.stream = Stream(traces=[self.stream])
@@ -101,7 +101,6 @@ class WaveformPlotting(object):
         if len(self.stream) < 1:
             msg = "Empty stream object"
             raise IndexError(msg)
-        self.stream = self.stream.copy()
         # Type of the plot.
         self.type = kwargs.get('type', 'normal')
         # Start and end times of the plots.
@@ -235,7 +234,7 @@ class WaveformPlotting(object):
         self.title = kwargs.get('title', self.stream[0].id)
         # event for plotting picks
         self.event = kwargs.get('event', None)
-        self.location = kwargs.get('location', None)
+        self.instrument = kwargs.get('instrument', None)
 
     def __del__(self):
         """
@@ -381,7 +380,7 @@ class WaveformPlotting(object):
         self.axis = []
 
         import numpy as np
-        if self.event and self.location:
+        if self.event and self.instrument:
             origin = self.event.preferred_origin()
             if origin:
                 ex = origin.x
@@ -393,7 +392,7 @@ class WaveformPlotting(object):
                 name = []
                 dist = []
 
-                for sta in self.location.stations():
+                for sta in self.instrument.stations():
                     sloc = np.array([sta.x, sta.y, sta.z])
                     dist.append(np.linalg.norm(eloc - sloc))
                     name.append(sta.code)
