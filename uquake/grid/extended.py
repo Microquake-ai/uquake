@@ -1208,9 +1208,7 @@ class SeededGrid(TypedGrid):
 
     def write(self, path='.'):
         self._write_grid_data(path=path)
-        self._write_grid_header(path=path, seed=self.seed,
-                                seed_label=self.seed_label,
-                                seed_units=self.grid_units)
+        self._write_grid_header(path=path)
         self._write_grid_model_id(path=path)
 
     def _write_grid_data(self, path='.'):
