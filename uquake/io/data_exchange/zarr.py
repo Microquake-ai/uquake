@@ -64,7 +64,7 @@ def stream_to_zarr_group(stream, zarr_group_path):
                                             dtype='float32', overwrite=True)
 
         # Store selected stats as Zarr attributes
-        for key in stats.__dict__.keys():
+        for key in tr.stats.__dict__.keys():
         # for key in ['network', 'station', 'location',
         #             'channel', 'sampling_rate', 'starttime', 'calib', 'npts']:
             # Convert non-string objects to strings for easier storage and retrieval
