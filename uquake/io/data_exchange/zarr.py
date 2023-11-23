@@ -64,8 +64,9 @@ def stream_to_zarr_group(stream, zarr_group_path):
                                             dtype='float32', overwrite=True)
 
         # Store selected stats as Zarr attributes
-        for key in ['network', 'station', 'location',
-                    'channel', 'sampling_rate', 'starttime', 'calib']:
+        for key in stats.__dict__.keys():
+        # for key in ['network', 'station', 'location',
+        #             'channel', 'sampling_rate', 'starttime', 'calib', 'npts']:
             # Convert non-string objects to strings for easier storage and retrieval
             arr.attrs[key] = str(tr.stats[key])
 
@@ -155,8 +156,9 @@ def zarr_to_stream(zarr_group_path):
                     tr = Trace(data=arr[:])
 
                     # Retrieve and set stats from Zarr attributes
-                    for key in ['network', 'station', 'location', 'channel',
-                                'sampling_rate', 'starttime', 'calib']:
+                    for key in arr.attrs.keys():
+                        # 'network', 'station', 'location', 'channel',
+                        #         'sampling_rate', 'starttime', 'calib', 'npts']:
                         # Assigning attributes to the Trace object from Zarr attributes
                         tr.stats[key] = arr.attrs[key]
 
