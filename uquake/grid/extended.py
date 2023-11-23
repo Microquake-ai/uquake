@@ -1197,7 +1197,7 @@ class SeededGrid(TypedGrid):
                 raise ValueError(f'{grid_type} is not a valid grid type')
 
         base_name = f'{network_code}.{phase}.{seed_label}.' \
-                    f'{grid_type.lower()}'
+                    f'{grid_type.value.lower()}'
         return base_name
 
     @property
