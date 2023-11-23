@@ -1564,6 +1564,23 @@ class TravelTimeEnsemble:
         for tt_grid in self.travel_time_grids:
             tt_grid.write_nlloc(path=path)
 
+    def write(self, path='.', format='PICKLE'):
+        """
+        write the travel time grids to disk
+        :param path: path to the directory where the travel time grids are to
+        be written
+        :param format: format in which the travel time grids are to be written
+        :return:
+        """
+
+        if format == 'PICKLE':
+            for tt_grid in self.travel_time_grids:
+                tt_grid.write(path=path, format=format)
+        elif format == 'NLLOC':
+            self.write_nlloc(path=path)
+        else:
+            raise ValueError(f'{format} is not a valid format')
+
     def angles(self, seed, grid_space: bool = False,
                 seed_labels: Optional[list] = None,
                 phase: Optional[list] = None, **kwargs):
