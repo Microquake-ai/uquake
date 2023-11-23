@@ -1361,8 +1361,11 @@ class TravelTimeEnsemble:
         return len(self.travel_time_grids)
 
     def __add__(self, other):
-        for travel_time_grid in other.travel_time_grids:
-            self.travel_time_grids.append(travel_time_grid)
+        if isinstance(other, TTGrid):
+            self.travel_time_grids.append(other)
+        elif isinstance(other, TravelTimeEnsemble):
+            for travel_time_grid in other.travel_time_grids:
+                self.travel_time_grids.append(travel_time_grid)
 
         return TravelTimeEnsemble(self.travel_time_grids)
 
