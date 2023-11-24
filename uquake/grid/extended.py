@@ -1191,7 +1191,7 @@ class SeededGrid(TypedGrid):
 
     @property
     def seed_units(self):
-        return self.seed.units
+        return self.seed.units.value
 
     @staticmethod
     def get_base_name(network_code, phase, seed_label, grid_type):
