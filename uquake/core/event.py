@@ -1054,7 +1054,7 @@ class Pick(obsevent.Pick):
     new_doc = original_doc[:insert_position] + new_doc_addition + original_doc[
                                                                   insert_position:]
 
-    extra_keys = ['snr', 'planarity', 'linearity']
+    extra_keys = ['snr', 'planarity', 'linearity', 'method']
     extra_types = {'snr': float,
                    'planarity': float,
                    'linearity': float}
