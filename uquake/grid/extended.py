@@ -155,6 +155,7 @@ class Seed:
         self.location = location_code
         self.coordinates = coordinates
         self.elevation = elevation
+        self.short_label = short_label
 
     def __repr__(self):
         return f'label (station.location): {self.station}.{self.location}\n' \
