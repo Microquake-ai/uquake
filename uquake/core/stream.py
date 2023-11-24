@@ -166,7 +166,7 @@ class Stream(obsstream.Stream, ABC):
 
     @property
     def unique_instruments(self):
-        return np.sort(np.unique([tr.stats.location for tr in self]))
+        return np.sort(np.unique([tr.stats.instrument for tr in self]))
 
     @property
     def stations(self):

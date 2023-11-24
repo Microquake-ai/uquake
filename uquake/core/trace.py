@@ -89,14 +89,22 @@ class Trace(ObspyTrace, ABC):
     @property
     def sr(self):
         return self.stats.sampling_rate
+    #
+    # @property
+    # def ppv(self):
+    #     return np.max(np.abs(self.data))
+
+    # @property
+    # def ppa(self):
+    #     return None
 
     @property
-    def ppv(self):
-        return np.max(np.abs(self.data))
+    def instrument(self):
+        return f'{self.stats.station}.{self.stats.location}'
 
     @property
-    def ppa(self):
-        return None
+    def instrument_code(self):
+        return self.instrument
 
     def time_to_index(self, time):
         return int((time - self.stats.starttime) * self.sr)
