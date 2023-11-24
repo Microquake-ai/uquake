@@ -122,7 +122,6 @@ class GridUnits(Enum):
     METER = 'METER'
     FEET = 'FEET'
     KILOMETER = 'KILOMETER'
-    SECOND = 'SECOND'
 
     def __str__(self):
         return self.value
@@ -923,6 +922,7 @@ class VelocityGrid3D(TypedGrid):
         tt_out_grid = TTGrid(self.network_code, tt_out, self.origin,
                              self.spacing, seed, phase=self.phase,
                              float_type=self.float_type,
+                             grid_units=self.grid_units,
                              velocity_model_id=self.grid_id,
                              label=self.label)
 
@@ -1274,6 +1274,7 @@ class TTGrid(SeededGrid):
     def __init__(self, network_code, data_or_dims, origin, spacing, seed: Seed,
                  velocity_model_id: ResourceIdentifier,
                  phase: Phases = Phases.P, value: float = 0,
+                 grid_units: GridUnits = __default_grid_units__,
                  float_type: FloatTypes = __default_float_type__,
                  grid_id: ResourceIdentifier = ResourceIdentifier(),
                  label=__default_grid_label__,
@@ -1282,7 +1283,7 @@ class TTGrid(SeededGrid):
         super().__init__(network_code, data_or_dims, origin, spacing, seed,
                          velocity_model_id=velocity_model_id, phase=phase,
                          value=value, grid_type=GridTypes.TIME,
-                         grid_units=GridUnits.SECOND,
+                         grid_units=grid_units,
                          float_type=float_type,
                          grid_id=grid_id,
                          coordinate_system = coordinate_system,
