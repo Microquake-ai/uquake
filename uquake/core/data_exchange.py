@@ -96,19 +96,22 @@ class MicroseismicDataExchange(object):
         for station in self.inventory[0]:
             new_channels = []
             for channel in station:
-                if (channel.location_code != location_code) and \
-                        (station.code != station_code):
-                    new_channels.append(channel)
+                if (channel.location_code == location_code) & \
+                        (station.code == station_code):
+                    continue
+                new_channels.append(channel)
 
             if len(new_channels) != 0:
+                station.channels = new_channels
                 new_stations.append(station)
 
         self.inventory.stations = new_stations
 
         for tr in self.stream:
-            if (tr.stats.station != station_code) \
-                    and (tr.stats.location != location_code):
-                new_traces.append(tr)
+            if (tr.stats.station == station_code) \
+                    & (tr.stats.location == location_code):
+                continue
+            new_traces.append(tr)
 
         self.stream.traces = new_traces
 
