@@ -1139,8 +1139,6 @@ class SeededGrid(TypedGrid):
         self.seed = seed
         self.velocity_model_id = velocity_model_id
 
-        self.seed_label = seed.label
-
         if isinstance(grid_type, str):
             self.grid_type = SeededGridType(grid_type)
         elif isinstance(grid_type, SeededGridType):
@@ -1187,7 +1185,6 @@ class SeededGrid(TypedGrid):
     @property
     def seed_label(self):
         return self.seed.short_label
-
 
     @staticmethod
     def get_base_name(network_code, phase, seed_label, grid_type):
