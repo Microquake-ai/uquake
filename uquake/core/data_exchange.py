@@ -106,8 +106,8 @@ class MicroseismicDataExchange(object):
         self.inventory.stations = new_stations
 
         for tr in self.stream:
-            if (tr.stats.station_code != station_code) \
-                    and (tr.stats.location_code != location_code):
+            if (tr.stats.station != station_code) \
+                    and (tr.stats.location != location_code):
                 new_traces.append(tr)
 
         self.stream.traces = new_traces
