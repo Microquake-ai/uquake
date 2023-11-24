@@ -1309,7 +1309,7 @@ class TTGrid(SeededGrid):
 
         return AngleGrid(self.network_code, azimuth, self.origin, self.spacing,
                          self.seed, phase=self.phase, float_type=self.float_type,
-                         grid_id=ResourceIdentifier(), grid_types=GridTypes.AZIMUTH,
+                         grid_id=ResourceIdentifier(), grid_type=GridTypes.AZIMUTH,
                          velocity_model_id=self.velocity_model_id)
 
     def to_takeoff(self):
@@ -1322,7 +1322,7 @@ class TTGrid(SeededGrid):
         return AngleGrid(self.network_code, takeoff, self.origin, self.spacing,
                          self.seed, phase=self.phase, float_type=self.float_type,
                          grid_id=ResourceIdentifier(), grid_units=self.grid_units,
-                         grid_types=GridTypes.TAKEOFF,
+                         grid_type=GridTypes.TAKEOFF,
                          velocity_model_id=self.velocity_model_id)
 
     def to_azimuth_point(self, coord, grid_space=False, mode='nearest',
