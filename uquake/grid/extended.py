@@ -80,6 +80,8 @@ class GridTypes(Enum):
     MISFIT = 'MISFIT'
     ANGLE = 'ANGLE'
     ANGLE2D = 'ANGLE2D'
+    AZIMUTH = 'AZIMUTH'
+    TAKEOFF = 'TAKEOFF'
 
     def __str__(self):
         return self.value
@@ -122,6 +124,8 @@ class GridUnits(Enum):
     METER = 'METER'
     FEET = 'FEET'
     KILOMETER = 'KILOMETER'
+    DEGREES = 'DEGREES'
+    RADIAN = 'RADIAN'
 
     def __str__(self):
         return self.value
@@ -1286,7 +1290,7 @@ class TTGrid(SeededGrid):
                          grid_units=grid_units,
                          float_type=float_type,
                          grid_id=grid_id,
-                         coordinate_system = coordinate_system,
+                         coordinate_system=coordinate_system,
                          label=label)
 
     def to_azimuth(self):
@@ -1303,10 +1307,9 @@ class TTGrid(SeededGrid):
         azimuth = np.arctan2(gds[0], gds[1]) * 180 / np.pi
         # azimuth is zero northwards
 
-        return AngleGrid(self.waveform_id, azimuth, self.origin, self.spacing,
-                         'AZIMUTH', self.seed, seed_label=self.seed_label,
-                         phase=self.phase, float_type=self.float_type,
-                         model_id=ResourceIdentifier(), grid_units=GridUnits.DEGREE)
+        return AngleGrid(self.network_code, azimuth, self.origin, self.spacing,
+                         self.seed, phase=self.phase, float_type=self.float_type,
+                         model_id=ResourceIdentifier(), grid_types=GridTypes.AZIMUTH)
 
     def to_takeoff(self):
         gds_tmp = np.gradient(self.data)
@@ -1316,9 +1319,9 @@ class TTGrid(SeededGrid):
         takeoff = np.arctan2(hor, -gds[2]) * 180 / np.pi
         # takeoff is zero pointing down
         return AngleGrid(self.network_code, takeoff, self.origin, self.spacing,
-                         'TAKEOFF', self.seed, seed_label=self.seed_label,
-                         phase=self.phase, float_type=self.float_type,
-                         model_id=self.model_id, grid_units=self.grid_units)
+                         'TAKEOFF', self.seed, phase=self.phase,
+                         float_type=self.float_type, model_id=self.model_id,
+                         grid_units=self.grid_units, grid_types=GridTypes.TAKEOFF)
 
     def to_azimuth_point(self, coord, grid_space=False, mode='nearest',
                          order=1, **kwargs):
@@ -1764,14 +1767,24 @@ class TravelTimeEnsemble:
 
 
 class AngleGrid(SeededGrid):
-    def __init__(self, waveform_id: WaveformStreamID, data_or_dims, origin, spacing,
-                 angle_type, seed, seed_label=None, phase='P', value=0,
-                 float_type="FLOAT", model_id=None, grid_units='degrees'):
-        self.angle_type = angle_type
-        super().__init__(waveform_id, data_or_dims, origin, spacing, seed,
-                         seed_label=seed_label, phase=phase, value=value,
-                         grid_type='ANGLE', float_type=float_type,
-                         model_id=model_id, grid_units=grid_units)
+
+    def __init__(self, network_code, data_or_dims, origin, spacing, seed: Seed,
+                 velocity_model_id: ResourceIdentifier,
+                 phase: Phases = Phases.P, value: float = 0,
+                 grid_units: GridUnits = GridUnits.DEGREE,
+                 float_type: FloatTypes = __default_float_type__,
+                 grid_id: ResourceIdentifier = ResourceIdentifier(),
+                 label=__default_grid_label__,
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
+
+        super().__init__(network_code, data_or_dims, origin, spacing, seed,
+                         velocity_model_id=velocity_model_id, phase=phase,
+                         value=value, grid_type=GridTypes.TIME,
+                         grid_units=grid_units,
+                         float_type=float_type,
+                         grid_id=grid_id,
+                         coordinate_system=coordinate_system,
+                         label=label)
 
     def write_nlloc(self, path='.'):
         super().write_nlloc(path=path)
