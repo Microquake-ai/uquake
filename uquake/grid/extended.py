@@ -1573,8 +1573,7 @@ class TravelTimeEnsemble:
         labels = []
         phases = []
         for tt_grid in tt_grids:
-            import ipdb; ipdb.set_trace()
-            labels.append(tt_grid.seed.instrument_code)
+            labels.append(tt_grid.seed.label)
             tts.append(tt_grid.interpolate(seed.T,
                        grid_space=False)[0])
             phases.append(tt_grid.phase)
