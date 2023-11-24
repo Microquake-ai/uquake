@@ -1591,7 +1591,7 @@ class TravelTimeEnsemble:
 
         if format == 'PICKLE':
             for tt_grid in self.travel_time_grids:
-                filename = Path(path) / f'{tt_grid.seed_label}.pickle'
+                filename = Path(path) / f'{tt_grid.seed_label}.{tt_grid.phase}.pickle'
                 tt_grid.write(filename, format=format)
         elif format == 'NLLOC':
             self.write_nlloc(path=path)
