@@ -1474,7 +1474,7 @@ class TravelTimeEnsemble:
         :return:
         """
         tt_grids = []
-        for fle in Path(path).glob('*'):
+        for file in Path(path).glob('*'):
             tt_grid = read_grid(file, format=format,
                                 float_type=__default_float_type__)
             tt_grids.append(tt_grid)
