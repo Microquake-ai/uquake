@@ -114,6 +114,8 @@ class MicroseismicDataExchange(object):
             new_traces.append(tr)
 
         self.stream.traces = new_traces
+        from ipdb import set_trace
+        set_trace()
 
     def write(self, file_path: str, waveform_tag: str = 'default',
               compression: str = 'gzip-3', shuffle: bool = True):
