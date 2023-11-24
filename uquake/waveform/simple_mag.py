@@ -1120,9 +1120,7 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
             at = pick.time
             phase = pick.phase_hint
 
-            sensor_response = inventory.select(network=network_code,
-                                               station=station_code,
-                                               location=location_code)
+            sensor_response = inventory.select()
 
             if sensor_response is None:
                 logger.warning(f'no response was found in the inventory for '
@@ -1146,9 +1144,7 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
                 continue
 
             poles = np.abs(sensor_response[0][0][0].response.get_paz().poles)
-            st_trs = stream.select(network=network_code,
-                                   station=station_code,
-                                   location=location_code)
+            st_trs = stream.select()
 
             if len(st_trs) == 0:
                 continue

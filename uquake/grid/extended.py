@@ -1160,11 +1160,11 @@ class SeededGrid(TypedGrid):
 
     def __repr__(self):
         line = f'{self.grid_type} Grid\n' \
-               f'    origin        : {self.origin}\n' \
-               f'    spacing       : {self.spacing}\n' \
-               f'    dimensions    : {self.shape}\n' \
-               f'    seed label    : {self.seed_label}\n' \
-               f'    seed location : {self.seed}'
+               f'    origin     : {self.origin}\n' \
+               f'    spacing    : {self.spacing}\n' \
+               f'    dimensions : {self.shape}\n' \
+               f'    seed label : {self.seed_label}\n' \
+               f'    seed       : {self.seed}'
         return line
 
     @property
@@ -1488,22 +1488,22 @@ class TravelTimeEnsemble:
 
         return cls(tt_grids)
 
-    def select(self, seed_labels: Optional[List[str]] = None,
+    def select(self, instruments_code: Optional[List[str]] = None,
                phases: Optional[List[Phases]] = None):
         """
         return a list of grid corresponding to seed_labels.
-        :param seed_labels: seed labels of the travel time grids to return
+        :param instruments_code: seed labels of the travel time grids to return
         :param phases: the phase {'P' or 'S'}, both if None.
         :return: a list of travel time grids
         :rtype: TravelTimeEnsemble
         """
 
-        if (seed_labels is None) and (phases is None):
+        if (instruments_code is None) and (phases is None):
             return self
 
         tmp = []
-        if seed_labels is None:
-            seed_labels = np.unique(self.seed_labels)
+        if instruments_code is None:
+            instruments_code = np.unique(self.)
 
         if phases is None:
             phases = [Phases.P.value, Phases.S.value]
@@ -1513,8 +1513,12 @@ class TravelTimeEnsemble:
 
         returned_grids = []
         for travel_time_grid in self.travel_time_grids:
-            if travel_time_grid.seed_label in seed_labels:
-                if travel_time_grid.phase.value in phases:
+            if travel_time_grid.seed_label in instruments_code:
+                if isinstance(travel_time_grid.phase, Phases):
+                    phase = travel_time_grid.phase.value
+                else:
+                    phase = travel_time_grid.phase
+                if phase in phases:
                     returned_grids.append(travel_time_grid)
 
         return TravelTimeEnsemble(returned_grids)
@@ -1563,7 +1567,7 @@ class TravelTimeEnsemble:
         if not self.travel_time_grids[0].in_grid(seed):
             raise ValueError('seed is outside the grid')
 
-        tt_grids = self.select(seed_labels=seed_labels, phase=phase)
+        tt_grids = self.select(instruments_code=seed_labels)
 
         tts = []
         labels = []
@@ -1631,7 +1635,7 @@ class TravelTimeEnsemble:
         if not self.travel_time_grids[0].in_grid(seed):
             raise ValueError('seed is outside the grid')
 
-        tt_grids = self.select(seed_labels=seed_labels, phase=phase)
+        tt_grids = self.select(instruments_code=seed_labels)
 
         azimuths = []
         takeoffs = []
@@ -1682,7 +1686,7 @@ class TravelTimeEnsemble:
         :rtype: list
         """
 
-        travel_time_grid = self.select(seed_labels=[seed_label])
+        travel_time_grid = self.select(instruments_code=[seed_label])
 
         kwargs = {'grid_space': grid_space,
                   'max_iter': max_iter}
@@ -1717,7 +1721,7 @@ class TravelTimeEnsemble:
     def seeds(self):
         seeds = []
         for seed_label in self.seed_labels:
-            seeds.append(self.select(seed_labels=seed_label)[0].seed)
+            seeds.append(self.select(instruments_code=seed_label)[0].seed)
 
         return np.array(seeds)
 

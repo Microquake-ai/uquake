@@ -193,7 +193,7 @@ class Plot(object):
                 if numPicks == 0:
                     continue
 
-            trs = self.data.select(station=station)
+            trs = self.data.select()
             # if len(trs) == 3:
             # trs = trs.rotate_P_S()
 

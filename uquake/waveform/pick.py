@@ -51,9 +51,9 @@ def measure_polarity(st, catalog, site, average_time_window=1e-3,
         for ipick, pick in enumerate(ev.picks):
             sta_code = pick.waveform_id.station_code
             ch_code = pick.waveform_id.channel_code
-            trs = st.select(station=sta_code, channel=ch_code)
+            trs = st.select()
             trs = trs.detrend('linear').detrend('demean')
-            sta = site.select(station=sta_code, channel=ch_code)
+            sta = site.select()
             if not sta.networks[0].stations:
                 continue
             if (len(sta.networks) > 1) or (len(sta.networks[0].stations) > 1):
@@ -204,8 +204,7 @@ def snr_repicker(st, picks, start_search_window, end_search_window,
         station = pick.waveform_id.station_code
         location = pick.waveform_id.location_code
 
-        tr = st.select(network=network, station=station,
-                       location=location).copy()[0]
+        tr = st.select().copy()[0]
         if tr is None:
             continue
 
@@ -566,7 +565,7 @@ def measure_incidence_angle(st: Stream, inventory: Inventory,
     st_rotated = st.rotate('->ZNE', inventory=inventory)
 
     for station, location in station_location_list:
-        st_ = st_rotated.select(station=station, location=location)
+        st_ = st_rotated.select()
         p_pick = None
         s_pick = None
         for pick in picks:
