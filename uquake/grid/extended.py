@@ -1203,7 +1203,7 @@ class SeededGrid(TypedGrid):
     @property
     def base_name(self):
         base_name = self.get_base_name(self.network_code, self.phase,
-                                       self.seed_label, self.grid_type)
+                                       self.station_code, self.grid_type)
         return base_name
 
     def write_nlloc(self, path='.'):
@@ -1377,8 +1377,12 @@ class TTGrid(SeededGrid):
         return super().write_nlloc(path=path)
 
     @property
-    def location(self):
+    def instrument(self):
         return self.seed_label
+
+    @property
+    def location(self):
+        return self.seed.location_code
 
 
 class TravelTimeEnsemble:
