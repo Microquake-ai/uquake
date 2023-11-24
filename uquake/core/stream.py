@@ -73,8 +73,9 @@ class Stream(obsstream.Stream, ABC):
         return composite_traces(self)
 
     def select(self, **kwargs):
-        if 'location' in kwargs.keys():
-            trs = [tr for tr in self.traces if tr.stats.location == kwargs['location']]
+        if 'instrument' in kwargs.keys():
+            instrument = kwargs.pop('instrument')
+            trs = [tr for tr in self.traces if tr.stats.instrument == instrument]
         else:
             return super().select(**kwargs)
 
@@ -82,7 +83,7 @@ class Stream(obsstream.Stream, ABC):
 
         kwargs_tmp = {}
         for key in kwargs.keys():
-            if key == 'location':
+            if key == 'instrument':
                 continue
             kwargs_tmp[key] = kwargs[key]
 
@@ -425,8 +426,8 @@ def composite_traces(st_in):
     st = st_in.copy()
     st.detrend('demean')
 
-    for location in st.unique_instruments:
-        trs = st.select(location=location)
+    for instrument in st.unique_instruments:
+        trs = st.select(instrument=instrument)
 
         if len(trs) == 1:
             trsout.append(trs[0].copy())
