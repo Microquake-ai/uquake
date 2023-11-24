@@ -1054,7 +1054,7 @@ class Pick(obsevent.Pick):
     new_doc = original_doc[:insert_position] + new_doc_addition + original_doc[
                                                                   insert_position:]
 
-    extra_keys = ['snr', 'planarity', 'linearity', 'method']
+    extra_keys = ['snr', 'planarity', 'linearity']
     extra_types = {'snr': float,
                    'planarity': float,
                    'linearity': float}
@@ -1260,7 +1260,7 @@ def make_pick(time, phase='P', wave_data=None, snr=None, mode='automatic',
     this_pick.evaluation_mode = mode
     this_pick.evaluation_status = status
 
-    this_pick.method = method_string
+    # this_pick.method = method_string
     this_pick.snr = snr
 
     if wave_data is not None:
@@ -1270,7 +1270,7 @@ def make_pick(time, phase='P', wave_data=None, snr=None, mode='automatic',
             location_code=wave_data.stats.location,
             channel_code=wave_data.stats.channel)
 
-        this_pick.trace_id = wave_data.get_id()
+        # this_pick.trace_id = wave_data.get_id()
 
     return this_pick
 
