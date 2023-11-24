@@ -84,6 +84,36 @@ class MicroseismicDataExchange(object):
         else:
             return False
 
+    def remove_instrument(self, station_code, location_code):
+        """
+        Remove a station from the inventory and the stream
+        :param station_code: station code
+        :return:
+        """
+        self.inventory.remove_station(station_code)
+        self.stream.remove_station(station_code)
+
+        new_stations = []
+        new_traces = []
+        for station in self.inventory[0]:
+            new_channels = []
+            for channel in station:
+                if (channel.location_code != location_code) and \
+                        (station.code != station_code):
+                    new_channels.append(channel)
+
+            if len(new_channels) != 0:
+                new_stations.append(station)
+
+        self.inventory.stations = new_stations
+
+        for tr in self.stream:
+            if (tr.stats.station_code != station_code) \
+                    and (tr.stats.location_code != location_code):
+                new_traces.append(tr)
+
+        self.stream.traces = new_traces
+
     def write(self, file_path: str, waveform_tag: str = 'default',
               compression: str = 'gzip-3', shuffle: bool = True):
         """
