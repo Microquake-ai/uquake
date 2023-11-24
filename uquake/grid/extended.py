@@ -1103,6 +1103,8 @@ class VelocityGridEnsemble:
 class SeededGridType(Enum):
     TIME = 'TIME'
     ANGLE = 'ANGLE'
+    AZIMUTH = 'AZIMUTH'
+    TAKEOFF = 'TAKEOFF'
 
     def __str__(self):
         return str(self.value)
