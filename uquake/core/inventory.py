@@ -414,7 +414,7 @@ class Inventory(inventory.Inventory):
 class Network(inventory.Network):
     __doc__ = inventory.Network.__doc__.replace('obspy', ns)
 
-    extra_keys = ['vp', 'vs', 'units']
+    extra_keys = ['vp', 'vs']
 
     def __init__(self, *args, **kwargs):
 
@@ -423,16 +423,16 @@ class Network(inventory.Network):
 
         self.extra = AttribDict()
 
-        for extra_key in self.extra_keys:
-            if extra_key in kwargs.keys():
-                self.extra[extra_key] = kwargs.pop(extra_key)
+        # for extra_key in self.extra_keys:
+        #     if extra_key in kwargs.keys():
+        #         self.extra[extra_key] = kwargs.pop(extra_key)
 
-        # if 'vp' in kwargs.keys():
-        #     self.vp = kwargs.pop('vp')
-        # if 'vs' in kwargs.keys():
-        #     self.vs = kwargs.pop('vs')
-        # if 'units' in kwargs.keys():
-        #     self.units = kwargs.pop('units')
+        if 'vp' in kwargs.keys():
+            self.vp = kwargs.pop('vp')
+        if 'vs' in kwargs.keys():
+            self.vs = kwargs.pop('vs')
+        if 'units' in kwargs.keys():
+            self.units = kwargs.pop('units')
 
         super().__init__(*args, **kwargs)
 
