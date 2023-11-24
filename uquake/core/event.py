@@ -1086,11 +1086,11 @@ class Pick(obsevent.Pick):
             return self.waveform_id.station_code
 
     @property
-    def location(self):
+    def instrument(self):
         if self.waveform_id is not None:
-            location = f'{self.waveform_id.station_code}.' \
-                       f'{self.waveform_id.location_code}'
-            return location
+            instrument_code = f'{self.waveform_id.station_code}.' \
+                              f'{self.waveform_id.location_code}'
+            return instrument_code
 
     @property
     def stream_id(self):
