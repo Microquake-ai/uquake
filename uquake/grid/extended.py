@@ -1309,7 +1309,8 @@ class TTGrid(SeededGrid):
 
         return AngleGrid(self.network_code, azimuth, self.origin, self.spacing,
                          self.seed, phase=self.phase, float_type=self.float_type,
-                         model_id=ResourceIdentifier(), grid_types=GridTypes.AZIMUTH)
+                         grid_id=ResourceIdentifier(), grid_types=GridTypes.AZIMUTH,
+                         velocity_model_id=self.velocity_model_id)
 
     def to_takeoff(self):
         gds_tmp = np.gradient(self.data)
@@ -1319,9 +1320,10 @@ class TTGrid(SeededGrid):
         takeoff = np.arctan2(hor, -gds[2]) * 180 / np.pi
         # takeoff is zero pointing down
         return AngleGrid(self.network_code, takeoff, self.origin, self.spacing,
-                         'TAKEOFF', self.seed, phase=self.phase,
-                         float_type=self.float_type, model_id=self.model_id,
-                         grid_units=self.grid_units, grid_types=GridTypes.TAKEOFF)
+                         self.seed, phase=self.phase, float_type=self.float_type,
+                         grid_id=ResourceIdentifier(), grid_units=self.grid_units,
+                         grid_types=GridTypes.TAKEOFF,
+                         velocity_model_id=self.velocity_model_id)
 
     def to_azimuth_point(self, coord, grid_space=False, mode='nearest',
                          order=1, **kwargs):
