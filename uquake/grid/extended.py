@@ -1226,10 +1226,10 @@ class SeededGrid(TypedGrid):
 
         with open(Path(path) / (self.base_name + '.buf'), 'wb') \
                 as out_file:
-            if self.float_type.value == 'FLOAT':
+            if self.float_type.value == 'float32':
                 out_file.write(self.data.astype(np.float32).tobytes())
 
-            elif self.float_type.value == 'DOUBLE':
+            elif self.float_type.value == 'float64':
                 out_file.write(self.data.astype(np.float64).tobytes())
 
     def _write_grid_header(self, path='.'):

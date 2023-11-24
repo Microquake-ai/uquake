@@ -252,7 +252,8 @@ def read_nlloc(filename, float_type=__default_float_type__):
             msg += f'{valid_float_type}\n'
         raise ValueError(msg)
 
-    data = data.reshape(shape)
+    if data.shape != shape:
+        data = data.reshape(shape)
 
     if '.P.' in filename:
         phase = 'P'
@@ -267,11 +268,6 @@ def read_nlloc(filename, float_type=__default_float_type__):
 
     else:
         model_id = str(uuid4())
-
-        # (self, base_name, data_or_dims, origin, spacing, phase,
-        #  seed=None, seed_label=None, value=0,
-        #  grid_type='VELOCITY_METERS', grid_units='METER',
-        #  float_type="FLOAT", model_id=None):
 
     network_code = filename.split(os.path.sep)[-1].split('.')[0]
     if grid_type in ['VELOCITY', 'VELOCITY_METERS']:
