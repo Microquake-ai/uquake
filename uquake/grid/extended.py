@@ -1446,8 +1446,27 @@ class TravelTimeEnsemble:
         line = f'Number of travel time grids: {len(self)}'
         return line
 
+    # @classmethod
+    # def from_files(cls, path, format='PICKLE'):
+    #     """
+    #     create a travel time ensemble from files located in a directory
+    #     :param path: the base path to the directory containing the travel time
+    #     files.
+    #     :return:
+    #     """
+    #     tt_grids = []
+    #     for fle in Path(path).glob('*time*.hdr'):
+    #         path = fle.parent
+    #         base_name = '.'.join(fle.name.split('.')[:-1])
+    #         fname = str(Path(path) / base_name)
+    #         tt_grid = read_grid(fname, format='NLLOC',
+    #                             float_type=__default_float_type__)
+    #         tt_grids.append(tt_grid)
+    #
+    #     return cls(tt_grids)
+
     @classmethod
-    def from_files(cls, path):
+    def from_files(cls, path, format='PICKLE'):
         """
         create a travel time ensemble from files located in a directory
         :param path: the base path to the directory containing the travel time
@@ -1455,11 +1474,8 @@ class TravelTimeEnsemble:
         :return:
         """
         tt_grids = []
-        for fle in Path(path).glob('*time*.hdr'):
-            path = fle.parent
-            base_name = '.'.join(fle.name.split('.')[:-1])
-            fname = str(Path(path) / base_name)
-            tt_grid = read_grid(fname, format='NLLOC',
+        for fle in Path(path).glob('*'):
+            tt_grid = read_grid(file, format=format,
                                 float_type=__default_float_type__)
             tt_grids.append(tt_grid)
 
