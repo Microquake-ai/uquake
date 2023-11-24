@@ -143,7 +143,7 @@ __default_float_type__ = FloatTypes.FLOAT
 
 class Seed:
     def __init__(self, station_code, location_code, coordinates: Coordinates,
-                 elevation: float = 0):
+                 elevation: float = 0, short_label: Optional[str] = None):
         """
         Contains a location
         :param station_code: station code
@@ -185,7 +185,7 @@ class Seed:
 
     @property
     def label(self):
-        return f'{self.station}.{self.location}'
+            return f'{self.station}.{self.location}'
 
     @property
     def instrument_code(self):
@@ -1184,8 +1184,13 @@ class SeededGrid(TypedGrid):
     def instrument_code(self):
         return self.seed.label
 
-    @classmethod
-    def get_base_name(cls, network_code, phase, seed_label, grid_type):
+    @property
+    def seed_label(self):
+        return self.seed.short_label
+
+
+    @staticmethod
+    def get_base_name(network_code, phase, seed_label, grid_type):
 
         if not isinstance(grid_type, SeededGridType):
             try:
@@ -1202,8 +1207,8 @@ class SeededGrid(TypedGrid):
 
     @property
     def base_name(self):
-        base_name = self.get_base_name(self.network_code, self.phase,
-                                       self.station_code, self.grid_type)
+        base_name = self.get_base_name(self.network_code, self.phase.upper(),
+                                       self.seed_label, self.grid_type)
         return base_name
 
     def write_nlloc(self, path='.'):
