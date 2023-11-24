@@ -1775,13 +1775,14 @@ class AngleGrid(SeededGrid):
                  phase: Phases = Phases.P, value: float = 0,
                  grid_units: GridUnits = GridUnits.DEGREES,
                  float_type: FloatTypes = __default_float_type__,
+                 grid_type: GridTypes = GridTypes.ANGLE,
                  grid_id: ResourceIdentifier = ResourceIdentifier(),
                  label=__default_grid_label__,
                  coordinate_system: CoordinateSystem = CoordinateSystem.NED):
 
         super().__init__(network_code, data_or_dims, origin, spacing, seed,
                          velocity_model_id=velocity_model_id, phase=phase,
-                         value=value, grid_type=GridTypes.TIME,
+                         value=value, grid_type=grid_type,
                          grid_units=grid_units,
                          float_type=float_type,
                          grid_id=grid_id,
