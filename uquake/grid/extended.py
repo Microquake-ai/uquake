@@ -1503,7 +1503,7 @@ class TravelTimeEnsemble:
 
         tmp = []
         if instruments_code is None:
-            instruments_code = np.unique(self.)
+            instruments_code = np.unique(self.seeds)
 
         if phases is None:
             phases = [Phases.P.value, Phases.S.value]
