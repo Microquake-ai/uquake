@@ -1257,7 +1257,7 @@ class SeededGrid(TypedGrid):
                                    f'Assuming same units as grid ('
                                    f'{self.grid_units}')
                 if self.grid_units.value == 'METER':
-                    seed = self.seed / 1000
+                    seed = self.seed.coordinates.loc / 1000
 
                 line2 = u"%s %f %f %f\n" % (self.seed_label,
                                             seed[0], seed[1], seed[2])
