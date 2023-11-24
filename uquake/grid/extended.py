@@ -1771,7 +1771,7 @@ class AngleGrid(SeededGrid):
     def __init__(self, network_code, data_or_dims, origin, spacing, seed: Seed,
                  velocity_model_id: ResourceIdentifier,
                  phase: Phases = Phases.P, value: float = 0,
-                 grid_units: GridUnits = GridUnits.DEGREE,
+                 grid_units: GridUnits = GridUnits.DEGREES,
                  float_type: FloatTypes = __default_float_type__,
                  grid_id: ResourceIdentifier = ResourceIdentifier(),
                  label=__default_grid_label__,
