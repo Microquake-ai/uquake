@@ -56,7 +56,7 @@ class Stats(ObspyStats, ABC):
                 self.__dict__[item] = stats.__dict__[item]
 
     @property
-    def site(self):
+    def instrument(self):
         return f'{self.station}.{self.location}'
 
     def __str__(self):
@@ -101,7 +101,7 @@ class Trace(ObspyTrace, ABC):
     @property
     def instrument(self):
         # assuming that all traces are from the same network
-        return f'{self.stats.station}.{self.stats.location}'
+        return self.stats.instrument
 
     @property
     def instrument_code(self):
