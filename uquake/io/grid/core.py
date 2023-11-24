@@ -238,10 +238,10 @@ def read_nlloc(filename, float_type=__default_float_type__):
 
     buf_file = Path(f'{filename}.buf')
     # buf_file = Path(path) / f'{base_name}.buf'
-    if (float_type == 'FLOAT') | (float_type == 'float32'):
+    if (float_type.value == 'FLOAT') | (float_type.value == 'float32'):
         data = np.fromfile(buf_file,
                            dtype=np.float32)
-    elif (float_type == 'DOUBLE') | (float_type == 'float64'):
+    elif (float_type.value == 'DOUBLE') | (float_type.value == 'float64'):
         data = np.fromfile(buf_file,
                            dtype=np.float64)
     else:
