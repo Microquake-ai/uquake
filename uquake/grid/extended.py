@@ -143,7 +143,8 @@ __default_float_type__ = FloatTypes.FLOAT
 
 class Seed:
     def __init__(self, station_code, location_code, coordinates: Coordinates,
-                 elevation: float = 0, short_label: Optional[str] = None):
+                 elevation: float = 0, short_label: Optional[str] = None,
+                 units=__default_grid_units__):
         """
         Contains a location
         :param station_code: station code
@@ -156,6 +157,7 @@ class Seed:
         self.coordinates = coordinates
         self.elevation = elevation
         self.short_label = short_label
+        self.units = units
 
     def __repr__(self):
         return f'label (station.location): {self.station}.{self.location}\n' \
@@ -1186,6 +1188,10 @@ class SeededGrid(TypedGrid):
     @property
     def seed_label(self):
         return self.seed.short_label
+
+    @property
+    def seed_units(self):
+        return self.seed.units
 
     @staticmethod
     def get_base_name(network_code, phase, seed_label, grid_type):
