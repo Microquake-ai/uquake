@@ -1244,7 +1244,7 @@ class SeededGrid(TypedGrid):
         with open(Path(path) / (self.base_name + '.hdr'), 'w') as out_file:
             out_file.write(line1)
 
-            if self.grid_type in ['TIME', 'ANGLE']:
+            if self.grid_type.value in ['TIME', 'ANGLE']:
 
                 if self.seed_units is None:
                     logger.warning(f'seed_units are not defined. '
