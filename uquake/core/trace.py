@@ -100,6 +100,7 @@ class Trace(ObspyTrace, ABC):
 
     @property
     def instrument(self):
+        # assuming that all traces are from the same network
         return f'{self.stats.station}.{self.stats.location}'
 
     @property
