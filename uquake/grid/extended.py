@@ -630,7 +630,7 @@ class LayeredVelocityModel(object):
         elif self.phase == 'S':
             x_label = 's-wave velocity'
 
-        if self.grid_units == 'METER':
+        if self.grid_units.value == 'METER':
             units = 'm'
         else:
             units = 'km'
@@ -1256,7 +1256,7 @@ class SeededGrid(TypedGrid):
                     logger.warning(f'seed_units are not defined. '
                                    f'Assuming same units as grid ('
                                    f'{self.grid_units}')
-                if self.grid_units == 'METER':
+                if self.grid_units.value == 'METER':
                     seed = self.seed / 1000
 
                 line2 = u"%s %f %f %f\n" % (self.seed_label,
