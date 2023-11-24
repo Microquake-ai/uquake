@@ -90,8 +90,6 @@ class MicroseismicDataExchange(object):
         :param station_code: station code
         :return:
         """
-        self.inventory.remove_station(station_code)
-        self.stream.remove_station(station_code)
 
         new_stations = []
         new_traces = []
