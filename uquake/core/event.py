@@ -51,7 +51,7 @@ from obspy.core.util import AttribDict
 namespace = 'https://microquake.ai/xml/event/1'
 
 
-class RayCollection(list):
+class RayEnsemble(list):
 
     def append(self, item):
         if not isinstance(item, Ray):
@@ -697,7 +697,7 @@ class Origin(obsevent.Origin):
 
     extra_keys = ['rays', 'coordinates', 'uncertainty_point_cloud',
                   'x_error', 'y_error', 'z_error']
-    extra_types = {'rays': RayCollection,
+    extra_types = {'rays': RayEnsemble,
                    'coordinates': Coordinates,
                    'uncertainty_point_cloud': UncertaintyPointCloud,
                    'x_error': float,
@@ -706,7 +706,7 @@ class Origin(obsevent.Origin):
                    }
 
     def __init__(self, coordinates: Coordinates = None,
-                 rays: RayCollection = None,
+                 rays: RayEnsemble = None,
                  uncertainty_point_cloud: UncertaintyPointCloud = None,
                  obspy_obj=None, **kwargs):
 
@@ -774,7 +774,7 @@ class Origin(obsevent.Origin):
         if item == 'coordinates':
             return Coordinates.from_json(self.__dict__['extra'][item])
         elif item == 'rays':
-            return RayCollection.from_json(self.__dict__['extra'][item])
+            return RayEnsemble.from_json(self.__dict__['extra'][item])
         elif item == 'uncertainty_point_cloud':
             return UncertaintyPointCloud.from_json(self.__dict__['extra'][item])
         else:

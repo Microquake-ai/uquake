@@ -50,7 +50,7 @@ def generate_ray():
 
 
 def generate_ray_collection(n_rays):
-    ray_collection = event.RayCollection()
+    ray_collection = event.RayEnsemble()
     for i in range(n_rays):
         ray_collection.append(generate_ray())
 
