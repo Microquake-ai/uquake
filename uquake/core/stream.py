@@ -427,7 +427,7 @@ def composite_traces(st_in):
     st.detrend('demean')
 
     for instrument in st.unique_instruments:
-        trs = st.select()
+        trs = st.select(instrument=instrument)
 
         if len(trs) == 1:
             trsout.append(trs[0].copy())
