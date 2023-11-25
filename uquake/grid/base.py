@@ -728,7 +728,7 @@ def angles(travel_time_grid):
 
 
 def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
-               arrival_id=None, velocity_model_id=None, smooth=True):
+               arrival_id=None, velocity_model_id=None, smooth=False):
     """
     This function calculates the ray between a starting point (start) and an
     end point, which should be the seed of the travel_time grid, using the
