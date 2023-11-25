@@ -828,24 +828,27 @@ def correct_ray(ray_nodes, n=0.1):
     start_point, end_point = ray_nodes[0], ray_nodes[-1]
 
     # Calculate average rate of change (excluding the last segment)
-    delta = np.diff(ray_nodes[:-1], axis=0)
-    avg_rate_of_change = np.mean(np.linalg.norm(delta, axis=1))
+    delta = np.diff(ray_nodes, axis=0)
+    avg_rate_of_change = np.mean(delta, axis=0)
 
     # Correction starts from the second last point to the second point
+
+    total_sum = sum([1 / (len(ray_nodes) - i) for i in range(1, len(ray_nodes))])
+
     for i in range(len(ray_nodes) - 2, 1, -1):
-        current_rate_of_change = np.linalg.norm(ray_nodes[i + 1] - ray_nodes[i])
+        current_rate_of_change = ray_nodes[i + 1] - ray_nodes[i]
 
         # Compare with average rate of change
-        correction_factor = np.min(current_rate_of_change / avg_rate_of_change,
-                                   current_rate_of_change / 5)
+        correction_factor = current_rate_of_change / avg_rate_of_change
 
-        weight = 1 / (len(ray_nodes) - i + 1)
-        correction = weight * correction_factor * (avg_rate_of_change -
-                                                   current_rate_of_change)
+        weight = 1 / (len(ray_nodes) - i) / total_sum
+        # correction = weight * correction_factor * (avg_rate_of_change -
+        #                                            current_rate_of_change)
+        correction = weight * correction_factor
 
         # Apply the correction
-        direction = (ray_nodes[i + 1] - ray_nodes[i]) / current_rate_of_change
-        ray_nodes[i] += correction * direction
+        # direction = (ray_nodes[i + 1] - ray_nodes[i]) / current_rate_of_change
+        ray_nodes[i] -= correction
 
     # Ensuring the first and last points are fixed
     ray_nodes[0], ray_nodes[-1] = start_point, end_point
