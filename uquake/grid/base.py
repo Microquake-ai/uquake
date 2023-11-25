@@ -817,14 +817,14 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
               azimuth=az, takeoff_angle=toa, travel_time=tt,
               velocity_model_id=velocity_model_id)
 
-    ray.nodes = correct_bend(nodes, bend_start_index=-10)
+    ray.nodes = correct_bend(np.array(ray.nodes), bend_start_index=-10)
 
     return ray
 
 
-def correct_bend(ray, bend_start_index=-10):
+def correct_bend(ray_nodes, bend_start_index=-10):
     # Separate the ray into x, y, z coordinates
-    x, y, z = ray[:, 0], ray[:, 1], ray[:, 2]
+    x, y, z = ray_nodes[:, 0], ray_nodes[:, 1], ray_nodes[:, 2]
 
     # Linear interpolation for the bending segment
     t = np.linspace(0, 1, abs(bend_start_index))
