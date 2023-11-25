@@ -818,7 +818,7 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
               azimuth=az, takeoff_angle=toa, travel_time=tt,
               velocity_model_id=velocity_model_id)
 
-    ray.nodes = correct_ray(np.array(ray.nodes), bend_start_index=-10)
+    ray.nodes = correct_ray(np.array(ray.nodes))
 
     return ray
 
@@ -841,7 +841,8 @@ def correct_ray(ray_nodes, n=1):
         # Apply RBF-like correction
         R = np.linalg.norm(ray_nodes[i] - end_point)
         weight = 1 / (R ** n if R != 0 else 1)
-        correction = weight * correction_factor * (avg_rate_of_change - current_rate_of_change)
+        correction = weight * correction_factor * \
+                     (avg_rate_of_change - current_rate_of_change)
 
         # Apply the correction
         direction = (ray_nodes[i + 1] - ray_nodes[i]) / current_rate_of_change
@@ -850,4 +851,4 @@ def correct_ray(ray_nodes, n=1):
     # Ensuring the first and last points are fixed
     ray_nodes[0], ray_nodes[-1] = start_point, end_point
 
-    return adjusted_ray
+    return ray_nodes
