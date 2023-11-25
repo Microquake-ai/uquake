@@ -842,8 +842,8 @@ def correct_ray(ray_nodes, n=0.5):
         # Compare with average rate of change
         correction_factor = current_rate_of_change / avg_rate_of_change
 
-        weight = 1 / (len(ray_nodes) - i + 1) ** n
-        weight = 0.9 ** j
+        # weight = 1 / (len(ray_nodes) - i + 1) ** n
+        weight = 0.75
         # correction = weight * correction_factor * (avg_rate_of_change -
         #                                            current_rate_of_change)
         correction = weight * correction_factor
