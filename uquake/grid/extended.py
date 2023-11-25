@@ -1199,6 +1199,16 @@ class SeededGrid(TypedGrid):
     def seed_units(self):
         return self.seed.units.value
 
+    @property
+    def grid_units(self):
+        return self.seed_units
+
+    @property
+    def waveform_id(self):
+        return WaveformStreamID(network_code=self.network_code,
+                                station_code=self.station_code,
+                                location=self.location_code)
+
     @staticmethod
     def get_base_name(network_code, phase, seed_label, grid_type):
 
