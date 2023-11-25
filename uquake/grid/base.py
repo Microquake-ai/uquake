@@ -728,7 +728,7 @@ def angles(travel_time_grid):
 
 
 def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
-               arrival_id=None, earth_model_id=None,
+               arrival_id=None, velocity_model_id=None,
                network: str=None):
     """
     This function calculates the ray between a starting point (start) and an
@@ -745,11 +745,11 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
     :param arrival_id: id of the arrival associated to the ray if
     applicable
     :type arrival_id: uquake.core.event.ResourceIdentifier
-    :param earth_model_id: velocity/earth model id.
-    :type earth_model_id: uquake.core.event.ResourceIdentifier
+    :param velocity_model_id: velocity/earth model id.
+    :type velocity_model_id: uquake.core.event.ResourceIdentifier
     :param network: network information
     :type network: str
-    :rtype: numpy.array
+    :rtype: numpy.ndarray
     """
 
     from uquake.core.event import Ray
@@ -818,6 +818,6 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
     ray = Ray(nodes=nodes, waveform_id=travel_time_grid.waveform_id,
               arrival_id=arrival_id, phase=travel_time_grid.phase,
               azimuth=az, takeoff_angle=toa, travel_time=tt,
-              earth_model_id=earth_model_id, network=network)
+              velocity_model_id=velocity_model_id, network=network)
 
     return ray
