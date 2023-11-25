@@ -762,7 +762,7 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
 
     origin = travel_time_grid.origin
     spacing = travel_time_grid.spacing
-    end = np.array(travel_time_grid.seed)
+    end = np.array(travel_time_grid.seed.loc)
     start = np.array(start)
 
     # calculating the gradient in every dimension at every grid points
