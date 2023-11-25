@@ -1181,11 +1181,11 @@ class SeededGrid(TypedGrid):
 
     @property
     def station_code(self):
-        return self.seed.station_code
+        return self.seed.station
 
     @property
     def location_code(self):
-        return self.seed.location_code
+        return self.seed.location
 
     @property
     def instrument_code(self):
