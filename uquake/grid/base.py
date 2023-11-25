@@ -833,7 +833,7 @@ def correct_ray(ray_nodes, n=0.1):
 
     # Correction starts from the second last point to the second point
 
-    total_sum = sum([1 / (len(ray_nodes) - i) for i in range(1, len(ray_nodes))])
+    total_sum = sum([1 / (len(ray_nodes) - i) for i in range(2, len(ray_nodes) - 1)])
 
     for i in range(len(ray_nodes) - 2, 1, -1):
         current_rate_of_change = ray_nodes[i + 1] - ray_nodes[i]
