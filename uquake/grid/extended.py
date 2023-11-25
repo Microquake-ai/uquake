@@ -1733,7 +1733,7 @@ class TravelTimeEnsemble:
             for start in starts:
                 for travel_time_grid in travel_time_grids:
                     data.append((travel_time_grid, start))
-                    input(len(data))
+                input(len(data))
 
             with Pool(num_threads) as pool:
                 results = pool.starmap(ray_tracer_func, data)
