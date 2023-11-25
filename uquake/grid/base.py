@@ -728,7 +728,7 @@ def angles(travel_time_grid):
 
 
 def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
-               arrival_id=None, velocity_model_id=None, smooth=False):
+               arrival_id=None, velocity_model_id=None):
     """
     This function calculates the ray between a starting point (start) and an
     end point, which should be the seed of the travel_time grid, using the
@@ -746,14 +746,12 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
     :type arrival_id: uquake.core.event.ResourceIdentifier
     :param velocity_model_id: velocity/earth model id.
     :type velocity_model_id: uquake.core.event.ResourceIdentifier
-    :param smooth: if True, smooth the ray using a cubic spline
-    :type smooth: bool (default True)
     :rtype: numpy.ndarray
     """
 
     from uquake.core.event import Ray
 
-    interpolation_order = 3  # Use higher order interpolation for gradients
+    interpolation_order = 1
 
     if grid_space:
         start = np.array(start)
@@ -764,17 +762,21 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
     end = np.array(travel_time_grid.seed.loc)
     start = np.array(start)
 
-    # Calculating the gradient in every dimension at every grid point
+    # calculating the gradient in every dimension at every grid points
     gds = [Grid(gd, origin=origin, spacing=spacing)
            for gd in np.gradient(travel_time_grid.data)]
 
     dist = np.linalg.norm(start - end)
-    cloc = start  # Current location initialized to start
-    spacing_norm = np.linalg.norm(spacing)
+    cloc = start  # initializing cloc "current location" to start
+    spacing = np.linalg.norm(spacing)
+    gamma = spacing / 4  # gamma is set to a quarter the grid spacing. This
+    # should be
+    # sufficient. Note that gamma is fixed to reduce
+    # processing time.
     nodes = [start]
 
     iter_number = 0
-    while np.all(dist > spacing_norm / 4):  # Refined termination condition
+    while np.all(dist > spacing / 4):
         if iter_number > max_iter:
             break
 
@@ -782,15 +784,18 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
                                          order=interpolation_order)[0]
                           for gd in gds])
 
-        gvect_norm = np.linalg.norm(gvect)
-        if gvect_norm == 0:
+        if np.linalg.norm(gvect) == 0:
             break
 
         # Adaptive step size based on distance and gradient magnitude
-        gamma = min(spacing_norm / 2, spacing_norm / gvect_norm)
+        # gamma = min(spacing_norm / 2, spacing_norm / gvect_norm)
+        # gamma = spacing_norm / 4
+        dr = gamma * gvect / (np.linalg.norm(gvect) + 0.01 * np.min(gvect))
 
-        dr = gamma * gvect / (gvect_norm + 1e-8)
-        cloc -= dr
+        if np.linalg.norm(dr) < gamma / 2:
+            dr = (dr / np.linalg.norm(dr)) * gamma / 2
+
+        cloc = cloc - dr
 
         nodes.append(cloc)
         dist = np.linalg.norm(cloc - end)
@@ -812,27 +817,4 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
               azimuth=az, takeoff_angle=toa, travel_time=tt,
               velocity_model_id=velocity_model_id)
 
-    if smooth:
-        ray.nodes = smooth_ray_with_cubic_spline(ray.nodes)
-
     return ray
-
-
-def smooth_ray_with_cubic_spline(nodes):
-    # Assuming nodes is a list of numpy arrays (or similar structure)
-    nodes = np.array(nodes)  # Convert to numpy array for ease of handling
-
-    # Prepare separate arrays for each dimension
-    x, y, z = nodes[:, 0], nodes[:, 1], nodes[:, 2]
-    t = np.linspace(0, 1, len(nodes))  # Parameter t for the spline
-
-    # Fit cubic spline for each dimension
-    spline_x = CubicSpline(t, x)
-    spline_y = CubicSpline(t, y)
-    spline_z = CubicSpline(t, z)
-
-    # Generate smooth nodes
-    t_smooth = np.linspace(0, 1, 5 * len(nodes))  # More points for smoothness
-    smooth_nodes = np.array([spline_x(t_smooth), spline_y(t_smooth), spline_z(t_smooth)]).T
-
-    return smooth_nodes
