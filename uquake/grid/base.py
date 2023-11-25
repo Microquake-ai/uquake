@@ -40,6 +40,7 @@ import random
 from uquake.core.event import ResourceIdentifier
 from copy import deepcopy
 from hashlib import sha256
+from scipy.interpolate import interp1d
 
 
 def read_grid(filename, format='PICKLE', **kwargs):
