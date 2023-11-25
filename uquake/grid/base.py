@@ -823,7 +823,7 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
     return ray
 
 
-def correct_ray(ray_nodes, n=0.1):
+def correct_ray(ray_nodes, n=0.5):
     # Keeping the first and last points fixed
     start_point, end_point = ray_nodes[0], ray_nodes[-1]
 
@@ -841,7 +841,7 @@ def correct_ray(ray_nodes, n=0.1):
         # Compare with average rate of change
         correction_factor = current_rate_of_change / avg_rate_of_change
 
-        weight = 1 / (len(ray_nodes) - i)
+        weight = 1 / (len(ray_nodes) - i + 1) ** n
         # correction = weight * correction_factor * (avg_rate_of_change -
         #                                            current_rate_of_change)
         correction = weight * correction_factor
