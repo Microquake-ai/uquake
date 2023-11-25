@@ -835,6 +835,7 @@ def correct_ray(ray_nodes, n=0.5):
 
     # total_sum = sum([1 / (len(ray_nodes) - i) for i in range(2, len(ray_nodes) - 1)])
 
+    j = 1
     for i in range(len(ray_nodes) - 2, 1, -1):
         current_rate_of_change = ray_nodes[i + 1] - ray_nodes[i]
 
@@ -842,6 +843,7 @@ def correct_ray(ray_nodes, n=0.5):
         correction_factor = current_rate_of_change / avg_rate_of_change
 
         weight = 1 / (len(ray_nodes) - i + 1) ** n
+        weight = 0.9 ** j
         # correction = weight * correction_factor * (avg_rate_of_change -
         #                                            current_rate_of_change)
         correction = weight * correction_factor
@@ -849,6 +851,7 @@ def correct_ray(ray_nodes, n=0.5):
         # Apply the correction
         # direction = (ray_nodes[i + 1] - ray_nodes[i]) / current_rate_of_change
         ray_nodes[i] -= correction
+        j += 1
 
     # Ensuring the first and last points are fixed
     ray_nodes[0], ray_nodes[-1] = start_point, end_point
