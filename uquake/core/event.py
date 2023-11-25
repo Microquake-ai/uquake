@@ -188,6 +188,10 @@ class Ray(object):
         return self.waveform_id.location if self.waveform_id is not None else None
 
     @property
+    def instrument_code(self):
+        return self.waveform_id.instrument_code if self.waveform_id is not None else None
+
+    @property
     def station(self):
         return self.waveform_id.station_code
 
@@ -1114,6 +1118,14 @@ class WaveformStreamID(obsevent.WaveformStreamID):
     def stream_id(self):
         return f'{self.network_code}.{self.station_code}.{self.location_code}.' \
                f'{self.channel_code}'
+
+    @property
+    def instrument(self):
+        return f'{self.station_code}.{self.location_code}'
+
+    @property
+    def instrument_code(self):
+        return f'{self.station_code}.{self.location_code}'
 
 
 class Arrival(obsevent.Arrival):
