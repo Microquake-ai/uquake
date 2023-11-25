@@ -76,6 +76,41 @@ class RayEnsemble(list):
             out_list.append(Ray.from_json(encoded_ray))
         return out_list
 
+    def select(self, network=None, station=None, location=None, phase=None):
+        """
+        Select rays from the collection based on network, station, location and phase.
+        :param network: network code
+        :type network: str
+        :param station: station code
+        :type station: str
+        :param location: location code
+        :type location: str
+        :param phase: phase
+        :type phase: str
+        :return: RayEnsemble
+        :rtype: RayEnsemble
+        """
+        out_list = RayEnsemble()
+        for ray in self:
+            if network is not None:
+                if ray.network != network:
+                    continue
+            if station is not None:
+                if ray.station != station:
+                    continue
+            if location is not None:
+                if ray.location != location:
+                    continue
+            if phase is not None:
+                if isinstance(ray.phase, Phase):
+                    ray_phase = ray.phase.value
+                else:
+                    ray_phase = ray.phase
+                if ray_phase != phase:
+                    continue
+            out_list.append(ray)
+        return out_list
+
 
 class Phase(Enum):
 
@@ -162,6 +197,9 @@ class Ray(object):
                 self.__dict__[key] = value
         else:
             self.__dict__[key] = value
+
+    def __getitem__(self, item):
+        return self.nodes[item]
 
     @property
     def length(self):

@@ -188,15 +188,19 @@ class Stream(obsstream.Stream, ABC):
         for tr in self.traces:
             tr.stats.station = tr.stats.station.lstrip('0')
 
-    def distance_time_plot(self, event, location, scale=20, freq_min=100,
+    def distance_time_plot(self, event, inventory, scale=20, freq_min=100,
                            freq_max=1000):
         """
         plot traces that have
         :param event: event object
-        :param location: location object
+        :param inventory: inventory object
         :param scale: vertical size of pick markers and waveform
+        :param freq_min: minimum frequency for bandpass filter for the display
+        :param freq_max: maximum frequency for bandpass filter for the display
         :return: plot handler
         """
+
+        instruments = inventory.instruments
 
         st = self.copy()
         st.detrend('demean')
@@ -237,15 +241,14 @@ class Stream(obsstream.Stream, ABC):
         for tr in st:
             station_code = tr.stats.station
             # search for arrival
-            station = location.select(station_code).stations()[0]
+            station = instruments.select(station_code).stations()[0]
             station_location = station.loc
             distance = np.linalg.norm(event_location - station_location)
             p_pick = None
             s_pick = None
             data = (tr.data / np.max(np.abs(tr.data))) * scale
             time_delta = tr.stats.starttime - start_time
-            time = np.arange(0, len(data)) / tr.stats.sampling_rate + \
-                   time_delta
+            time = np.arange(0, len(data)) / tr.stats.sampling_rate + time_delta
 
             for arrival in origin.arrivals:
                 if arrival.get_pick().waveform_id.station_code == station_code:
@@ -309,15 +312,48 @@ class Stream(obsstream.Stream, ABC):
         :return: rotated stream
         """
 
-        for ray in rays:
-            if ray.instrument_code not in self.unique_instruments:
+        if not inplace:
+            stream = self.copy()
+        else:
+            stream = self
+
+        for tr in stream.traces:
+            # Identify the corresponding station and channel in the inventory
+            station = inventory.get_station(tr.stats.station)
+            channel = station.get_channel(tr.stats.channel)
+
+            # Retrieve orientation vector and ray properties
+            orientation = channel.orientation_vector
+            ray = rays.select(network=tr.stats.network, station=tr.stats.station,
+                              location=tr.stats.location, phase='P')
+
+            if ray is None or len(orientation) != 3:
                 continue
-            self.select(network=ray.network, instrument=ray.instrument_code)
 
-        return rotate_stream(self, rays, inventory, inplace=inplace)
+            # Compute the rotation matrix
+            inc_angle = ray.incidence_angle
+            back_azimuth = ray.baz
 
+            # Convert angles to radians
+            inc_angle_rad = np.radians(inc_angle)
+            back_azimuth_rad = np.radians(back_azimuth)
 
+            # Rotation matrices
+            R1 = np.array([[np.cos(back_azimuth_rad), -np.sin(back_azimuth_rad), 0],
+                           [np.sin(back_azimuth_rad), np.cos(back_azimuth_rad), 0],
+                           [0, 0, 1]])
 
+            R2 = np.array([[np.cos(inc_angle_rad), 0, -np.sin(inc_angle_rad)],
+                           [0, 1, 0],
+                           [np.sin(inc_angle_rad), 0, np.cos(inc_angle_rad)]])
+
+            # Combined rotation matrix
+            R = np.dot(R2, R1)
+
+            # Apply rotation
+            tr.data = np.dot(R, tr.data)
+
+        return stream
 
 
 def is_valid(st_in, return_stream=False, STA=0.005, LTA=0.1, min_num_valid=5):
@@ -441,7 +477,7 @@ def composite_traces(st_in):
     st.detrend('demean')
 
     for instrument in st.unique_instruments:
-        trs = st.select(instrument=instrument)
+        trs = st.select()
 
         if len(trs) == 1:
             trsout.append(trs[0].copy())
