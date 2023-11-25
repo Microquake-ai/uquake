@@ -818,27 +818,36 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
               azimuth=az, takeoff_angle=toa, travel_time=tt,
               velocity_model_id=velocity_model_id)
 
-    ray.nodes = correct_bend(np.array(ray.nodes), bend_start_index=-10)
+    ray.nodes = correct_ray(np.array(ray.nodes), bend_start_index=-10)
 
     return ray
 
 
-def correct_bend(ray_nodes, bend_start_index=-10):
-    # Separate the ray into x, y, z coordinates
-    x, y, z = ray_nodes[:, 0], ray_nodes[:, 1], ray_nodes[:, 2]
+def correct_ray(ray_nodes, n=1):
+    # Keeping the first and last points fixed
+    start_point, end_point = ray_nodes[0], ray_nodes[-1]
 
-    # Linear interpolation for the bending segment
-    t = np.linspace(0, 1, abs(bend_start_index))
-    lin_interp_x = interp1d([0, 1], [x[bend_start_index], x[-1]])
-    lin_interp_y = interp1d([0, 1], [y[bend_start_index], y[-1]])
-    lin_interp_z = interp1d([0, 1], [z[bend_start_index], z[-1]])
+    # Calculate average rate of change (excluding the last segment)
+    delta = np.diff(ray_nodes[:-1], axis=0)
+    avg_rate_of_change = np.mean(np.linalg.norm(delta, axis=1))
 
-    # Replace the last segment with interpolated points
-    x[bend_start_index:] = lin_interp_x(t)
-    y[bend_start_index:] = lin_interp_y(t)
-    z[bend_start_index:] = lin_interp_z(t)
+    # Correction starts from the second last point to the second point
+    for i in range(len(ray_nodes) - 2, 0, -1):
+        current_rate_of_change = np.linalg.norm(ray_nodes[i + 1] - ray_nodes[i])
 
-    # Merge adjusted segment with the rest of the ray
-    adjusted_ray = np.stack((x, y, z), axis=-1)
+        # Compare with average rate of change
+        correction_factor = min(current_rate_of_change / avg_rate_of_change, 1)
+
+        # Apply RBF-like correction
+        R = np.linalg.norm(ray_nodes[i] - end_point)
+        weight = 1 / (R ** n if R != 0 else 1)
+        correction = weight * correction_factor * (avg_rate_of_change - current_rate_of_change)
+
+        # Apply the correction
+        direction = (ray_nodes[i + 1] - ray_nodes[i]) / current_rate_of_change
+        ray_nodes[i] += correction * direction
+
+    # Ensuring the first and last points are fixed
+    ray_nodes[0], ray_nodes[-1] = start_point, end_point
 
     return adjusted_ray
