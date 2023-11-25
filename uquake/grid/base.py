@@ -832,7 +832,7 @@ def correct_ray(ray_nodes, n=0.1):
     avg_rate_of_change = np.mean(np.linalg.norm(delta, axis=1))
 
     # Correction starts from the second last point to the second point
-    for i in range(len(ray_nodes) - 1, 1, -1):
+    for i in range(len(ray_nodes) - 2, 1, -1):
         current_rate_of_change = np.linalg.norm(ray_nodes[i + 1] - ray_nodes[i])
 
         # Compare with average rate of change
