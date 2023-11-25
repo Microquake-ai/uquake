@@ -818,6 +818,6 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
     ray = Ray(nodes=nodes, waveform_id=travel_time_grid.waveform_id,
               arrival_id=arrival_id, phase=travel_time_grid.phase,
               azimuth=az, takeoff_angle=toa, travel_time=tt,
-              velocity_model_id=velocity_model_id, network=network)
+              velocity_model_id=velocity_model_id)
 
     return ray
