@@ -836,6 +836,3 @@ def smooth_ray_with_cubic_spline(nodes):
     smooth_nodes = np.array([spline_x(t_smooth), spline_y(t_smooth), spline_z(t_smooth)]).T
 
     return smooth_nodes
-
-# [In your ray_tracer function, after the ray has been traced]
-smoothed_nodes = smooth_ray_with_cubic_spline(nodes)
