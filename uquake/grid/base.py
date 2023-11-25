@@ -823,7 +823,7 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
     return ray
 
 
-def correct_ray(ray_nodes, n=0.3):
+def correct_ray(ray_nodes, n=0.1):
     # Keeping the first and last points fixed
     start_point, end_point = ray_nodes[0], ray_nodes[-1]
 
