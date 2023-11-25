@@ -1731,7 +1731,7 @@ class TravelTimeEnsemble:
 
             data = []
             for start in starts:
-                data.append((travel_time_grid, start))
+                data.append((travel_time_grids, start))
 
             with Pool(num_threads) as pool:
                 results = pool.starmap(ray_tracer_func, data)
