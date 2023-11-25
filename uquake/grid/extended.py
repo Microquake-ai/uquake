@@ -1200,10 +1200,6 @@ class SeededGrid(TypedGrid):
         return self.seed.units.value
 
     @property
-    def grid_units(self):
-        return self.seed_units
-
-    @property
     def waveform_id(self):
         return WaveformStreamID(network_code=self.network_code,
                                 station_code=self.station_code,
