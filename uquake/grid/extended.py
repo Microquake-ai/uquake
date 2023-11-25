@@ -1682,12 +1682,12 @@ class TravelTimeEnsemble:
 
         return angle_dict
 
-    def ray_tracer(self, starts, seed_label=None, multithreading=False,
+    def ray_tracer(self, starts, instrument_codes=None, multithreading=False,
                    cpu_utilisation=0.9, grid_space=False, max_iter=1000):
         """
 
         :param starts: origin of the ray, usually the location of the events
-        :param seed_label: a list of seed labels
+        :param instrument_codes: a list of seed labels
         :param grid_space: true if the coordinates are expressed in
         grid space (indices can be fractional) as opposed to model space
         (x, y, z)
@@ -1700,7 +1700,12 @@ class TravelTimeEnsemble:
         :rtype: list
         """
 
-        travel_time_grid = self.select(instruments_code=[seed_label])
+        if instrument_codes is None:
+            travel_time_grids = self
+        else:
+            if isinstance(instrument_codes, str):
+                instrument_codes = [instrument_codes]
+            travel_time_grids = self.select(instruments_code=instrument_codes)
 
         kwargs = {'grid_space': grid_space,
                   'max_iter': max_iter}
@@ -1730,8 +1735,9 @@ class TravelTimeEnsemble:
 
         else:
             results = []
-            for start in starts:
-                results.append(travel_time_grid.ray_tracer(start, **kwargs))
+            for travel_time_grid in travel_time_grids:
+                for start in starts:
+                    results.append(travel_time_grid.ray_tracer(start, **kwargs))
 
         return results
 
