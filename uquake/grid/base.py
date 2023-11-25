@@ -823,7 +823,7 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
     return ray
 
 
-def correct_ray(ray_nodes, n=1):
+def correct_ray(ray_nodes, n=0.3):
     # Keeping the first and last points fixed
     start_point, end_point = ray_nodes[0], ray_nodes[-1]
 
@@ -841,8 +841,8 @@ def correct_ray(ray_nodes, n=1):
         # Apply RBF-like correction
         R = np.linalg.norm(ray_nodes[i] - end_point)
         weight = 1 / (R ** n if R != 0 else 1)
-        correction = weight * correction_factor * \
-                     (avg_rate_of_change - current_rate_of_change)
+        correction = weight * correction_factor * (avg_rate_of_change -
+                                                   current_rate_of_change)
 
         # Apply the correction
         direction = (ray_nodes[i + 1] - ray_nodes[i]) / current_rate_of_change
