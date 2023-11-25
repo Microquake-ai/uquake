@@ -836,9 +836,9 @@ def correct_ray(ray_nodes, n=0.1):
         current_rate_of_change = np.linalg.norm(ray_nodes[i + 1] - ray_nodes[i])
 
         # Compare with average rate of change
-        correction_factor = current_rate_of_change / avg_rate_of_change
+        correction_factor = np.min(current_rate_of_change / avg_rate_of_change,
+                                   current_rate_of_change / 5)
 
-        # Apply RBF-like correction
         weight = 1 / (len(ray_nodes) - i + 1)
         correction = weight * correction_factor * (avg_rate_of_change -
                                                    current_rate_of_change)
