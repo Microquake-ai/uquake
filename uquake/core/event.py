@@ -188,20 +188,40 @@ class Ray(object):
         return self.waveform_id.location if self.waveform_id is not None else None
 
     @property
+    def location_code(self):
+        return self.waveform_id.location_code if self.waveform_id is not None else None
+
+    @property
+    def instrument(self):
+        return self.waveform_id.instrument_code if self.waveform_id is not None else None
+
+    @property
     def instrument_code(self):
         return self.waveform_id.instrument_code if self.waveform_id is not None else None
 
     @property
     def station(self):
-        return self.waveform_id.station_code
+        return self.waveform_id.station_code if self.waveform_id is not None else None
+
+    @property
+    def station_code(self):
+        return self.waveform_id.station_code if self.waveform_id is not None else None
 
     @property
     def location(self):
-        return self.waveform_id.location_code
+        return self.waveform_id.location_code if self.waveform_id is not None else None
+
+    @property
+    def location_code(self):
+        return self.waveform_id.location_code if self.waveform_id is not None else None
 
     @property
     def network(self):
-        return self.waveform_id.network_code
+        return self.waveform_id.network_code if self.waveform_id is not None else None
+
+    @property
+    def network_code(self):
+        return self.waveform_id.network_code if self.waveform_id is not None else None
 
     @property
     def back_azimuth(self):

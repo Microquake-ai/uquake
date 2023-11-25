@@ -295,15 +295,27 @@ class Stream(obsstream.Stream, ABC):
 
         return waveform.plotWaveform(*args, **kwargs)
 
+    def rotate_p_sv_sh(self, rays: RayEnsemble, inventory: Inventory, inplace=False):
+        """
+        Rotate the stream to P, SV, SH coordinate system
 
-# from uquake.core import read, read_events
-# from spp.utils import application
-# app = application.Application()
-# location = app.get_stations()
-# st = read('2018-11-08T10:21:49.898496Z.mseed', format='mseed')
-# cat = read_events('test.xml')
-# evt = cat[0]
-# st = st.composite()
+        :NOTE: only works for 3 component stations with provided rays
+
+        :param rays: rays object
+        :param inventory: inventory object
+        :param inplace: if True, the stream is rotated in place
+        :return: rotated stream
+        """
+
+        for ray in rays:
+            if ray.instrument_code not in self.unique_instruments:
+                continue
+            self.select(network=ray.network, instrument=ray.instrument_code)
+
+        return rotate_stream(self, rays, inventory, inplace=inplace)
+
+
+
 
 
 def is_valid(st_in, return_stream=False, STA=0.005, LTA=0.1, min_num_valid=5):

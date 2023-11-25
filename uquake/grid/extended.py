@@ -1705,6 +1705,10 @@ class TravelTimeEnsemble:
         kwargs = {'grid_space': grid_space,
                   'max_iter': max_iter}
 
+        # consider the case where starts is a single point and not an array of points
+        if starts.ndim == 1:
+            starts = np.array([starts])
+
         if multithreading:
 
             ray_tracer_func = partial(ray_tracer, **kwargs)
