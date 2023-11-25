@@ -770,16 +770,19 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
     dist = np.linalg.norm(start - end)
     cloc = start  # initializing cloc "current location" to start
     spacing = np.linalg.norm(spacing)
-    gamma = spacing / 8  # gamma is set to a quarter the grid spacing. This
+    gamma = spacing / 4  # gamma is set to half the grid spacing. This
     # should be
     # sufficient. Note that gamma is fixed to reduce
     # processing time.
     nodes = [start]
 
     iter_number = 0
-    while np.all(dist > spacing / 8):
+    while np.all(dist > spacing / 4):
         if iter_number > max_iter:
             break
+
+        # if dist < spacing * 4:
+        #     gamma = spacing / 4
 
         gvect = np.array([gd.interpolate(cloc, grid_space=False,
                                          order=interpolation_order)[0]
@@ -788,10 +791,7 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
         if np.linalg.norm(gvect) == 0:
             break
 
-        # Adaptive step size based on distance and gradient magnitude
-        # gamma = min(spacing_norm / 2, spacing_norm / gvect_norm)
-        # gamma = spacing_norm / 4
-        dr = gamma * gvect / (np.linalg.norm(gvect) + 0.01 * np.min(gvect))
+        dr = gamma * gvect / (np.linalg.norm(gvect) + 1e-8)
 
         if np.linalg.norm(dr) < gamma / 2:
             dr = (dr / np.linalg.norm(dr)) * gamma / 2
@@ -818,8 +818,6 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
               azimuth=az, takeoff_angle=toa, travel_time=tt,
               velocity_model_id=velocity_model_id)
 
-    ray.nodes = correct_ray(np.array(ray.nodes))
-
     return ray
 
 
@@ -833,24 +831,25 @@ def correct_ray(ray_nodes, n=0.5):
 
     # Correction starts from the second last point to the second point
 
-    # total_sum = sum([1 / (len(ray_nodes) - i) for i in range(2, len(ray_nodes) - 1)])
-
     j = 1
     for i in range(len(ray_nodes) - 2, 1, -1):
         current_rate_of_change = ray_nodes[i + 1] - ray_nodes[i]
 
         # Compare with average rate of change
-        correction_factor = current_rate_of_change / avg_rate_of_change
+        correction_factor = current_rate_of_change - avg_rate_of_change
 
         # weight = 1 / (len(ray_nodes) - i + 1) ** n
-        weight = 0.75
+        weight = 0.9 ** j
         # correction = weight * correction_factor * (avg_rate_of_change -
         #                                            current_rate_of_change)
         correction = weight * correction_factor
 
         # Apply the correction
         # direction = (ray_nodes[i + 1] - ray_nodes[i]) / current_rate_of_change
-        ray_nodes[i] -= correction
+        ray_nodes[i] += correction
+        print(correction)
+        # from ipdb import set_trace
+        # set_trace()
         j += 1
 
     # Ensuring the first and last points are fixed
