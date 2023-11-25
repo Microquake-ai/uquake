@@ -1389,8 +1389,7 @@ class TTGrid(SeededGrid):
 
         return ray_tracer(self, start, grid_space=grid_space,
                           max_iter=max_iter, arrival_id=arrival_id,
-                          velocity_model_id=self.model_id,
-                          network=self.network_code)
+                          velocity_model_id=self.model_id)
 
     @classmethod
     def from_velocity(cls, seed, seed_label, velocity_grid):
