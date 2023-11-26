@@ -12,7 +12,13 @@ file = '/mnt/HDD_5TB_01/Cozamin/principal_events/zarr/Cozamin231115123813005.zar
 gridpath = Path('/home/jpmercier/Repositories/museis.ai/2023-0002-Cozamin-Large-Event/Project/COZAMIN/CZM/times/')
 
 mde = ZarrHandler.read(file)
+st = mde.stream
+inventory = mde.inventory
 cat = read_events('test.xml', format='QUAKEML')
+
+rays = cat[0].preferred_origin().rays
+
+st.rotate_p_sv_sh(rays, inventory)
 
 # gd = read_grid('time.pickle', format='pickle')
 
@@ -20,6 +26,9 @@ cat = read_events('test.xml', format='QUAKEML')
 plt.close('all')
 for grid_file in gridpath.glob('*.pickle'):
     gd = read_grid(grid_file, format='pickle')
+    ray = gd.ray_tracer(cat[0].preferred_origin().loc, )
+
+
 
     plt.figure(1)
     plt.clf()
@@ -28,7 +37,7 @@ for grid_file in gridpath.glob('*.pickle'):
     plt.plot(i[1], i[0], 'ro')
     # plt.show()
 
-    ray = gd.ray_tracer(cat[0].preferred_origin().loc)
+    ray = gd.ray_tracer(cat[0].preferred_origin().loc, )
 
     nodes = np.copy(ray.nodes)
 

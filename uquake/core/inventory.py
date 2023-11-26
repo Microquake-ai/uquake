@@ -314,8 +314,8 @@ class Inventory(inventory.Inventory):
     def get_station(self, sta):
         return self.select(sta)
 
-    def get_channel(self, sta=None, cha=None):
-        return self.select(sta, cha_code=cha)
+    def get_channel(self, station=None, location=None, channel=None):
+        return self.select(station=station, location=location, channel=channel)
 
     def select_instrument(self, instruments=None):
         if isinstance(instruments, list):

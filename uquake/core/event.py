@@ -270,11 +270,64 @@ class Ray(object):
         return self.velocity_model_id
 
     def _vector(self, index1, index2):
-        """Get the vector between two nodes based on coordinate system."""
+        """Get the vector between two nodes based on coordinate system taking into
+        consideration the coordinate system."""
         v = self.nodes[index2] - self.nodes[index1]
         if self.coordinate_system == CoordinateSystem.NED:
             return np.array([v[0], v[1], -v[2]])
-        return v
+        return v / np.linalg.norm(v)
+
+    def incidence_vector(self):
+        """Get the incidence vector regardless of the coordinate system."""
+        v = self.nodes[-1] - self.nodes[-2]
+        return v / np.linalg.norm(v)
+
+    def _find_sv_sh_vectors(self):
+
+        self.coordinate_system
+        # Ensure the P-wave vector is normalized
+        p_vector = self.incidence_vector()
+
+        # Define vertical direction based on coordinate system
+        if self.coordinate_system == CoordinateSystem.NED:
+            vertical_direction = np.array([0, 0, -1])  # Down is positive
+        elif self.coordinate_system == CoordinateSystem.ENU:
+            vertical_direction = np.array([0, 0, 1])  # Up is positive
+        else:
+            raise ValueError("Invalid coordinate system. Use 'NED' or 'ENU'.")
+
+        # Determine if the P-wave vector is nearly vertical
+        vertical_threshold = 0.99
+        if abs(np.dot(p_vector, vertical_direction)) > vertical_threshold:
+            # For nearly vertical P-waves, SH is North-South, SV is East-West
+            if self.coordinate_system == CoordinateSystem.NED:
+                sh_vector = np.array([0, 1, 0])  # North direction
+                sv_vector = np.array([1, 0, 0])  # East direction
+            elif self.coordinate_system == CoordinateSystem.ENU:
+                sh_vector = np.array([1, 0, 0])  # East direction
+                sv_vector = np.array([0, 1, 0])  # North direction
+        else:
+            # For non-vertical P-waves, calculate using cross products
+            sv_vector = np.cross(p_vector, vertical_direction)
+            sv_vector /= np.linalg.norm(sv_vector)
+
+            sh_vector = np.cross(p_vector, sv_vector)
+            sh_vector /= np.linalg.norm(sh_vector)
+
+        return sv_vector, sh_vector
+
+    @property
+    def incidence_p(self):
+        return self.incidence_vector()
+
+    @property
+    def incidence_sv(self):
+        sv, _ = self._find_sv_sh_vectors()
+        return sv
+
+    def incidence_sh(self):
+        _, sh = self._find_sv_sh_vectors()
+        return sh
 
     @property
     def baz(self):

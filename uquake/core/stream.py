@@ -44,6 +44,7 @@ from .logging import logger
 from pathlib import Path
 from .event import RayEnsemble
 from .inventory import Inventory
+from .coordinates import CoordinateSystem
 
 
 class Stream(obsstream.Stream, ABC):
@@ -300,60 +301,61 @@ class Stream(obsstream.Stream, ABC):
 
         return waveform.plotWaveform(*args, **kwargs)
 
-    def rotate_p_sv_sh(self, rays: RayEnsemble, inventory: Inventory, inplace=False):
+    def rotate_p_sv_sh(self, rays: RayEnsemble, inventory: Inventory):
         """
-        Rotate the stream to P, SV, SH coordinate system
+        Rotate the stream to P, SV, SH coordinate system.
 
-        :NOTE: only works for 3 component stations with provided rays
+        :NOTE: only works for 3 component stations with provided rays.
 
-        :param rays: rays object
-        :param inventory: inventory object
-        :param inplace: if True, the stream is rotated in place
-        :return: rotated stream
+        :param rays: rays object.
+        :param inventory: inventory object.
+        :return: rotated stream.
         """
 
-        if not inplace:
-            stream = self.copy()
-        else:
-            stream = self
-
-        for tr in stream.traces:
-            # Identify the corresponding station and channel in the inventory
-            station = inventory.get_station(tr.stats.station)
-            channel = station.get_channel(tr.stats.channel)
-
-            # Retrieve orientation vector and ray properties
-            orientation = channel.orientation_vector
-            ray = rays.select(network=tr.stats.network, station=tr.stats.station,
-                              location=tr.stats.location, phase='P')
-
-            if ray is None or len(orientation) != 3:
+        rotated_traces = []
+        for instrument in inventory.instruments:
+            st_instrument = self.select(instrument=instrument.code)
+            if len(st_instrument) != 3:
                 continue
 
-            # Compute the rotation matrix
-            inc_angle = ray.incidence_angle
-            back_azimuth = ray.baz
+            try:
+                ray_p = rays.select(network=st_instrument[0].stats.network,
+                                    station=st_instrument[0].stats.station,
+                                    location=st_instrument[0].stats.location, phase='P')[
+                    0]
+                ray_s = rays.select(network=st_instrument[0].stats.network,
+                                    station=st_instrument[0].stats.station,
+                                    location=st_instrument[0].stats.location, phase='S')[
+                    0]
+            except IndexError:
+                # Handle case where ray selection does not return a valid ray
+                continue
 
-            # Convert angles to radians
-            inc_angle_rad = np.radians(inc_angle)
-            back_azimuth_rad = np.radians(back_azimuth)
+            incidence_p = ray_p.incidence_p
+            incidence_sv = ray_s.incidence_sv
+            incidence_sh = ray_s.incidence_sh
 
-            # Rotation matrices
-            R1 = np.array([[np.cos(back_azimuth_rad), -np.sin(back_azimuth_rad), 0],
-                           [np.sin(back_azimuth_rad), np.cos(back_azimuth_rad), 0],
-                           [0, 0, 1]])
+            data_p, data_sv, data_sh = [np.zeros(len(st_instrument[0].data)) for _ in
+                                        range(3)]
+            for tr in st_instrument:
+                channel = inventory.select(station=tr.stats.station,
+                                           location=tr.stats.location,
+                                           channel=tr.stats.channel)[0][0][0]
+                orientation_vector = channel.orientation_vector
+                dot_p = np.dot(orientation_vector, incidence_p)
+                dot_sv = np.dot(orientation_vector, incidence_sv)
+                dot_sh = np.dot(orientation_vector, incidence_sh)
+                data_p += tr.data * dot_p
+                data_sv += tr.data * dot_sv
+                data_sh += tr.data * dot_sh
 
-            R2 = np.array([[np.cos(inc_angle_rad), 0, -np.sin(inc_angle_rad)],
-                           [0, 1, 0],
-                           [np.sin(inc_angle_rad), 0, np.cos(inc_angle_rad)]])
+            stats = st_instrument[0].stats.copy()
+            for data, component in zip([data_p, data_sv, data_sh], ['P', 'SV', 'SH']):
+                new_trace = Trace(data=data, header=stats)
+                new_trace.stats.channel = new_trace.stats.channel[:-1] + component
+                rotated_traces.append(new_trace)
 
-            # Combined rotation matrix
-            R = np.dot(R2, R1)
-
-            # Apply rotation
-            tr.data = np.dot(R, tr.data)
-
-        return stream
+        return Stream(traces=rotated_traces)
 
 
 def is_valid(st_in, return_stream=False, STA=0.005, LTA=0.1, min_num_valid=5):

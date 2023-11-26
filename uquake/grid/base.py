@@ -728,17 +728,17 @@ def angles(travel_time_grid):
     return azimuth, takeoff
 
 
-def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=5000,
-               arrival_id=None, velocity_model_id=None, gamma=0.1,
-               interpolation_order=1, min_relative_step=0.1, correct_ray=True):
+def ray_tracer(travel_time_grid, event_loc, grid_space=False, max_iter=5000,
+               arrival_id=None, velocity_model_id=None, gamma=0.1, interpolation_order=1,
+               min_relative_step=0.25, correct_ray=False):
     """
     This function calculates the ray between a starting point (start) and an
     end point, which should be the seed of the travel_time grid, using the
     gradient descent method.
     :param travel_time_grid: a travel time grid
     :type travel_time_grid: TTGrid
-    :param start: the starting point (usually event location)
-    :type start: tuple, list or numpy.array
+    :param event_loc: the starting point (usually event location)
+    :type event_loc: tuple, list or numpy.array
     :param grid_space: true if the coordinates are expressed in
     grid space (indices can be fractional) as opposed to model space
     (x, y, z)
@@ -756,26 +756,26 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=5000,
     max_iter = 3000
 
     if grid_space:
-        start = np.array(start)
-        start = travel_time_grid.transform_from(start)
+        event_loc = np.array(event_loc)
+        event_loc = travel_time_grid.transform_from(event_loc)
 
     origin = travel_time_grid.origin
     spacing = travel_time_grid.spacing
     end = np.array(travel_time_grid.seed.loc)
-    start = np.array(start)
+    event_loc = np.array(event_loc)
 
     # calculating the gradient in every dimension at every grid points
     gds = [Grid(gd, origin=origin, spacing=spacing)
            for gd in np.gradient(travel_time_grid.data)]
 
-    dist = np.linalg.norm(start - end)
-    cloc = start  # initializing cloc "current location" to start
+    dist = np.linalg.norm(event_loc - end)
+    cloc = event_loc  # initializing cloc "current location" to start
     # spacing = np.linalg.norm(spacing)
     # gamma = spacing / 4  # gamma is set to half the grid spacing. This
     # should be
     # sufficient. Note that gamma is fixed to reduce
     # processing time.
-    nodes = [start]
+    nodes = [event_loc]
 
     iter_number = 0
     # while np.all(dist > spacing / 20):
@@ -811,12 +811,12 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=5000,
 
     nodes.append(end)
 
-    tt = travel_time_grid.interpolate(start, grid_space=False,
+    tt = travel_time_grid.interpolate(event_loc, grid_space=False,
                                       order=interpolation_order)[0]
 
-    az = travel_time_grid.to_azimuth_point(start, grid_space=False,
+    az = travel_time_grid.to_azimuth_point(event_loc, grid_space=False,
                                            order=interpolation_order)
-    toa = travel_time_grid.to_takeoff_point(start, grid_space=False,
+    toa = travel_time_grid.to_takeoff_point(event_loc, grid_space=False,
                                             order=interpolation_order)
 
     ray = Ray(nodes=nodes, waveform_id=travel_time_grid.waveform_id,
@@ -826,6 +826,9 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=5000,
 
     if correct_ray:
         ray.nodes = ray_corrector(ray.nodes, travel_time_grid.spacing)
+
+    # the ray has to be defined from the source to the receiver
+    ray.nodes = ray.nodes[::-1]
 
     return ray
 
