@@ -1436,11 +1436,11 @@ class TravelTimeEnsemble:
 
         self.__i__ = 0
 
-        for tt_grid in self.travel_time_grids:
-            try:
-                assert tt_grid.check_compatibility(travel_time_grids[0])
-            except:
-                raise AssertionError('grids are not all compatible')
+        # for tt_grid in self.travel_time_grids:
+        #     try:
+        #         assert tt_grid.check_compatibility(travel_time_grids[0])
+        #     except:
+        #         raise AssertionError('grids are not all compatible')
 
     def __len__(self):
         return len(self.travel_time_grids)
