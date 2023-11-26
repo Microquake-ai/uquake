@@ -842,11 +842,6 @@ class VelocityGrid3D(TypedGrid):
         shape = self.shape
         spacing = self.spacing
 
-        i = self.transform_to_grid(seed.loc)
-        diff = i - i.astype(int)
-
-        self.origin += diff * spacing
-
         sub_grid_spacing = spacing * sub_grid_resolution
 
         # extent = ((4 * sub_grid_spacing) * 1.2 + sub_grid_spacing)
