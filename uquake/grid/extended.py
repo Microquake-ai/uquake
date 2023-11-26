@@ -845,11 +845,7 @@ class VelocityGrid3D(TypedGrid):
         i = self.transform_to_grid(seed.loc)
         diff = i - i.astype(int)
 
-        import ipdb
-        ipdb.set_trace()
-        print(self.origin)
-        self.origin += self.transform_from_grid(diff) * spacing
-        print(self.origin)
+        self.origin += diff * spacing
 
         sub_grid_spacing = spacing * sub_grid_resolution
 
