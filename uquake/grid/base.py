@@ -730,7 +730,7 @@ def angles(travel_time_grid):
 
 def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=5000,
                arrival_id=None, velocity_model_id=None, gamma=0.1,
-               interpolation_order=1, min_relative_step=0.1):
+               interpolation_order=1, min_relative_step=0.1, correct_ray=True):
     """
     This function calculates the ray between a starting point (start) and an
     end point, which should be the seed of the travel_time grid, using the
@@ -783,8 +783,8 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=5000,
         if iter_number > max_iter:
             break
 
-        # if dist < spacing * 4:
-        #     gamma = spacing / 4
+        if dist < np.min(spacing):
+            break
 
         gvect = np.array([gd.interpolate(cloc, grid_space=False,
                                          order=interpolation_order)[0]
@@ -801,11 +801,6 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=5000,
             step = step / np.linalg.norm(step) * min_relative_step * np.min(spacing)
 
         dr = step
-        # if np.linalg.norm(dr) < dr_min:
-        #     dr = dr / np.linalg.norm(dr) * dr_min
-
-        # if np.linalg.norm(dr) < gamma / 2:
-        #     dr = (dr / np.linalg.norm(dr)) * gamma / 2
 
         cloc = cloc - dr
 
@@ -829,13 +824,17 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=5000,
               azimuth=az, takeoff_angle=toa, travel_time=tt,
               velocity_model_id=velocity_model_id)
 
-    # ray.nodes = correct_ray(ray.nodes)
+    if correct_ray:
+        ray.nodes = correct_ray(ray.nodes, travel_time_grid.spacing)
 
     return ray
 
 
-def correct_ray(ray_nodes, n=0.5):
+def correct_ray(ray_nodes, grid_spacing, n=0.5):
     # Keeping the first and last points fixed
+
+    spacing = np.min(grid_spacing)
+
     start_point, end_point = ray_nodes[0], ray_nodes[-1]
 
     # Calculate average rate of change (excluding the last segment)
@@ -845,16 +844,17 @@ def correct_ray(ray_nodes, n=0.5):
     # Correction starts from the second last point to the second point
 
     j = 1
+    distance_along_the_ray = 0
     for i in range(len(ray_nodes) - 2, 1, -1):
         current_rate_of_change = ray_nodes[i + 1] - ray_nodes[i]
+        distance_along_the_ray += np.linalg.norm(ray_nodes[i] - ray_nodes[i - 1])
 
         # Compare with average rate of change
         correction_factor = current_rate_of_change - avg_rate_of_change
 
         # weight = 1 / (len(ray_nodes) - i + 1) ** n
-        weight = 0.9 ** j
-        # correction = weight * correction_factor * (avg_rate_of_change -
-        #                                            current_rate_of_change)
+        weight = 0.90 ** (distance_along_the_ray / spacing)
+
         correction = weight * correction_factor
 
         # Apply the correction

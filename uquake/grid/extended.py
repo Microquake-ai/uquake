@@ -842,6 +842,11 @@ class VelocityGrid3D(TypedGrid):
         shape = self.shape
         spacing = self.spacing
 
+        i = self.transform_to_grid(seed.loc)
+        diff = i - i.astype(int)
+
+        self.origin = self.origin + self.transform_from_grid(diff)
+
         sub_grid_spacing = spacing * sub_grid_resolution
 
         # extent = ((4 * sub_grid_spacing) * 1.2 + sub_grid_spacing)
@@ -936,58 +941,6 @@ class VelocityGrid3D(TypedGrid):
 
         return tt_out_grid
 
-    # def to_time(self, seed: Seed, *args, **kwargs):
-    #     """
-    #     Eikonal solver based on scikit fast marching solver
-    #     :param seed: numpy array location of the seed or origin of useis wave
-    #     in model coordinates (usually location of a station or an event)
-    #     :type seed: numpy.ndarray or list
-    #     :rtype: TTGrid
-    #     """
-    #
-    #     if isinstance(seed, list):
-    #         seed = np.array(seed)
-    #
-    #     if not self.in_grid(seed.loc):
-    #         logger.warning(f'{seed.label} is outside the grid. '
-    #                        f'The travel time grid will not be calculated')
-    #         return
-    #
-    #     origin = self.origin
-    #     shape = self.shape
-    #     spacing = self.spacing
-    #
-    #     # Set up the regular grid
-    #     xe = origin[0] + np.arange(0, shape[0], 1) * spacing[0]
-    #     ye = origin[1] + np.arange(0, shape[1], 1) * spacing[1]
-    #     ze = origin[2] + np.arange(0, shape[2], 1) * spacing[2]
-    #
-    #     Xe, Ye, Ze = np.meshgrid(xe, ye, ze, indexing='ij')
-    #
-    #     # Prepare the velocity and travel time fields
-    #     coords = np.array([Xe.ravel(), Ye.ravel(), Ze.ravel()])
-    #     vel = self.interpolate(coords).reshape(Xe.shape)
-    #
-    #     phi = np.ones_like(Xe)
-    #     phi[seed.x, seed.y, seed.z] = 0  # Initializing the seed point
-    #
-    #     # Solve the Eikonal equation
-    #     tt_out = skfmm.travel_time(phi, vel, dx=spacing)
-    #
-    #     # Prepare the output grid
-    #     tt_out_grid = TTGrid(self.network_code, tt_out, self.origin,
-    #                          self.spacing, seed, phase=self.phase,
-    #                          float_type=self.float_type,
-    #                          grid_units=self.grid_units,
-    #                          velocity_model_id=self.grid_id,
-    #                          label=self.label)
-    #
-    #     # Adjust the travel time grid by the seed value
-    #     tt_out_grid.data -= tt_out_grid.interpolate(seed.T,
-    #                                                 grid_space=True,
-    #                                                 order=3)[0]
-    #
-    #     return tt_out_grid
 
     def to_time_multi_threaded(self, seeds: SeedEnsemble, cpu_utilisation=0.9,
                                *args, **kwargs):
