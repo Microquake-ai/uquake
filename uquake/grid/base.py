@@ -728,8 +728,9 @@ def angles(travel_time_grid):
     return azimuth, takeoff
 
 
-def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
-               arrival_id=None, velocity_model_id=None):
+def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=5000,
+               arrival_id=None, velocity_model_id=None, gamma=0.1,
+               interpolation_order=1, min_relative_step=0.1):
     """
     This function calculates the ray between a starting point (start) and an
     end point, which should be the seed of the travel_time grid, using the
@@ -752,7 +753,7 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
 
     from uquake.core.event import Ray
 
-    interpolation_order = 1
+    max_iter = 3000
 
     if grid_space:
         start = np.array(start)
@@ -769,15 +770,16 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
 
     dist = np.linalg.norm(start - end)
     cloc = start  # initializing cloc "current location" to start
-    spacing = np.linalg.norm(spacing)
-    gamma = spacing / 4  # gamma is set to half the grid spacing. This
+    # spacing = np.linalg.norm(spacing)
+    # gamma = spacing / 4  # gamma is set to half the grid spacing. This
     # should be
     # sufficient. Note that gamma is fixed to reduce
     # processing time.
     nodes = [start]
 
     iter_number = 0
-    while np.all(dist > spacing / 4):
+    # while np.all(dist > spacing / 20):
+    while dist > 0.1:
         if iter_number > max_iter:
             break
 
@@ -791,10 +793,19 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
         if np.linalg.norm(gvect) == 0:
             break
 
-        dr = gamma * gvect / (np.linalg.norm(gvect) + 1e-8)
+        # dr = gamma * gvect / (np.linalg.norm(gvect) * (1 + 1e-8))
 
-        if np.linalg.norm(dr) < gamma / 2:
-            dr = (dr / np.linalg.norm(dr)) * gamma / 2
+        step = gamma * gvect
+
+        if np.linalg.norm(step) < min_relative_step * np.min(spacing):
+            step = step / np.linalg.norm(step) * min_relative_step * np.min(spacing)
+
+        dr = step
+        # if np.linalg.norm(dr) < dr_min:
+        #     dr = dr / np.linalg.norm(dr) * dr_min
+
+        # if np.linalg.norm(dr) < gamma / 2:
+        #     dr = (dr / np.linalg.norm(dr)) * gamma / 2
 
         cloc = cloc - dr
 
@@ -817,6 +828,8 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=1000,
               arrival_id=arrival_id, phase=travel_time_grid.phase,
               azimuth=az, takeoff_angle=toa, travel_time=tt,
               velocity_model_id=velocity_model_id)
+
+    # ray.nodes = correct_ray(ray.nodes)
 
     return ray
 
@@ -847,7 +860,7 @@ def correct_ray(ray_nodes, n=0.5):
         # Apply the correction
         # direction = (ray_nodes[i + 1] - ray_nodes[i]) / current_rate_of_change
         ray_nodes[i] += correction
-        print(correction)
+        # print(correction)
         # from ipdb import set_trace
         # set_trace()
         j += 1

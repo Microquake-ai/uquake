@@ -812,21 +812,136 @@ class VelocityGrid3D(TypedGrid):
                    phase=grid.phase, float_type=grid.float_type,
                    grid_id=grid.grid_id, label=grid.label)
 
-    def to_time(self, seed: Seed, sub_grid_resolution=0.1,
-                *args, **kwargs):
+    # def to_time(self, seed: Seed, sub_grid_resolution=0.1,
+    #             *args, **kwargs):
+    #     """
+    #     Eikonal solver based on scikit fast marching solver
+    #     :param seed: numpy array location of the seed or origin of useis wave
+    #      in model coordinates
+    #     (usually location of a station or an event)
+    #     :type seed: numpy.ndarray or list
+    #     :param sub_grid_resolution: resolution of the grid around the seed.
+    #     Propagating the wavefront on a denser grid around the seed,
+    #     significantly improves the travel time accuracy. The value represents
+    #     a fraction of the grid resolution. For instance, assuming a grid with
+    #     spacing of 10m, if the sub_grid_resolution is set to 0.1, the
+    #     resolution around the grid will be 1m.
+    #
+    #     :rtype: TTGrid
+    #     """
+    #
+    #     if isinstance(seed, list):
+    #         seed = np.array(seed)
+    #
+    #     if not self.in_grid(seed.loc):
+    #         logger.warning(f'{seed.label} is outside the grid. '
+    #                        f'The travel time grid will not be calculated')
+    #         return
+    #
+    #     origin = self.origin
+    #     shape = self.shape
+    #     spacing = self.spacing
+    #
+    #     sub_grid_spacing = spacing * sub_grid_resolution
+    #
+    #     # extent = ((4 * sub_grid_spacing) * 1.2 + sub_grid_spacing)
+    #
+    #     n_pts_inner_grid = (4 * spacing / sub_grid_spacing * 1.2).astype(int)
+    #     for i in range(0, len(n_pts_inner_grid)):
+    #         if n_pts_inner_grid[i] % 2:
+    #             n_pts_inner_grid[i] += 1
+    #
+    #     x_i = np.arange(0, n_pts_inner_grid[0]) * sub_grid_spacing[0]
+    #     y_i = np.arange(0, n_pts_inner_grid[1]) * sub_grid_spacing[1]
+    #     z_i = np.arange(0, n_pts_inner_grid[2]) * sub_grid_spacing[2]
+    #
+    #     x_i = x_i - np.mean(x_i) + seed.x
+    #     y_i = y_i - np.mean(y_i) + seed.y
+    #     z_i = z_i - np.mean(z_i) + seed.z
+    #
+    #     X_i, Y_i, Z_i = np.meshgrid(x_i, y_i, z_i, indexing='ij')
+    #
+    #     coords = np.array([X_i.ravel(), Y_i.ravel(), Z_i.ravel()]).T
+    #
+    #     vel = self.interpolate(coords, grid_space=False).reshape(
+    #         X_i.shape)
+    #
+    #     phi = np.ones_like(X_i)
+    #     phi[int(np.floor(len(x_i) / 2)), int(np.floor(len(y_i) / 2)),
+    #         int(np.floor(len(z_i) / 2))] = 0
+    #
+    #     tt_tmp = skfmm.travel_time(phi, vel, dx=sub_grid_spacing)
+    #
+    #     tt_tmp_grid = TTGrid(self.network_code, tt_tmp, [x_i[0], y_i[0], z_i[0]],
+    #                          sub_grid_spacing, seed, self.grid_id,
+    #                          phase=self.phase,
+    #                          float_type=self.float_type, label=self.label)
+    #
+    #     # __init__(self, data_or_dims, origin, spacing, seed: Seed,
+    #     # phase: Phases = Phases.P, value: float = 0,
+    #     # float_type: FloatTypes = __default_float_type__,
+    #     # grid_id: ResourceIdentifier = ResourceIdentifier(),
+    #     # grid_units: GridUnits = __default_grid_units__):
+    #
+    #     data = self.data
+    #
+    #     xe = origin[0] + np.arange(0, shape[0], 1) * spacing[0]
+    #     ye = origin[1] + np.arange(0, shape[1], 1) * spacing[1]
+    #     ze = origin[2] + np.arange(0, shape[2], 1) * spacing[2]
+    #
+    #     Xe, Ye, Ze = np.meshgrid(xe, ye, ze, indexing='ij')
+    #
+    #     coords = np.array([Xe.ravel(), Ye.ravel(), Ze.ravel()])
+    #
+    #     corner1 = np.array([np.min(x_i), np.min(y_i), np.min(z_i)])
+    #     corner2 = np.array([np.max(x_i), np.max(y_i), np.max(z_i)])
+    #
+    #     test = ((coords[0, :] >= corner1[0]) & (coords[0, :] <= corner2[0]) &
+    #             (coords[1, :] >= corner1[1]) & (coords[1, :] <= corner2[1]) &
+    #             (coords[2, :] >= corner1[2]) & (coords[2, :] <= corner2[2]))
+    #
+    #     Xe_grid = Xe.ravel()[test]
+    #     Ye_grid = Ye.ravel()[test]
+    #     Ze_grid = Ze.ravel()[test]
+    #
+    #     X = np.array([Xe_grid, Ye_grid, Ze_grid]).T
+    #
+    #     tt_interp = tt_tmp_grid.interpolate(X, grid_space=False,
+    #                                         order=3)[0]
+    #
+    #     bias = np.max(tt_interp)
+    #
+    #     phi_out = np.ones_like(Xe).ravel()
+    #     phi_out[test] = tt_interp - bias
+    #
+    #     phi_out = phi_out.reshape(Xe.shape)
+    #
+    #     tt_out = skfmm.travel_time(phi_out, data, dx=spacing)
+    #
+    #     # tt_out = tt_out.ravel() + bias
+    #     tt_out = tt_out.ravel() + bias
+    #     tt_out[test] = tt_interp
+    #     tt_out = tt_out.reshape(Xe.shape)
+    #
+    #     tt_out_grid = TTGrid(self.network_code, tt_out, self.origin,
+    #                          self.spacing, seed, phase=self.phase,
+    #                          float_type=self.float_type,
+    #                          grid_units=self.grid_units,
+    #                          velocity_model_id=self.grid_id,
+    #                          label=self.label)
+    #
+    #     tt_out_grid.data -= tt_out_grid.interpolate(seed.T,
+    #                                                 grid_space=False,
+    #                                                 order=3)[0]
+    #
+    #     return tt_out_grid
+
+    def to_time(self, seed: Seed, *args, **kwargs):
         """
         Eikonal solver based on scikit fast marching solver
         :param seed: numpy array location of the seed or origin of useis wave
-         in model coordinates
-        (usually location of a station or an event)
+        in model coordinates (usually location of a station or an event)
         :type seed: numpy.ndarray or list
-        :param sub_grid_resolution: resolution of the grid around the seed.
-        Propagating the wavefront on a denser grid around the seed,
-        significantly improves the travel time accuracy. The value represents
-        a fraction of the grid resolution. For instance, assuming a grid with
-        spacing of 10m, if the sub_grid_resolution is set to 0.1, the
-        resolution around the grid will be 1m.
-
         :rtype: TTGrid
         """
 
@@ -842,87 +957,24 @@ class VelocityGrid3D(TypedGrid):
         shape = self.shape
         spacing = self.spacing
 
-        sub_grid_spacing = spacing * sub_grid_resolution
-
-        # extent = ((4 * sub_grid_spacing) * 1.2 + sub_grid_spacing)
-
-        n_pts_inner_grid = (4 * spacing / sub_grid_spacing * 1.2).astype(int)
-        for i in range(0, len(n_pts_inner_grid)):
-            if n_pts_inner_grid[i] % 2:
-                n_pts_inner_grid[i] += 1
-
-        x_i = np.arange(0, n_pts_inner_grid[0]) * sub_grid_spacing[0]
-        y_i = np.arange(0, n_pts_inner_grid[1]) * sub_grid_spacing[1]
-        z_i = np.arange(0, n_pts_inner_grid[2]) * sub_grid_spacing[2]
-
-        x_i = x_i - np.mean(x_i) + seed.x
-        y_i = y_i - np.mean(y_i) + seed.y
-        z_i = z_i - np.mean(z_i) + seed.z
-
-        X_i, Y_i, Z_i = np.meshgrid(x_i, y_i, z_i, indexing='ij')
-
-        coords = np.array([X_i.ravel(), Y_i.ravel(), Z_i.ravel()]).T
-
-        vel = self.interpolate(coords, grid_space=False).reshape(
-            X_i.shape)
-
-        phi = np.ones_like(X_i)
-        phi[int(np.floor(len(x_i) / 2)), int(np.floor(len(y_i) / 2)),
-            int(np.floor(len(z_i) / 2))] = 0
-
-        tt_tmp = skfmm.travel_time(phi, vel, dx=sub_grid_spacing)
-
-        tt_tmp_grid = TTGrid(self.network_code, tt_tmp, [x_i[0], y_i[0], z_i[0]],
-                             sub_grid_spacing, seed, self.grid_id,
-                             phase=self.phase,
-                             float_type=self.float_type, label=self.label)
-
-        # __init__(self, data_or_dims, origin, spacing, seed: Seed,
-        # phase: Phases = Phases.P, value: float = 0,
-        # float_type: FloatTypes = __default_float_type__,
-        # grid_id: ResourceIdentifier = ResourceIdentifier(),
-        # grid_units: GridUnits = __default_grid_units__):
-
-        data = self.data
-
+        # Set up the regular grid
         xe = origin[0] + np.arange(0, shape[0], 1) * spacing[0]
         ye = origin[1] + np.arange(0, shape[1], 1) * spacing[1]
         ze = origin[2] + np.arange(0, shape[2], 1) * spacing[2]
 
         Xe, Ye, Ze = np.meshgrid(xe, ye, ze, indexing='ij')
 
+        # Prepare the velocity and travel time fields
         coords = np.array([Xe.ravel(), Ye.ravel(), Ze.ravel()])
+        vel = self.interpolate(coords).reshape(Xe.shape)
 
-        corner1 = np.array([np.min(x_i), np.min(y_i), np.min(z_i)])
-        corner2 = np.array([np.max(x_i), np.max(y_i), np.max(z_i)])
+        phi = np.ones_like(Xe)
+        phi[seed.x, seed.y, seed.z] = 0  # Initializing the seed point
 
-        test = ((coords[0, :] >= corner1[0]) & (coords[0, :] <= corner2[0]) &
-                (coords[1, :] >= corner1[1]) & (coords[1, :] <= corner2[1]) &
-                (coords[2, :] >= corner1[2]) & (coords[2, :] <= corner2[2]))
+        # Solve the Eikonal equation
+        tt_out = skfmm.travel_time(phi, vel, dx=spacing)
 
-        Xe_grid = Xe.ravel()[test]
-        Ye_grid = Ye.ravel()[test]
-        Ze_grid = Ze.ravel()[test]
-
-        X = np.array([Xe_grid, Ye_grid, Ze_grid]).T
-
-        tt_interp = tt_tmp_grid.interpolate(X, grid_space=False,
-                                            order=3)[0]
-
-        bias = np.max(tt_interp)
-
-        phi_out = np.ones_like(Xe).ravel()
-        phi_out[test] = tt_interp - bias
-
-        phi_out = phi_out.reshape(Xe.shape)
-
-        tt_out = skfmm.travel_time(phi_out, data, dx=spacing)
-
-        # tt_out = tt_out.ravel() + bias
-        tt_out = tt_out.ravel() + bias
-        tt_out[test] = tt_interp
-        tt_out = tt_out.reshape(Xe.shape)
-
+        # Prepare the output grid
         tt_out_grid = TTGrid(self.network_code, tt_out, self.origin,
                              self.spacing, seed, phase=self.phase,
                              float_type=self.float_type,
@@ -930,8 +982,9 @@ class VelocityGrid3D(TypedGrid):
                              velocity_model_id=self.grid_id,
                              label=self.label)
 
+        # Adjust the travel time grid by the seed value
         tt_out_grid.data -= tt_out_grid.interpolate(seed.T,
-                                                    grid_space=False,
+                                                    grid_space=True,
                                                     order=3)[0]
 
         return tt_out_grid
