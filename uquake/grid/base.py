@@ -825,12 +825,12 @@ def ray_tracer(travel_time_grid, start, grid_space=False, max_iter=5000,
               velocity_model_id=velocity_model_id)
 
     if correct_ray:
-        ray.nodes = correct_ray(ray.nodes, travel_time_grid.spacing)
+        ray.nodes = ray_corrector(ray.nodes, travel_time_grid.spacing)
 
     return ray
 
 
-def correct_ray(ray_nodes, grid_spacing, n=0.5):
+def ray_corrector(ray_nodes, grid_spacing, n=0.5):
     # Keeping the first and last points fixed
 
     spacing = np.min(grid_spacing)
