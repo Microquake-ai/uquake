@@ -42,7 +42,7 @@ from obspy.core.inventory.util import (Equipment, Operator, Person,
                                        PhoneNumber, Site, _textwrap,
                                        _unified_content_strings)
 from uquake.core.util.decorators import expand_input_format_compatibility
-from uquake.core.coordinates import Coordinates
+from uquake.core.coordinates import Coordinates, CoordinateSystem
 from pathlib import Path
 
 from .logging import logger
@@ -851,6 +851,10 @@ class Instrument:
     def make_instrument_code(station_code, location_code):
         return f'{station_code}.{location_code}'
 
+    @property
+    def coordinate_system(self):
+        return self.coordinates.coordinate_system
+
 
 class Channel(inventory.Channel):
     defaults = {}
@@ -990,11 +994,22 @@ class Channel(inventory.Channel):
         :param self:
         :param orientation_vector:
         :return:
+
+        Azimuth is defined from the north direction and positive clockwise
+        Dip is defined as the angle from the horizontal plane and positive down
         """
 
-        east = orientation_vector[0]
-        north = orientation_vector[1]
-        up = orientation_vector[2]
+        if self.coordinate_system == CoordinateSystem.ENU:
+
+            east = orientation_vector[0]
+            north = orientation_vector[1]
+            up = orientation_vector[2]
+
+        elif self.coordinate_system == CoordinateSystem.NZD:
+
+            north = orientation_vector[0]
+            east = orientation_vector[1]
+            up = - orientation_vector[2]
 
         horizontal_length = np.linalg.norm([east, north])
 
@@ -1007,6 +1022,23 @@ class Channel(inventory.Channel):
 
     @property
     def orientation_vector(self):
+        """
+        Computes the orientation vector based on the current azimuth and dip values.
+
+        The method first converts the azimuth and dip from degrees to radians.
+        It then calculates
+        the components of the vector (up, east, north) based on trigonometric
+        relationships. The
+        final orientation vector is dependent on the coordinate system of the instance
+        (either ENU or NED).
+
+        For ENU (East-North-Up), the vector is returned as [east, north, up].
+        For NED (North-East-Down), it is returned as [north, east, -up].
+
+        Returns:
+            numpy.ndarray: A 3-element array representing the orientation vector in the
+            specified coordinate system.
+        """
 
         up = -np.sin(self.dip * np.pi / 180)
         east = np.sin(self.azimuth * np.pi / 180) * \
@@ -1014,7 +1046,17 @@ class Channel(inventory.Channel):
         north = np.cos(self.azimuth * np.pi / 180) * \
                 np.cos(self.dip * np.pi / 180)
 
-        return np.array([east, north, up])
+        if self.coordinate_system == CoordinateSystem.ENU:
+            return np.array([east, north, up])
+
+        elif self.coordinate_system == CoordinateSystem.NED:
+            return np.array([north, east, -up])
+
+        return np.array([north, east, -up])
+
+    @property
+    def coordinate_system(self):
+        return self.coordinates.coordinate_system
 
     @property
     def x(self):

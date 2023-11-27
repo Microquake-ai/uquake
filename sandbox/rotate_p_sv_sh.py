@@ -7,18 +7,77 @@ import matplotlib.pyplot as plt
 import numpy as np
 from uquake.grid import read_grid
 from pathlib import Path
+from uquake.core.event import RayEnsemble
 
 file = '/mnt/HDD_5TB_01/Cozamin/principal_events/zarr/Cozamin231115123813005.zarr'
-gridpath = Path('/home/jpmercier/Repositories/museis.ai/2023-0002-Cozamin-Large-Event/Project/COZAMIN/CZM/times/')
+gridpath = Path('/home/jpmercier/Repositories/museis.ai/'
+                '2023-0002-Cozamin-Large-Event/Project/COZAMIN/CZM/times/')
 
-mde = ZarrHandler.read(file)
-st = mde.stream
-inventory = mde.inventory
 cat = read_events('test.xml', format='QUAKEML')
+mde = ZarrHandler.read(file)
+mde.catalog = cat
+mde.p_sv_sh_stream_from_hodogram()
+st = mde.stream.detrend('demean').detrend('linear').copy()
+st2 = st.copy()
+inventory = mde.inventory
 
-rays = cat[0].preferred_origin().rays
+rays = RayEnsemble([])
+for instrument in inventory.instruments:
+    if len(instrument.channels) == 3:
+        rays.append(cat[0].preferred_origin().rays.select(station=instrument.station,
+                                                          location=instrument.location,
+                                                          phase='P')[0])
 
-st.rotate_p_sv_sh(rays, inventory)
+rays.plot_distribution()
+input('press enter to continue')
+# rays = cat[0].preferred_origin().rays
+
+# st_rotated = st.rotate_from_hodogram(cat, inventory)
+st_rotated = st.copy().rotate_p_sv_sh(cat[0].preferred_origin().rays, inventory)
+
+plt.figure(figsize=(20, 20))
+# for instrument in inventory.instruments:
+#     plt.clf()
+#     incidence_p = cat[0].preferred_origin().rays.select(
+#         station=instrument.station_code)[0].incidence_p
+#     for channel in inventory.select(station=instrument.station.code)[0][0]:
+#         print(np.dot(channel.orientation_vector, incidence_p))
+#         for tr in st_rotated.select(station=instrument.station_code, channel=channel.code):
+#             plt.plot(tr.data, label=f'{instrument.code}.{channel.code}')
+#     plt.legend()
+#     plt.show()
+
+
+for instrument in inventory.instruments:
+    if len(instrument.channels) == 3:
+        # plt.clf()
+        st_rotated_tmp = st_rotated.select(instrument=instrument.code)
+        # st_rotated_tmp.plot(event=cat[0])
+        st_tmp = st2.select(instrument=instrument.code)
+        st_tmp.plot(event=cat[0])
+        for i in range(3):
+            plt.subplot(3, 1, i + 1)
+            plt.plot(st_tmp[i].data)
+            plt.plot(st_rotated_tmp[i].data)
+            plt.show()
+
+st_copy = st.copy()
+for arrival in cat[0].preferred_origin().arrivals:
+    if arrival.phase == 'S':
+        continue
+    st2 = st_copy.select(network=arrival.pick.waveform_id.network_code,
+                         station=arrival.pick.waveform_id.station_code,
+                         location=arrival.pick.waveform_id.location_code).copy()
+
+    if len(st2) != 3:
+        continue
+    st2 = st2.trim(starttime=arrival.pick.time + 0.002,
+                   endtime=arrival.pick.time + 0.02)
+
+    plt.clf()
+    plt.plot(st2[0].data, st2[1].data)
+    plt.show()
+
 
 # gd = read_grid('time.pickle', format='pickle')
 

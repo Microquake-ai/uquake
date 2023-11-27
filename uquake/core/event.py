@@ -106,10 +106,32 @@ class RayEnsemble(list):
                     ray_phase = ray.phase.value
                 else:
                     ray_phase = ray.phase
-                if ray_phase != phase:
+                if ray_phase != phase.upper():
                     continue
             out_list.append(ray)
         return out_list
+
+    def plot_distribution(self):
+        import mplstereonet
+        import matplotlib.pyplot as plt
+
+        fig, ax = mplstereonet.subplots()
+
+        for ray in self:
+            (azimuth, takeoff_angle) = (ray.azimuth, ray.takeoff_angle)
+
+            # Determine the type of ray and symbol
+            # Replace with your actual criteria for classifying the ray types
+            if ray.phase.value == 'P':  # Define is_p_wave function based on your criteria
+                symbol = 'x'
+            else:
+                symbol = 'o'
+
+            ax.pole(azimuth, takeoff_angle, marker=symbol, color='blue', markersize=5,
+                     linewidth=0)
+
+        ax.grid()
+        plt.show()
 
 
 class Phase(Enum):
@@ -277,6 +299,7 @@ class Ray(object):
             return np.array([v[0], v[1], -v[2]])
         return v / np.linalg.norm(v)
 
+    @property
     def incidence_vector(self):
         """Get the incidence vector regardless of the coordinate system."""
         v = self.nodes[-1] - self.nodes[-2]
@@ -286,7 +309,7 @@ class Ray(object):
 
         self.coordinate_system
         # Ensure the P-wave vector is normalized
-        p_vector = self.incidence_vector()
+        p_vector = self.incidence_p
 
         # Define vertical direction based on coordinate system
         if self.coordinate_system == CoordinateSystem.NED:
@@ -308,23 +331,24 @@ class Ray(object):
                 sv_vector = np.array([0, 1, 0])  # North direction
         else:
             # For non-vertical P-waves, calculate using cross products
-            sv_vector = np.cross(p_vector, vertical_direction)
-            sv_vector /= np.linalg.norm(sv_vector)
-
-            sh_vector = np.cross(p_vector, sv_vector)
+            sh_vector = -np.cross(p_vector, vertical_direction)
             sh_vector /= np.linalg.norm(sh_vector)
+
+            sv_vector = np.cross(sh_vector, p_vector)
+            sv_vector /= np.linalg.norm(sv_vector)
 
         return sv_vector, sh_vector
 
     @property
     def incidence_p(self):
-        return self.incidence_vector()
+        return self.incidence_vector
 
     @property
     def incidence_sv(self):
         sv, _ = self._find_sv_sh_vectors()
         return sv
 
+    @property
     def incidence_sh(self):
         _, sh = self._find_sv_sh_vectors()
         return sh

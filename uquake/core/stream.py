@@ -314,22 +314,31 @@ class Stream(obsstream.Stream, ABC):
 
         rotated_traces = []
         for instrument in inventory.instruments:
-            st_instrument = self.select(instrument=instrument.code)
+            st_instrument = self.select(
+                instrument=instrument.code).detrend('demean').detrend('linear').copy()
             if len(st_instrument) != 3:
+                rotated_traces.append(st_instrument[0].copy())
                 continue
 
             try:
                 ray_p = rays.select(network=st_instrument[0].stats.network,
                                     station=st_instrument[0].stats.station,
-                                    location=st_instrument[0].stats.location, phase='P')[
-                    0]
+                                    location=st_instrument[0].stats.location,
+                                    phase='P')[0]
                 ray_s = rays.select(network=st_instrument[0].stats.network,
                                     station=st_instrument[0].stats.station,
-                                    location=st_instrument[0].stats.location, phase='S')[
-                    0]
-            except IndexError:
-                # Handle case where ray selection does not return a valid ray
+                                    location=st_instrument[0].stats.location,
+                                    phase='S')[0]
+            except IndexError as ie:
+                logger.warning(ie)
+                logger.warning(f'The instrument {instrument.code} will not be '
+                               f'rotated into P, SV, SH, as there is no ray '
+                               f'associated to this instrument')
+                for tr in st_instrument:
+                    rotated_traces.append(tr)
                 continue
+            except Exception as e:
+                raise Exception
 
             incidence_p = ray_p.incidence_p
             incidence_sv = ray_s.incidence_sv
@@ -350,6 +359,78 @@ class Stream(obsstream.Stream, ABC):
                 data_sh += tr.data * dot_sh
 
             stats = st_instrument[0].stats.copy()
+            for data, component in zip([data_p, data_sv, data_sh], ['_P', '_SV', '_SH']):
+                new_trace = Trace(data=data, header=stats)
+                new_trace.stats.channel = new_trace.stats.channel[:-1] + component
+                rotated_traces.append(new_trace)
+
+        return Stream(traces=rotated_traces)
+
+    def rotate_from_hodogram(self, catalog, inventory, window_length=0.01):
+        """
+        Rotate the stream to P, SV, SH coordinate system using the hodogram
+        """
+
+        st = self.copy().detrend('demean').detrend('linear')
+        event = catalog[0]
+        origin = event.preferred_origin() or event.origins[-1]
+
+        rotated_traces = []
+        for instrument in inventory.instruments:
+            st_out = st.select(instrument=instrument.code).copy()
+
+            if len(st_out) != 3:
+                rotated_traces.extend(st_out)
+                continue
+
+            arrival = next((arr for arr in origin.arrivals if
+                            arr.pick.waveform_id.station_code == instrument.station_code
+                            and arr.pick.waveform_id.location_code == instrument.location_code
+                            and arr.phase != 'S'), None)
+
+            if arrival is None:
+                rotated_traces.extend(st_out)
+                continue
+
+            p_pick = arrival.pick.time
+            st_instrument = st_out.copy().trim(
+                starttime=p_pick, endtime=p_pick + window_length)
+            wave_mat = np.array([tr.data for tr in st_instrument])
+            cov_mat = np.cov(wave_mat)
+            eig_vals, eig_vects = np.linalg.eigh(cov_mat)
+            eig_vect = eig_vects[:, np.argmax(eig_vals)]
+
+            # Incident vector calculation
+            incident_vector = instrument.loc - origin.loc
+            if np.dot(incident_vector, eig_vect) < 0:
+                eig_vect = -eig_vect
+            incidence_p = eig_vect / np.linalg.norm(eig_vect)
+
+            # Determine the appropriate vertical direction
+            vertical_direction = np.array([0, 0, -1]) \
+                if instrument.coordinate_system == CoordinateSystem.NED else np.array(
+                [0, 0, 1])
+
+            # Calculate incidence vectors for SV and SH
+            incidence_sh = np.cross(incidence_p, vertical_direction)
+            incidence_sh /= np.linalg.norm(incidence_sh)
+            incidence_sv = np.cross(incidence_sh, incidence_p)
+            incidence_sv /= np.linalg.norm(incidence_sv)
+
+            data_p, data_sv, data_sh = [np.zeros(len(st_out[0].data)) for _ in range(3)]
+            for tr in st_out:
+                channel = \
+                inventory.select(station=tr.stats.station, location=tr.stats.location,
+                                 channel=tr.stats.channel)[0][0][0]
+                orientation_vector = channel.orientation_vector
+                dot_p = np.dot(orientation_vector, incidence_p)
+                dot_sv = np.dot(orientation_vector, incidence_sv)
+                dot_sh = np.dot(orientation_vector, incidence_sh)
+                data_p += tr.data * dot_p
+                data_sv += tr.data * dot_sv
+                data_sh += tr.data * dot_sh
+
+            stats = st_out[0].stats.copy()
             for data, component in zip([data_p, data_sv, data_sh], ['P', 'SV', 'SH']):
                 new_trace = Trace(data=data, header=stats)
                 new_trace.stats.channel = new_trace.stats.channel[:-1] + component

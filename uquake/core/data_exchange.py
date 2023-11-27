@@ -26,6 +26,7 @@ from typing import List, Union
 import re
 from uquake.io.data_exchange.zarr import (read_zarr, write_zarr, get_inventory,
                                           get_catalog)
+import numpy as np
 import io
 
 
@@ -196,6 +197,76 @@ class MicroseismicDataExchange(object):
                     event_type_lookup.convert_from_quakeml(catalog[i].event_type)
 
         return cls(stream=stream, catalog=catalog, inventory=inventory)
+
+    def p_sv_sh_stream_from_hodogram(self, window_length=0.02):
+        """
+        create a P SV and SH stream oriented based on the polarity of the incoming
+        wavefield
+        """
+        # Rotate the stream in "E", "N", "Z" if that is not yet the case
+        st_zne = self.stream.copy().rotate('->ZNE', inventory=self.inventory)
+        st_zne = st_zne.filter('highpass', freq=10)
+
+        event = self.catalog[0]
+        inventory = self.inventory
+        if event.preferred_origin() is not None:
+            origin = event.preferred_origin()
+        else:
+            origin = event.origins[-1]
+
+        st_out = Stream()
+
+        for arrival in origin.arrivals:
+            if arrival.phase == 'S':
+                continue
+            pick = arrival.pick
+            network = pick.waveform_id.network_code
+            station = pick.waveform_id.station_code
+            location = pick.waveform_id.location_code
+
+            start_time = pick.time
+            end_time = pick.time + window_length
+
+            st_tmp = st_zne.copy().select(network=network, station=station,
+                                          location=location).trim(
+                starttime=start_time, endtime=end_time)
+
+            if len(st_tmp) != 3:
+                for tr in st_tmp:
+                    st_out.traces.append(tr)
+                continue
+
+            wave_mat = []
+            for component in ['E', 'N', 'Z']:
+                tr = st_tmp.select(component=component)[0]
+                wave_mat.append(tr.data)
+
+            wave_mat = np.array(wave_mat)
+
+            cov_mat = np.cov(wave_mat)
+
+            eig_vals, eig_vects = np.linalg.eig(cov_mat)
+            i_ = np.argsort(eig_vals)
+
+            if arrival.phase == 'P':
+                eig_vect = eig_vects[i_[-1]]
+                linearity = (1 - np.linalg.norm(eig_vals[i_[:2]]) /
+                             eig_vals[i_[2]])
+                color = 'b'
+            elif arrival.phase == 'S':
+                eig_vect = eig_vects[i_[0]]
+                linearity = (1 - eig_vals[i_[0]] /
+                             np.linalg.norm(eig_vals[i_[1:]]))
+                color = 'r'
+
+            sta = inventory.select(network=network,
+                                   station=station,
+                                   location=location)[0][0]
+
+            eig_vect /= np.linalg.norm(eig_vect)
+            ray = origin.rays.select(network=network, station=station, location=location,
+                                     phase='P')[0]
+
 
 
 class ASDFHandler:

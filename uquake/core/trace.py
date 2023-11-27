@@ -185,3 +185,24 @@ class Trace(ObspyTrace, ABC):
         trace_dict['data'] = self.data.tolist()
 
         return trace_dict
+
+    def create_brune_pulse(self, f_c, shift_time):
+        """
+        Generates the Brune pulse for a given corner frequency and time array.
+
+        Parameters:
+        f_c (float): Corner frequency in Hz.
+        shit_time (numpy array): shift the start of the trace to shift_time
+        Returns:
+        numpy array: The Brune pulse evaluated at the given time points.
+        """
+        times = self.times()
+        # Calculate the decay constant
+        tau = 1 / (2 * np.pi * f_c)
+
+        # Generate the Brune pulse
+        pulse = times * np.exp(-times / tau)
+
+        pulse = np.roll(pulse, self.time_to_index(shift_time))
+
+        return pulse
