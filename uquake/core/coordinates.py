@@ -28,11 +28,20 @@ class CoordinateSystem(Enum):
     ENU -- East, North, Up coordinate system.
     """
 
-    NED = 1
-    ENU = 2
+    NED = 'NED'
+    END = 'END'
+    ENU = 'ENU'
+    NEU = 'NEU'
 
     def __repr__(self):
-        return "North, East, Down (NED)" if self.name == "NED" else "East, North, Up (ENU)"
+        if self.name == "NED":
+            return "North, East, Down (NED)"
+        elif self.name == "ENU":
+            return "East, North, Up (ENU)"
+        elif self.name == "NEU":
+            return "North, East, Up (NEU) [WARNING - RIGHT-HANDED COORDINATE SYSTEM]"
+        elif self.name == "END":
+            return "East, North, Down (END) [WARNING - RIGHT-HANDED COORDINATE SYSTEM]"
 
     def __str__(self):
         return str(self.name)

@@ -953,23 +953,54 @@ class Channel(inventory.Channel):
                 'Channel': self.code,
                 'Location': self.location_code,
                 'Time range': time_range,
-                'Northing [x]': f"{self.x:0.0f} m" if self.x is not None else 'N/A',
-                'Easting [y]': f"{self.y:0.0f} m" if self.y is not None else 'N/A',
-                'Elevation [z]': f"{self.z:0.0f} m" if self.z is not None else 'N/A',
+                'Easting [x]': f"{self.x:0.0f} m" if self.x is not None else 'N/A',
+                'Northing [y]': f"{self.y:0.0f} m" if self.y is not None else 'N/A',
+                'Elevation (UP) [z]':
+                    f"{self.z:0.0f} m" if self.z is not None else 'N/A',
                 'Dip (degrees)': f"{self.dip:0.0f}" if self.dip is not None else 'N/A',
                 'Azimuth (degrees)': f"{self.azimuth:0.0f}" if self.azimuth
                                                                is not None else 'N/A',
                 'Response information': 'available' if self.response else 'not available'
             }
 
-        else:
+        elif self.coordinates.coordinate_system == 'NED':
+            attributes = {
+                'Channel': self.code,
+                'Location': self.location_code,
+                'Time range': time_range,
+                'Northing [x]': f"{self.x:0.0f} m" if self.x is not None else 'N/A',
+                'Easting [y]': f"{self.y:0.0f} m" if self.y is not None else 'N/A',
+                'Depth (Down) [z]': f"{self.z:0.0f} m" if self.z is not None else 'N/A',
+                'Dip (degrees)': f"{self.dip:0.0f}" if self.dip is not None else 'N/A',
+                'Azimuth (degrees)': f"{self.azimuth:0.0f}" if self.azimuth
+                                                               is not None else 'N/A',
+                'Response information': 'available' if self.response else 'not available'
+            }
+
+        elif self.coordinate_system == 'NEU':
+            attributes = {
+                'Channel': self.code,
+                'Location': self.location_code,
+                'Time range': time_range,
+                'Northing [x]': f"{self.x:0.0f} m" if self.x is not None else 'N/A',
+                'Easting [y]': f"{self.y:0.0f} m" if self.y is not None else 'N/A',
+                'Elevation (up) [z]':
+                    f"{self.z:0.0f} m" if self.z is not None else 'N/A',
+                'Dip (degrees)': f"{self.dip:0.0f}" if self.dip is not None else 'N/A',
+                'Azimuth (degrees)': f"{self.azimuth:0.0f}" if self.azimuth
+                                                               is not None else 'N/A',
+                'Response information': 'available' if self.response else 'not available'
+            }
+
+        elif self.coordinates.coordinate_system == 'ENU':
+
             attributes = {
                 'Channel': self.code,
                 'Location': self.location_code,
                 'Time range': time_range,
                 'Easting [x]': f"{self.x:0.0f} m" if self.x is not None else 'N/A',
                 'Northing [y]': f"{self.y:0.0f} m" if self.y is not None else 'N/A',
-                'Depth [z]': f"{self.z:0.0f} m" if self.z is not None else 'N/A',
+                'Depth (Down) [z]': f"{self.z:0.0f} m" if self.z is not None else 'N/A',
                 'Dip (degrees)': f"{self.dip:0.0f}" if self.dip is not None else 'N/A',
                 'Azimuth (degrees)': f"{self.azimuth:0.0f}" if self.azimuth
                                                                is not None else 'N/A',
@@ -1005,7 +1036,7 @@ class Channel(inventory.Channel):
             north = orientation_vector[1]
             up = orientation_vector[2]
 
-        elif self.coordinate_system == CoordinateSystem.NZD:
+        elif self.coordinate_system == CoordinateSystem.NED:
 
             north = orientation_vector[0]
             east = orientation_vector[1]
@@ -1052,7 +1083,12 @@ class Channel(inventory.Channel):
         elif self.coordinate_system == CoordinateSystem.NED:
             return np.array([north, east, -up])
 
-        return np.array([north, east, -up])
+        elif self.coordinate_system == CoordinateSystem.NEU:
+            return np.array([north, east, up])
+        elif self.coordinate_system == CoordinateSystem.END:
+            return np.array([east, north, -up])
+        else:
+            raise ValueError('coordinate system not supported')
 
     @property
     def coordinate_system(self):
