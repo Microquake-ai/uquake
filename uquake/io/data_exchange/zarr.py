@@ -81,10 +81,10 @@ def read_zarr(filepath):
 
     z = zarr.open(filepath, mode='r')
 
-    catalog = get_catalog(z)
+    catalog = get_catalog(filepath)
     # Deserialize Inventory
 
-    inventory = get_inventory(z)
+    inventory = get_inventory(filepath)
 
     # Reconstruct Stream
     if 'stream' in z:
