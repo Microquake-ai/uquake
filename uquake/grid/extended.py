@@ -1206,6 +1206,10 @@ class SeededGrid(TypedGrid):
                                 station_code=self.station_code,
                                 location_code=self.location_code)
 
+    @property
+    def coordinate_system(self):
+        return self.seed.coordinates.coordinate_system
+
     @staticmethod
     def get_base_name(network_code, phase, seed_label, grid_type):
 
@@ -1283,6 +1287,26 @@ class SeededGrid(TypedGrid):
             out_file.write(f'{self.model_id}')
 
 
+def adjust_gradients_for_coordinate_system(gds):
+    """
+    Adjust gradients based on the coordinate system.
+    :param gds: Gradients (tuple of numpy arrays).
+    :param coord_system: Coordinate system (instance of CoordinateSystem).
+    :return: Adjusted gradients.
+    """
+    coord_system = gds.coordinate_system
+    if coord_system == CoordinateSystem.NED:
+        return -gds[0], -gds[1], gds[2]
+    elif coord_system == CoordinateSystem.ENU:
+        return gds[1], gds[0], -gds[2]
+    elif coord_system == CoordinateSystem.NEU:
+        return gds[1], gds[0], gds[2]
+    elif coord_system == CoordinateSystem.END:
+        return gds[1], gds[2], -gds[0]
+    else:
+        raise ValueError("Invalid coordinate system")
+
+
 class TTGrid(SeededGrid):
     def __init__(self, network_code, data_or_dims, origin, spacing, seed: Seed,
                  velocity_model_id: ResourceIdentifier,
@@ -1304,17 +1328,16 @@ class TTGrid(SeededGrid):
 
     def to_azimuth(self):
         """
-        This function calculate the takeoff angle and azimuth for every
+        This function calculate the azimuth for every
         grid point given a travel time grid calculated using an Eikonal solver
-        :return: azimuth and takeoff angles grids
-        .. Note: The convention for the takeoff angle is that 0 degree is down.
+        :return: azimuth angles grids
         """
 
         gds_tmp = np.gradient(self.data)
-        gds = [-gd for gd in gds_tmp]
+        gds = adjust_gradients_for_system(self)
 
-        azimuth = np.arctan2(gds[0], gds[1]) * 180 / np.pi
-        # azimuth is zero northwards
+        azimuth = np.arctan2(gds[1], gds[0]) * 180 / np.pi
+        azimuth = np.mod(azimuth, 360)  # Ensuring azimuth is within [0, 360] range
 
         return AngleGrid(self.network_code, azimuth, self.origin, self.spacing,
                          self.seed, phase=self.phase, float_type=self.float_type,
@@ -1322,11 +1345,18 @@ class TTGrid(SeededGrid):
                          velocity_model_id=self.velocity_model_id)
 
     def to_takeoff(self):
+        """
+        This function calculate the takeoff angle for every grid point given a
+        travel time grid calculated using an Eikonal solver
+        :return: takeoff angles grid
+        .Note: The convention for the takeoff angle is that 0 degree is down.
+        """
         gds_tmp = np.gradient(self.data)
-        gds = [-gd for gd in gds_tmp]
+        gds = adjust_gradients_for_system(gds_tmp, self.coordinate_system)
 
         hor = np.sqrt(gds[0] ** 2 + gds[1] ** 2)
-        takeoff = np.arctan2(hor, -gds[2]) * 180 / np.pi
+        takeoff = np.arctan2(hor, gds[2]) * 180 / np.pi
+        takeoff = np.clip(takeoff, 0, 180)
         # takeoff is zero pointing down
         return AngleGrid(self.network_code, takeoff, self.origin, self.spacing,
                          self.seed, phase=self.phase, float_type=self.float_type,

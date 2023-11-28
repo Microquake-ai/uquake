@@ -1033,6 +1033,22 @@ class Channel(inventory.Channel):
         Dip is defined as the angle from the horizontal plane and positive down
         """
 
+        azimuth, dip = self.calculate_azimuth_and_dip(orientation_vector)
+        self.azimuth = azimuth
+        self.dip = dip
+
+    @staticmethod
+    def calculate_azimuth_and_takeoff(orientation_vector):
+        """
+        calculate the Azimuth and Dip from an orientation vector assuming the
+        orientation vector provided is east, north, up.
+        :param orientation_vector:
+        :return:
+
+        Azimuth is defined from the north direction and positive clockwise
+        Dip is defined as the angle from the horizontal plane and positive down
+        """
+
         if self.coordinate_system == CoordinateSystem.ENU:
 
             east = orientation_vector[0]
@@ -1051,8 +1067,9 @@ class Channel(inventory.Channel):
         if azimuth < 0:
             azimuth = 360 + azimuth
 
-        self.azimuth = azimuth
-        self.dip = np.arctan2(-up, horizontal_length) * 180 / np.pi
+        dip = np.arctan2(-up, horizontal_length) * 180 / np.pi
+
+        return azimuth, dip
 
     @property
     def orientation_vector(self):
