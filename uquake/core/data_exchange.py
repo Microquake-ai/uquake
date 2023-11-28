@@ -448,20 +448,21 @@ class ZarrHandler:
         data_dict = read_zarr(file_path)
         return MicroseismicDataExchange(**data_dict)
 
-    def get_inventory(self):
+    @staticmethod
+    def get_inventory(file_path):
         """
         Retrieve the seismic inventory from the Zarr dataset.
         :return: uQuake Inventory object
         """
-        return get_inventory(self.file_path)
+        return get_inventory(file_path)
 
     @staticmethod
-    def get_catalog(self):
+    def get_catalog(file_path):
         """
         Retrieve the seismic catalog from the Zarr dataset.
         :return: uQuake Catalog object
         """
-        return get_catalog(self.filepath)
+        return get_catalog(file_path)
 
     def get_stream(self, networks: List[str] = [], stations: List[str] = [],
                    locations: List[str] = [], channels: List[str] = []):
