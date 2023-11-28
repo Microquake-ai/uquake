@@ -8,6 +8,7 @@ import numpy as np
 from uquake.grid import read_grid
 from pathlib import Path
 from uquake.core.event import RayEnsemble
+from uquake.core.stream import Stream
 
 file = '/mnt/HDD_5TB_01/Cozamin/principal_events/zarr/Cozamin231115123813005.zarr'
 gridpath = Path('/home/jpmercier/Repositories/museis.ai/'
@@ -24,42 +25,49 @@ inventory = mde.inventory
 rays = RayEnsemble([])
 for instrument in inventory.instruments:
     if len(instrument.channels) == 3:
-        rays.append(cat[0].preferred_origin().rays.select(station=instrument.station,
-                                                          location=instrument.location,
+        rays.append(cat[0].preferred_origin().rays.select(station=instrument.station_code,
+                                                          location=instrument.location_code,
                                                           phase='P')[0])
 
-rays.plot_distribution()
-input('press enter to continue')
+# rays.plot_distribution()
+# input('press enter to continue')
 # rays = cat[0].preferred_origin().rays
 
 # st_rotated = st.rotate_from_hodogram(cat, inventory)
-st_rotated = st.copy().rotate_p_sv_sh(cat[0].preferred_origin().rays, inventory)
 
-plt.figure(figsize=(20, 20))
-# for instrument in inventory.instruments:
-#     plt.clf()
-#     incidence_p = cat[0].preferred_origin().rays.select(
-#         station=instrument.station_code)[0].incidence_p
-#     for channel in inventory.select(station=instrument.station.code)[0][0]:
-#         print(np.dot(channel.orientation_vector, incidence_p))
-#         for tr in st_rotated.select(station=instrument.station_code, channel=channel.code):
-#             plt.plot(tr.data, label=f'{instrument.code}.{channel.code}')
-#     plt.legend()
-#     plt.show()
+traces = []
+for instrument in inventory.instruments:
+    st3 = st2.select(instrument=instrument.code)
+    if len(st3) == 3:
+        for tr in st3:
+            if tr.stats.channel[-1] == '1':
+                tr.stats.channel = tr.stats.channel[:-1] + '2'
+            elif tr.stats.channel[-1] == '2':
+                tr.stats.channel = tr.stats.channel[:-1] + '1'
+    for tr in st3:
+        traces.append(tr)
+
+st2 = Stream(traces=traces)
+
+
+st_rotated = st2.copy().rotate_p_sv_sh(cat[0].preferred_origin().rays, inventory)
 
 
 for instrument in inventory.instruments:
     if len(instrument.channels) == 3:
-        # plt.clf()
+        plt.close('all')
         st_rotated_tmp = st_rotated.select(instrument=instrument.code)
         # st_rotated_tmp.plot(event=cat[0])
         st_tmp = st2.select(instrument=instrument.code)
-        st_tmp.plot(event=cat[0])
+        plt.clf()
+        plt.figure(figsize=(20, 20))
         for i in range(3):
             plt.subplot(3, 1, i + 1)
             plt.plot(st_tmp[i].data)
             plt.plot(st_rotated_tmp[i].data)
             plt.show()
+        st_rotated_tmp.plot(event=cat[0])
+        input('press enter to continue')
 
 st_copy = st.copy()
 for arrival in cat[0].preferred_origin().arrivals:
@@ -81,44 +89,44 @@ for arrival in cat[0].preferred_origin().arrivals:
 
 # gd = read_grid('time.pickle', format='pickle')
 
-# ray = gd.ray_tracing(cat[0].preferred_origin().loc)
-plt.close('all')
-for grid_file in gridpath.glob('*.pickle'):
-    gd = read_grid(grid_file, format='pickle')
-    ray = gd.ray_tracer(cat[0].preferred_origin().loc, )
-
-
-
-    plt.figure(1)
-    plt.clf()
-    i = gd.transform_to_grid(gd.seed.loc).astype(int)
-    plt.imshow(gd.data[:, :, int(i[-1])])
-    plt.plot(i[1], i[0], 'ro')
-    # plt.show()
-
-    ray = gd.ray_tracer(cat[0].preferred_origin().loc, )
-
-    nodes = np.copy(ray.nodes)
-
-    # new_ray = base.correct_ray(nodes)
-    # for i in range(1, len(nodes)):
-    #     plt.plot(nodes[i, 0], nodes[i, 1], 'b.')
-    #     plt.show()
-    #     input('grapout')
-
-    nodes_grid = []
-    for node in ray.nodes:
-        nodes_grid.append(gd.transform_to_grid(node))
-
-    nodes_grid = np.array(nodes_grid)
-
-    plt.plot(nodes_grid[:, 1], nodes_grid[:, 0], 'b.')
-    # plt.plot(ray.nodes[:, 1], ray.nodes[:, 0], 'r.', label='corrected')
-    # plt.plot([ray.nodes[0, 0], ray.nodes[-1, 0]], [ray.nodes[0, 1], ray.nodes[-1, 1]],
-    #          'b.', label='optimal')
-    # plt.plot(ray.nodes[:, 0], ray.nodes[:, 1], 'r', label='original')
-    # plt.legend()
-    plt.show()
-
-    print(ray)
-    input('press enter')
+# # ray = gd.ray_tracing(cat[0].preferred_origin().loc)
+# plt.close('all')
+# for grid_file in gridpath.glob('*.pickle'):
+#     gd = read_grid(grid_file, format='pickle')
+#     ray = gd.ray_tracer(cat[0].preferred_origin().loc, )
+#
+#
+#
+#     plt.figure(1)
+#     plt.clf()
+#     i = gd.transform_to_grid(gd.seed.loc).astype(int)
+#     plt.imshow(gd.data[:, :, int(i[-1])])
+#     plt.plot(i[1], i[0], 'ro')
+#     # plt.show()
+#
+#     ray = gd.ray_tracer(cat[0].preferred_origin().loc, )
+#
+#     nodes = np.copy(ray.nodes)
+#
+#     # new_ray = base.correct_ray(nodes)
+#     # for i in range(1, len(nodes)):
+#     #     plt.plot(nodes[i, 0], nodes[i, 1], 'b.')
+#     #     plt.show()
+#     #     input('grapout')
+#
+#     nodes_grid = []
+#     for node in ray.nodes:
+#         nodes_grid.append(gd.transform_to_grid(node))
+#
+#     nodes_grid = np.array(nodes_grid)
+#
+#     plt.plot(nodes_grid[:, 1], nodes_grid[:, 0], 'b.')
+#     # plt.plot(ray.nodes[:, 1], ray.nodes[:, 0], 'r.', label='corrected')
+#     # plt.plot([ray.nodes[0, 0], ray.nodes[-1, 0]], [ray.nodes[0, 1], ray.nodes[-1, 1]],
+#     #          'b.', label='optimal')
+#     # plt.plot(ray.nodes[:, 0], ray.nodes[:, 1], 'r', label='original')
+#     # plt.legend()
+#     plt.show()
+#
+#     print(ray)
+#     input('press enter')

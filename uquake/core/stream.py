@@ -357,6 +357,8 @@ class Stream(obsstream.Stream, ABC):
                 data_p += tr.data * dot_p
                 data_sv += tr.data * dot_sv
                 data_sh += tr.data * dot_sh
+                from ipdb import set_trace
+                set_trace()
 
             stats = st_instrument[0].stats.copy()
             for data, component in zip([data_p, data_sv, data_sh], ['_P', '_SV', '_SH']):

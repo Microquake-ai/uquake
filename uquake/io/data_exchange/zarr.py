@@ -97,12 +97,13 @@ def read_zarr(filepath):
             'stream': stream}
 
 
-def get_catalog(z):
+def get_catalog(file_path):
     """
     Deserialize a Catalog from a Zarr group
-    :param z: Zarr group
-    :return:
+    :param file_path: file path to the Zarr group
+    :return: catalog
     """
+    z = zarr.open(file_path, mode='r')
     if 'catalog' in z and z['catalog'] is not None:
         catalog_array = z['catalog']
         if catalog_array.ndim == 0:  # Check if it is a scalar (zero-dimensional)
@@ -116,7 +117,13 @@ def get_catalog(z):
     return catalog
 
 
-def get_inventory(z):
+def get_inventory(file_path):
+    """
+    Deserialize an Inventory from a Zarr group
+    :param file_path: file path to the Zarr group
+    :return: inventory
+    """
+    z = zarr.open(file_path, mode='r')
     if 'inventory' in z and z['inventory'] is not None:
         inventory_array = z['inventory']
         if inventory_array.ndim == 0:  # Check if it is a scalar (zero-dimensional)

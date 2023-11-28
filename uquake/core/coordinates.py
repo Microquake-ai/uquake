@@ -39,9 +39,9 @@ class CoordinateSystem(Enum):
         elif self.name == "ENU":
             return "East, North, Up (ENU)"
         elif self.name == "NEU":
-            return "North, East, Up (NEU) [WARNING - RIGHT-HANDED COORDINATE SYSTEM]"
+            return "North, East, Up (NEU) [WARNING - LEFT-HANDED COORDINATE SYSTEM]"
         elif self.name == "END":
-            return "East, North, Down (END) [WARNING - RIGHT-HANDED COORDINATE SYSTEM]"
+            return "East, North, Down (END) [WARNING - LEFT-HANDED COORDINATE SYSTEM]"
 
     def __str__(self):
         return str(self.name)

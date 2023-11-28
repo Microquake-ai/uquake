@@ -799,6 +799,9 @@ class Instrument:
     def __gt__(self, other):
         return str(self) > str(other)
 
+    def __getitem__(self, item):
+        return self.channels[item]
+
     @property
     def loc(self):
         return np.array([self.x, self.y, self.z])
@@ -947,7 +950,7 @@ class Channel(inventory.Channel):
         time_range = f"{self.start_date} - {self.end_date}" if self.start_date and \
                                                                self.end_date else 'N/A'
 
-        if self.coordinates.coordinate_system == 'ENU':
+        if self.coordinates.coordinate_system == CoordinateSystem.ENU:
 
             attributes = {
                 'Channel': self.code,
@@ -963,7 +966,7 @@ class Channel(inventory.Channel):
                 'Response information': 'available' if self.response else 'not available'
             }
 
-        elif self.coordinates.coordinate_system == 'NED':
+        elif self.coordinates.coordinate_system == CoordinateSystem.NED:
             attributes = {
                 'Channel': self.code,
                 'Location': self.location_code,
@@ -977,7 +980,7 @@ class Channel(inventory.Channel):
                 'Response information': 'available' if self.response else 'not available'
             }
 
-        elif self.coordinate_system == 'NEU':
+        elif self.coordinates.coordinate_system == CoordinateSystem.NEU:
             attributes = {
                 'Channel': self.code,
                 'Location': self.location_code,
@@ -992,7 +995,7 @@ class Channel(inventory.Channel):
                 'Response information': 'available' if self.response else 'not available'
             }
 
-        elif self.coordinates.coordinate_system == 'ENU':
+        elif self.coordinates.coordinate_system == CoordinateSystem.END:
 
             attributes = {
                 'Channel': self.code,

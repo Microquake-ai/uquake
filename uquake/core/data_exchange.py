@@ -268,7 +268,6 @@ class MicroseismicDataExchange(object):
                                      phase='P')[0]
 
 
-
 class ASDFHandler:
     def __init__(self, asdf_file_path, compression='gzip-3', mode='a', **kwargs):
         """
@@ -454,8 +453,7 @@ class ZarrHandler:
         Retrieve the seismic inventory from the Zarr dataset.
         :return: uQuake Inventory object
         """
-        z = zarr.open(self.file_path, mode='r')
-        return get_inventory(z)
+        return get_inventory(self.file_path)
 
     @staticmethod
     def get_catalog(self):
@@ -463,9 +461,7 @@ class ZarrHandler:
         Retrieve the seismic catalog from the Zarr dataset.
         :return: uQuake Catalog object
         """
-
-        z = zarr.open(self.filepath, mode='r')
-        return get_catalog(z)
+        return get_catalog(self.filepath)
 
     def get_stream(self, networks: List[str] = [], stations: List[str] = [],
                    locations: List[str] = [], channels: List[str] = []):
