@@ -130,9 +130,11 @@ class SystemResponse(object):
         component_info = self.components_info.get(component_key, {})
         if component_key == 'sensor':
             if component_info['type'] == 'geophone':
-                stage = geophone_sensor_response(**component_info['params'])
+                stage, instrument_sensitivity = \
+                    geophone_sensor_response(**component_info['params'])
             elif component_info['type'] == 'accelerometer':
-                stage = accelerometer_sensor_response(**component_info['params'])
+                stage, instrument_sensitivity = \
+                    accelerometer_sensor_response(**component_info['params'])
             else:
                 raise ValueError("Invalid sensor type.")
         elif component_key == 'cable':
@@ -153,7 +155,8 @@ class SystemResponse(object):
                 sequence_number += 1
 
         # Create and return a Response object using the gathered response stages
-        system_response = Response(response_stages=response_stages)
+        system_response = Response(instrument_sensitivity=instrument_sensitivity,
+                                   response_stages=response_stages)
 
         return system_response
 
@@ -181,7 +184,10 @@ def geophone_sensor_response(resonance_frequency, gain, damping=0.707,
                                   'LAPLACE (RADIANT/SECOND)',
                                   resonance_frequency, paz['zeros'],
                                   paz['poles'])
-    return pzr
+    instrument_sensitivity = InstrumentSensitivity(
+        value=1, frequency=resonance_frequency, input_units='M/S',
+        output_units='M/S')
+    return pzr, instrument_sensitivity
 
 
 def accelerometer_sensor_response(resonance_frequency, gain, sensitivity=1,
@@ -209,7 +215,10 @@ def accelerometer_sensor_response(resonance_frequency, gain, sensitivity=1,
                                   'LAPLACE (RADIANT/SECOND)',
                                   resonance_frequency, paz['zeros'],
                                   paz['poles'])
-    return pzr
+    instrument_sensitivity = InstrumentSensitivity(
+        value=1, frequency=resonance_frequency, input_units='M/S**2',
+        output_units='M/S**2')
+    return pzr, instrument_sensitivity
 
 
 def sensor_cable_response(output_resistance=np.inf, cable_length=np.inf,
