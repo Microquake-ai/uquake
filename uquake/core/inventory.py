@@ -158,6 +158,7 @@ class SystemResponse(object):
         # Create and return a Response object using the gathered response stages
         system_response = Response(instrument_sensitivity=self.instrument_sensitivity,
                                    response_stages=response_stages)
+        return system_response
 
     @property
     def instrument_sensitivity(self):
