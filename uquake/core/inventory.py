@@ -104,13 +104,16 @@ class SystemResponse(object):
         Examples:
         ----------
         >>> sr = SystemResponse('geophone', resonance_frequency=4.5, gain=2.0)
-        >>> sr = SystemResponse('accelerometer', resonance_frequency=15, gain=3.0, sensitivity=0.2)
+        >>> sr = SystemResponse('accelerometer', resonance_frequency=15, gain=3.0,
+        sensitivity=0.2)
         """
 
         self.components_info = {
             'sensor': {'type': sensor_type,
                        'params': sensor_params}
         }
+
+        self.sensor_type = sensor_type
 
     def add_cable(self, **cable_params):
         if 'cable' in self.components_info:
@@ -130,11 +133,9 @@ class SystemResponse(object):
         component_info = self.components_info.get(component_key, {})
         if component_key == 'sensor':
             if component_info['type'] == 'geophone':
-                stage, instrument_sensitivity = \
-                    geophone_sensor_response(**component_info['params'])
+                stage = geophone_sensor_response(**component_info['params'])
             elif component_info['type'] == 'accelerometer':
-                stage, instrument_sensitivity = \
-                    accelerometer_sensor_response(**component_info['params'])
+                stage = accelerometer_sensor_response(**component_info['params'])
             else:
                 raise ValueError("Invalid sensor type.")
         elif component_key == 'cable':
@@ -155,10 +156,19 @@ class SystemResponse(object):
                 sequence_number += 1
 
         # Create and return a Response object using the gathered response stages
-        system_response = Response(instrument_sensitivity=instrument_sensitivity,
+        system_response = Response(instrument_sensitivity=self.instrument_sensitivity,
                                    response_stages=response_stages)
 
-        return system_response
+    @property
+    def instrument_sensitivity(self):
+        if sensor_type == 'gephone':
+            units = 'M/S'
+        else:
+            units = 'M/S/S'
+        resonance_frequency = self.components_info['sensor'][
+            'params']['resonance_frequency']
+        InstrumentSensitivity(value=gain, frequency=resonance_frequency,
+                              input_units=units, output_units=units)
 
 
 def geophone_sensor_response(resonance_frequency, gain, damping=0.707,
@@ -184,10 +194,7 @@ def geophone_sensor_response(resonance_frequency, gain, damping=0.707,
                                   'LAPLACE (RADIANT/SECOND)',
                                   resonance_frequency, paz['zeros'],
                                   paz['poles'])
-    instrument_sensitivity = InstrumentSensitivity(
-        value=1, frequency=resonance_frequency, input_units='M/S',
-        output_units='M/S')
-    return pzr, instrument_sensitivity
+    return pzr
 
 
 def accelerometer_sensor_response(resonance_frequency, gain, sensitivity=1,
@@ -215,10 +222,7 @@ def accelerometer_sensor_response(resonance_frequency, gain, sensitivity=1,
                                   'LAPLACE (RADIANT/SECOND)',
                                   resonance_frequency, paz['zeros'],
                                   paz['poles'])
-    instrument_sensitivity = InstrumentSensitivity(
-        value=1, frequency=resonance_frequency, input_units='M/S**2',
-        output_units='M/S**2')
-    return pzr, instrument_sensitivity
+    return pzr
 
 
 def sensor_cable_response(output_resistance=np.inf, cable_length=np.inf,
