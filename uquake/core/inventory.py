@@ -161,7 +161,7 @@ class SystemResponse(object):
 
     @property
     def instrument_sensitivity(self):
-        if self.components_info['type'] == 'gephone':
+        if self.components_info['sensor']['type'] == 'gephone':
             units = 'M/S'
         else:
             units = 'M/S/S'
