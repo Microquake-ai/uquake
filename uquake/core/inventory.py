@@ -1037,8 +1037,7 @@ class Channel(inventory.Channel):
         self.azimuth = azimuth
         self.dip = dip
 
-    @staticmethod
-    def calculate_azimuth_and_dip(orientation_vector):
+    def calculate_azimuth_and_dip(self, orientation_vector):
         """
         calculate the Azimuth and Dip from an orientation vector assuming the
         orientation vector provided is east, north, up.
