@@ -167,7 +167,7 @@ class SystemResponse(object):
             units = 'M/S/S'
         resonance_frequency = self.components_info['sensor'][
             'params']['resonance_frequency']
-        InstrumentSensitivity(value=gain, frequency=resonance_frequency,
+        InstrumentSensitivity(value=1, frequency=resonance_frequency,
                               input_units=units, output_units=units)
 
 
