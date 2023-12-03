@@ -1294,13 +1294,13 @@ def adjust_gradients_for_coordinate_system(gds):
     """
     coord_system = gds.coordinate_system
     if coord_system == CoordinateSystem.NED:
-        return -gds[0], -gds[1], gds[2]
+        return {'north': gds[0], 'east': gds[1], 'down': gds[2]}
     elif coord_system == CoordinateSystem.ENU:
-        return gds[1], gds[0], -gds[2]
+        return {'north': gds[1], 'east': gds[0], 'down': -gds[2]}
     elif coord_system == CoordinateSystem.NEU:
-        return gds[1], gds[0], gds[2]
+        return {'north': gds[0], 'east': gds[1], 'down': -gds[2]}
     elif coord_system == CoordinateSystem.END:
-        return gds[1], gds[2], -gds[0]
+        return {'north': gds[1], 'east': gds[0], 'down': gds[2]}
     else:
         raise ValueError("Invalid coordinate system")
 
@@ -1329,10 +1329,12 @@ class TTGrid(SeededGrid):
         :return: azimuth angles grids
         """
 
-        gds_tmp = np.gradient(self.data)
-        gds = adjust_gradients_for_coordinate_system(self)
+        gds = np.gradient(self.data)
+        tmp = adjust_gradients_for_coordinate_system(gds)
+        north = tmp['north']
+        east = tmp['east']
 
-        azimuth = np.arctan2(gds[1], gds[0]) * 180 / np.pi
+        azimuth = np.arctan2(east, north) * 180 / np.pi
         azimuth = np.mod(azimuth, 360)  # Ensuring azimuth is within [0, 360] range
 
         return AngleGrid(self.network_code, azimuth, self.origin, self.spacing,
@@ -1348,10 +1350,14 @@ class TTGrid(SeededGrid):
         .Note: The convention for the takeoff angle is that 0 degree is down.
         """
         gds_tmp = np.gradient(self.data)
-        gds = adjust_gradients_for_coordinate_system(gds_tmp, self.coordinate_system)
+        tmp = adjust_gradients_for_coordinate_system(gds_tmp, self.coordinate_system)
 
-        hor = np.sqrt(gds[0] ** 2 + gds[1] ** 2)
-        takeoff = np.arctan2(hor, gds[2]) * 180 / np.pi
+        east = tmp['east']
+        north = tmp['north']
+        down = tmp['down']
+
+        hor = np.sqrt(north ** 2 + east ** 2)
+        takeoff = np.arctan2(hor, down) * 180 / np.pi
         takeoff = np.clip(takeoff, 0, 180)
         # takeoff is zero pointing down
         return AngleGrid(self.network_code, takeoff, self.origin, self.spacing,
