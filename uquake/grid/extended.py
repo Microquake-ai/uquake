@@ -1285,14 +1285,14 @@ class SeededGrid(TypedGrid):
             out_file.write(f'{self.model_id}')
 
 
-def adjust_gradients_for_coordinate_system(gds):
+def adjust_gradients_for_coordinate_system(gds, coordinate_system):
     """
     Adjust gradients based on the coordinate system.
     :param gds: Gradients (tuple of numpy arrays).
     :param coord_system: Coordinate system (instance of CoordinateSystem).
     :return: Adjusted gradients.
     """
-    coord_system = gds.coordinate_system
+    coord_system = coordinate_system
     if coord_system == CoordinateSystem.NED:
         return {'north': gds[0], 'east': gds[1], 'down': gds[2]}
     elif coord_system == CoordinateSystem.ENU:
@@ -1330,7 +1330,7 @@ class TTGrid(SeededGrid):
         """
 
         gds = np.gradient(self.data)
-        tmp = adjust_gradients_for_coordinate_system(gds)
+        tmp = adjust_gradients_for_coordinate_system(gds, self.coordinate_system)
         north = tmp['north']
         east = tmp['east']
 
@@ -1349,8 +1349,8 @@ class TTGrid(SeededGrid):
         :return: takeoff angles grid
         .Note: The convention for the takeoff angle is that 0 degree is down.
         """
-        gds_tmp = np.gradient(self.data)
-        tmp = adjust_gradients_for_coordinate_system(gds_tmp, self.coordinate_system)
+        gds = np.gradient(self.data)
+        tmp = adjust_gradients_for_coordinate_system(gds, self.coordinate_system)
 
         east = tmp['east']
         north = tmp['north']
