@@ -318,7 +318,7 @@ class Stream(obsstream.Stream, ABC):
                 station=instrument.station_code,
                 location=instrument.location_code
             ).detrend('demean').detrend('linear').copy()
-            if len(st) == 0:
+            if len(st_instrument) == 0:
                 continue
             if len(st_instrument) != 3:
                 rotated_traces.append(st_instrument[0].copy())
