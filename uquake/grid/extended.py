@@ -1330,7 +1330,7 @@ class TTGrid(SeededGrid):
         """
 
         gds_tmp = np.gradient(self.data)
-        gds = adjust_gradients_for_system(self)
+        gds = adjust_gradients_for_coordinate_system(self)
 
         azimuth = np.arctan2(gds[1], gds[0]) * 180 / np.pi
         azimuth = np.mod(azimuth, 360)  # Ensuring azimuth is within [0, 360] range
@@ -1348,7 +1348,7 @@ class TTGrid(SeededGrid):
         .Note: The convention for the takeoff angle is that 0 degree is down.
         """
         gds_tmp = np.gradient(self.data)
-        gds = adjust_gradients_for_system(gds_tmp, self.coordinate_system)
+        gds = adjust_gradients_for_coordinate_system(gds_tmp, self.coordinate_system)
 
         hor = np.sqrt(gds[0] ** 2 + gds[1] ** 2)
         takeoff = np.arctan2(hor, gds[2]) * 180 / np.pi
