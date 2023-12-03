@@ -1123,9 +1123,9 @@ class Channel(inventory.Channel):
         else:
             raise ValueError('coordinate system not supported')
 
-    @property
-    def coordinate_system(self):
-        return self.coordinates.coordinate_system
+    # @property
+    # def coordinate_system(self):
+    #     return self.coordinates.coordinate_system
 
     @property
     def x(self):
