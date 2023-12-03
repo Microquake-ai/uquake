@@ -1313,8 +1313,7 @@ class TTGrid(SeededGrid):
                  grid_units: GridUnits = __default_grid_units__,
                  float_type: FloatTypes = __default_float_type__,
                  grid_id: ResourceIdentifier = ResourceIdentifier(),
-                 label=__default_grid_label__,
-                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
+                 label=__default_grid_label__):
 
         super().__init__(network_code, data_or_dims, origin, spacing, seed,
                          velocity_model_id=velocity_model_id, phase=phase,
@@ -1322,7 +1321,6 @@ class TTGrid(SeededGrid):
                          grid_units=grid_units,
                          float_type=float_type,
                          grid_id=grid_id,
-                         coordinate_system=coordinate_system,
                          label=label)
 
     def to_azimuth(self):
@@ -1824,8 +1822,7 @@ class AngleGrid(SeededGrid):
                  float_type: FloatTypes = __default_float_type__,
                  grid_type: GridTypes = GridTypes.ANGLE,
                  grid_id: ResourceIdentifier = ResourceIdentifier(),
-                 label=__default_grid_label__,
-                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
+                 label=__default_grid_label__):
 
         super().__init__(network_code, data_or_dims, origin, spacing, seed,
                          velocity_model_id=velocity_model_id, phase=phase,
@@ -1833,7 +1830,6 @@ class AngleGrid(SeededGrid):
                          grid_units=grid_units,
                          float_type=float_type,
                          grid_id=grid_id,
-                         coordinate_system=coordinate_system,
                          label=label)
 
     def write_nlloc(self, path='.'):
