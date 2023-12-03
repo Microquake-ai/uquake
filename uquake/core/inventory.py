@@ -888,7 +888,7 @@ class Channel(inventory.Channel):
         depth = kwargs.pop('depth') if 'depth' in kwargs.keys() else 0
 
         super().__init__(code, location_code, latitude, longitude,
-                                      elevation, depth, **kwargs)
+                         elevation, depth, **kwargs)
 
         if 'extra' not in self.__dict__.keys():  # hack for deepcopy to work
             self.__dict__['extra'] = {}
@@ -1110,23 +1110,23 @@ class Channel(inventory.Channel):
         north = np.cos(self.azimuth * np.pi / 180) * \
                 np.cos(self.dip * np.pi / 180)
 
-        if self.coordinate_system == CoordinateSystem.ENU:
+        if self.coordinates.coordinate_system == CoordinateSystem.ENU:
             ov = np.array([east, north, up])
 
-        elif self.coordinate_system == CoordinateSystem.NED:
+        elif self.coordinates.coordinate_system == CoordinateSystem.NED:
             ov = np.array([north, east, -up])
 
-        elif self.coordinate_system == CoordinateSystem.NEU:
+        elif self.coordinates.coordinate_system == CoordinateSystem.NEU:
             ov = np.array([north, east, up])
-        elif self.coordinate_system == CoordinateSystem.END:
+        elif self.coordinates.coordinate_system == CoordinateSystem.END:
             ov = np.array([east, north, -up])
-        else:
-            raise ValueError('coordinate system not supported')
+        # else:
+        #     raise ValueError('coordinate system not supported')
         return ov
 
-    # @property
-    # def coordinate_system(self):
-    #     return self.coordinates.coordinate_system
+    @property
+    def coordinate_system(self):
+        return self.coordinates.coordinate_system
 
     @property
     def x(self):
