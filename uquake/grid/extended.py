@@ -1125,8 +1125,7 @@ class SeededGrid(TypedGrid):
                  grid_type: SeededGridType = SeededGridType.TIME,
                  float_type: FloatTypes = __default_float_type__,
                  grid_id: ResourceIdentifier = ResourceIdentifier(),
-                 label: str = __default_grid_label__,
-                 coordinate_system: CoordinateSystem = CoordinateSystem.NED):
+                 label: str = __default_grid_label__):
         """
         :param network: network code
         :param data_or_dims: data or data dimensions.
@@ -1162,7 +1161,7 @@ class SeededGrid(TypedGrid):
                          phase=phase, value=value,
                          grid_type=grid_type, grid_units=grid_units,
                          float_type=float_type, grid_id=grid_id, label=label,
-                         coordinate_system=coordinate_system)
+                         coordinate_system=seed.coordinate_system)
 
         # ensure the data are expressed in the appropriate float_type
         self.data.astype(float_type.value)
@@ -1206,9 +1205,9 @@ class SeededGrid(TypedGrid):
                                 station_code=self.station_code,
                                 location_code=self.location_code)
 
-    @property
-    def coordinate_system(self):
-        return self.seed.coordinates.coordinate_system
+    # @property
+    # def coordinate_system(self):
+    #     return self.seed.coordinates.coordinate_system
 
     @staticmethod
     def get_base_name(network_code, phase, seed_label, grid_type):
