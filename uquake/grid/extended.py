@@ -936,7 +936,6 @@ class VelocityGrid3D(TypedGrid):
 
         return tt_out_grid
 
-
     def to_time_multi_threaded(self, seeds: SeedEnsemble, cpu_utilisation=0.9,
                                *args, **kwargs):
         """
@@ -1161,7 +1160,7 @@ class SeededGrid(TypedGrid):
                          phase=phase, value=value,
                          grid_type=grid_type, grid_units=grid_units,
                          float_type=float_type, grid_id=grid_id, label=label,
-                         coordinate_system=seed.coordinate_system)
+                         coordinate_system=seed.coordinates.coordinate_system)
 
         # ensure the data are expressed in the appropriate float_type
         self.data.astype(float_type.value)
