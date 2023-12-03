@@ -1062,13 +1062,13 @@ class Channel(inventory.Channel):
         Dip is defined as the angle from the horizontal plane and positive down
         """
 
-        if self.coordinate_system == CoordinateSystem.ENU:
+        if self.coordinates.coordinate_system == CoordinateSystem.ENU:
 
             east = orientation_vector[0]
             north = orientation_vector[1]
             up = orientation_vector[2]
 
-        elif self.coordinate_system == CoordinateSystem.NED:
+        elif self.coordinates.coordinate_system == CoordinateSystem.NED:
 
             north = orientation_vector[0]
             east = orientation_vector[1]
