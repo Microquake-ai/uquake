@@ -315,7 +315,11 @@ class Stream(obsstream.Stream, ABC):
         rotated_traces = []
         for instrument in inventory.instruments:
             st_instrument = self.select(
-                instrument=instrument.code).detrend('demean').detrend('linear').copy()
+                station=instrument.station_code,
+                location=instrument.location_code
+            ).detrend('demean').detrend('linear').copy()
+            if len(st) == 0:
+                continue
             if len(st_instrument) != 3:
                 rotated_traces.append(st_instrument[0].copy())
                 continue
