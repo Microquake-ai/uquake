@@ -893,14 +893,14 @@ class Channel(inventory.Channel):
         if 'extra' not in self.__dict__.keys():  # hack for deepcopy to work
             self.__dict__['extra'] = {}
 
+        self.extra['coordinates'] = coordinates.to_extra_key(namespace=namespace)
+        set_extra(self, 'active', active, namespace=namespace)
+        set_extra(self, 'oriented', oriented, namespace=namespace)
+
         if orientation_vector is not None:
             # making the orientation vector (cosine vector) unitary
             orientation_vector = orientation_vector / np.linalg.norm(orientation_vector)
             self.set_orientation(orientation_vector)
-
-        self.extra['coordinates'] = coordinates.to_extra_key(namespace=namespace)
-        set_extra(self, 'active', active, namespace=namespace)
-        set_extra(self, 'oriented', oriented, namespace=namespace)
 
     @classmethod
     def from_obspy_channel(cls, obspy_channel, xy_from_lat_lon=False,
