@@ -1111,17 +1111,18 @@ class Channel(inventory.Channel):
                 np.cos(self.dip * np.pi / 180)
 
         if self.coordinate_system == CoordinateSystem.ENU:
-            return np.array([east, north, up])
+            ov = np.array([east, north, up])
 
         elif self.coordinate_system == CoordinateSystem.NED:
-            return np.array([north, east, -up])
+            ov = np.array([north, east, -up])
 
         elif self.coordinate_system == CoordinateSystem.NEU:
-            return np.array([north, east, up])
+            ov = np.array([north, east, up])
         elif self.coordinate_system == CoordinateSystem.END:
-            return np.array([east, north, -up])
+            ov = np.array([east, north, -up])
         else:
             raise ValueError('coordinate system not supported')
+        return ov
 
     # @property
     # def coordinate_system(self):
