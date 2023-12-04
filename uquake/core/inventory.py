@@ -1084,6 +1084,8 @@ class Channel(inventory.Channel):
             north = orientation_vector[1]
             up = - orientation_vector[2]
 
+        from ipdb import set_trace; set_trace()
+
         horizontal_length = np.linalg.norm([east, north])
 
         azimuth = np.arctan2(east, north) * 180 / np.pi
