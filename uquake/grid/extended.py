@@ -1540,36 +1540,36 @@ class TravelTimeEnsemble:
         return cls(tt_grids)
 
     def select(self, instrument_codes: Optional[List[str]] = None,
-               phases: Optional[List[Phases]] = None):
+               phase: Union[Phases, 'str'] = None):
         """
         return a list of grid corresponding to seed_labels.
         :param instrument_codes: seed labels of the travel time grids to return
-        :param phases: the phase {'P' or 'S'}, both if None.
+        :param phase: the phase {'P' or 'S'}, both if None.
         :return: a list of travel time grids
         :rtype: TravelTimeEnsemble
         """
 
-        if (instrument_codes is None) and (phases is None):
+        if (instrument_codes is None) and (phase is None):
             return self
 
         tmp = []
         if instrument_codes is None:
             instrument_codes = np.unique(self.seeds)
 
-        if phases is None:
+        if phase is None:
             phases = [Phases.P.value, Phases.S.value]
         else:
             phases = [phase.value if isinstance(phase, Phases) else Phases(phase).value
-                      for phase in phases]
+                     for phase in phase]
 
         returned_grids = []
         for travel_time_grid in self.travel_time_grids:
             if travel_time_grid.seed.label in instrument_codes:
                 if isinstance(travel_time_grid.phase, Phases):
-                    phase = travel_time_grid.phase.value
+                    grid_phase = travel_time_grid.phase.value
                 else:
-                    phase = travel_time_grid.phase
-                if phase in phases:
+                    grid_phase = travel_time_grid.phase
+                if grid_phase in phases:
                     returned_grids.append(travel_time_grid)
 
         return TravelTimeEnsemble(returned_grids)

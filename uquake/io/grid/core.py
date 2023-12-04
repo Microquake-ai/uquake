@@ -334,10 +334,10 @@ def write_grid_to_hdf5(
         for phase in Phases:
 
             if isinstance(grid_ensemble, TravelTimeEnsemble):
-                if len(grid_ensemble.select(phases=[phase.value])) == 0:
+                if len(grid_ensemble.select(phase=[phase.value])) == 0:
                     continue
                 phase_group = h5file.create_group(f'Phase {phase.value}')
-                tmp_ensemble = grid_ensemble.select(phases=[phase.value])
+                tmp_ensemble = grid_ensemble.select(phase=[phase.value])
                 for time_grid in tmp_ensemble:
                     instrument_group = phase_group.create_group(
                         time_grid.instrument_code)
