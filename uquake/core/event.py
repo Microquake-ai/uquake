@@ -639,6 +639,8 @@ class Event(obsevent.Event):
             _init_handler(self, obspy_obj, **kwargs)
         else:
             _init_handler(self, obspy_obj, **kwargs)
+            self.event_type = EventTypeLookup().convert_from_quakeml(
+                self.event_type)
             pick_dict = {}
             self.picks = []
             for pick in obspy_obj.picks:
