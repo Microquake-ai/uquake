@@ -301,74 +301,75 @@ class Stream(obsstream.Stream, ABC):
 
         return waveform.plotWaveform(*args, **kwargs)
 
-    def rotate_p_sv_sh(self, rays: RayEnsemble, inventory: Inventory):
-        """
-        Rotate the stream to P, SV, SH coordinate system.
+    # def rotate_p_sv_sh(self, rays: RayEnsemble, inventory: Inventory):
+    #     """
+    #     Rotate the stream to P, SV, SH coordinate system.
+    #
+    #     :NOTE: only works for 3 component stations with provided rays.
+    #
+    #     :param rays: rays object.
+    #     :param inventory: inventory object.
+    #     :return: rotated stream.
+    #     """
+    #
+    #     rotated_traces = []
+    #     for instrument in inventory.instruments:
+    #         st_instrument = self.select(
+    #             station=instrument.station_code,
+    #             location=instrument.location_code
+    #         ).detrend('demean').detrend('linear').copy()
+    #         if len(st_instrument) == 0:
+    #             continue
+    #         if len(st_instrument) != 3:
+    #             rotated_traces.append(st_instrument[0].copy())
+    #             continue
+    #
+    #         try:
+    #             ray_p = rays.select(network=st_instrument[0].stats.network,
+    #                                 station=st_instrument[0].stats.station,
+    #                                 location=st_instrument[0].stats.location,
+    #                                 phase='P')[0]
+    #             ray_s = rays.select(network=st_instrument[0].stats.network,
+    #                                 station=st_instrument[0].stats.station,
+    #                                 location=st_instrument[0].stats.location,
+    #                                 phase='S')[0]
+    #         except IndexError as ie:
+    #             logger.warning(ie)
+    #             logger.warning(f'The instrument {instrument.code} will not be '
+    #                            f'rotated into P, SV, SH, as there is no ray '
+    #                            f'associated to this instrument')
+    #             for tr in st_instrument:
+    #                 rotated_traces.append(tr)
+    #             continue
+    #         except Exception as e:
+    #             raise Exception
+    #
+    #         incidence_p = ray_p.incidence_p
+    #         incidence_sv = ray_s.incidence_sv
+    #         incidence_sh = ray_s.incidence_sh
+    #
+    #         data_p, data_sv, data_sh = [np.zeros(len(st_instrument[0].data)) for _ in
+    #                                     range(3)]
+    #         for tr in st_instrument:
+    #             channel = inventory.select(station=tr.stats.station,
+    #                                        location=tr.stats.location,
+    #                                        channel=tr.stats.channel)[0][0][0]
+    #             orientation_vector = channel.orientation_vector
+    #             dot_p = np.dot(orientation_vector, incidence_p)
+    #             dot_sv = np.dot(orientation_vector, incidence_sv)
+    #             dot_sh = np.dot(orientation_vector, incidence_sh)
+    #             data_p += tr.data * dot_p
+    #             data_sv += tr.data * dot_sv
+    #             data_sh += tr.data * dot_sh
+    #
+    #         stats = st_instrument[0].stats.copy()
+    #         for data, component in zip([data_p, data_sv, data_sh], ['_P', '_SV', '_SH']):
+    #             new_trace = Trace(data=data, header=stats)
+    #             new_trace.stats.channel = new_trace.stats.channel[:-1] + component
+    #             rotated_traces.append(new_trace)
+    #
+    #     return Stream(traces=rotated_traces)
 
-        :NOTE: only works for 3 component stations with provided rays.
-
-        :param rays: rays object.
-        :param inventory: inventory object.
-        :return: rotated stream.
-        """
-
-        rotated_traces = []
-        for instrument in inventory.instruments:
-            st_instrument = self.select(
-                station=instrument.station_code,
-                location=instrument.location_code
-            ).detrend('demean').detrend('linear').copy()
-            if len(st_instrument) == 0:
-                continue
-            if len(st_instrument) != 3:
-                rotated_traces.append(st_instrument[0].copy())
-                continue
-
-            try:
-                ray_p = rays.select(network=st_instrument[0].stats.network,
-                                    station=st_instrument[0].stats.station,
-                                    location=st_instrument[0].stats.location,
-                                    phase='P')[0]
-                ray_s = rays.select(network=st_instrument[0].stats.network,
-                                    station=st_instrument[0].stats.station,
-                                    location=st_instrument[0].stats.location,
-                                    phase='S')[0]
-            except IndexError as ie:
-                logger.warning(ie)
-                logger.warning(f'The instrument {instrument.code} will not be '
-                               f'rotated into P, SV, SH, as there is no ray '
-                               f'associated to this instrument')
-                for tr in st_instrument:
-                    rotated_traces.append(tr)
-                continue
-            except Exception as e:
-                raise Exception
-
-            incidence_p = ray_p.incidence_p
-            incidence_sv = ray_s.incidence_sv
-            incidence_sh = ray_s.incidence_sh
-
-            data_p, data_sv, data_sh = [np.zeros(len(st_instrument[0].data)) for _ in
-                                        range(3)]
-            for tr in st_instrument:
-                channel = inventory.select(station=tr.stats.station,
-                                           location=tr.stats.location,
-                                           channel=tr.stats.channel)[0][0][0]
-                orientation_vector = channel.orientation_vector
-                dot_p = np.dot(orientation_vector, incidence_p)
-                dot_sv = np.dot(orientation_vector, incidence_sv)
-                dot_sh = np.dot(orientation_vector, incidence_sh)
-                data_p += tr.data * dot_p
-                data_sv += tr.data * dot_sv
-                data_sh += tr.data * dot_sh
-
-            stats = st_instrument[0].stats.copy()
-            for data, component in zip([data_p, data_sv, data_sh], ['_P', '_SV', '_SH']):
-                new_trace = Trace(data=data, header=stats)
-                new_trace.stats.channel = new_trace.stats.channel[:-1] + component
-                rotated_traces.append(new_trace)
-
-        return Stream(traces=rotated_traces)
 
     def rotate_from_hodogram(self, catalog, inventory, window_length=0.01):
         """

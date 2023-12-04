@@ -1074,6 +1074,16 @@ class Channel(inventory.Channel):
             east = orientation_vector[1]
             up = - orientation_vector[2]
 
+        elif self.coordinates.coordinate_system == CoordinateSystem.NEU:
+            north = orientation_vector[0]
+            east = orientation_vector[1]
+            up = orientation_vector[2]
+
+        elif self.coordinates.coordinate_system == CoordinateSystem.END:
+            east = orientation_vector[0]
+            north = orientation_vector[1]
+            up = - orientation_vector[2]
+
         horizontal_length = np.linalg.norm([east, north])
 
         azimuth = np.arctan2(east, north) * 180 / np.pi
