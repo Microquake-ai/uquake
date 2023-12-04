@@ -1539,22 +1539,22 @@ class TravelTimeEnsemble:
 
         return cls(tt_grids)
 
-    def select(self, instruments_code: Optional[List[str]] = None,
+    def select(self, instrument_codes: Optional[List[str]] = None,
                phases: Optional[List[Phases]] = None):
         """
         return a list of grid corresponding to seed_labels.
-        :param instruments_code: seed labels of the travel time grids to return
+        :param instrument_codes: seed labels of the travel time grids to return
         :param phases: the phase {'P' or 'S'}, both if None.
         :return: a list of travel time grids
         :rtype: TravelTimeEnsemble
         """
 
-        if (instruments_code is None) and (phases is None):
+        if (instrument_codes is None) and (phases is None):
             return self
 
         tmp = []
-        if instruments_code is None:
-            instruments_code = np.unique(self.seeds)
+        if instrument_codes is None:
+            instrument_codes = np.unique(self.seeds)
 
         if phases is None:
             phases = [Phases.P.value, Phases.S.value]
@@ -1564,7 +1564,7 @@ class TravelTimeEnsemble:
 
         returned_grids = []
         for travel_time_grid in self.travel_time_grids:
-            if travel_time_grid.seed_label in instruments_code:
+            if travel_time_grid.seed.label in instrument_codes:
                 if isinstance(travel_time_grid.phase, Phases):
                     phase = travel_time_grid.phase.value
                 else:
@@ -1618,7 +1618,7 @@ class TravelTimeEnsemble:
         if not self.travel_time_grids[0].in_grid(seed):
             raise ValueError('seed is outside the grid')
 
-        tt_grids = self.select(instruments_code=seed_labels)
+        tt_grids = self.select(instrument_codes=seed_labels)
 
         tts = []
         labels = []
@@ -1686,7 +1686,7 @@ class TravelTimeEnsemble:
         if not self.travel_time_grids[0].in_grid(seed):
             raise ValueError('seed is outside the grid')
 
-        tt_grids = self.select(instruments_code=seed_labels)
+        tt_grids = self.select(instrument_codes=seed_labels)
 
         azimuths = []
         takeoffs = []
@@ -1742,7 +1742,7 @@ class TravelTimeEnsemble:
         else:
             if isinstance(instrument_codes, str):
                 instrument_codes = [instrument_codes]
-            travel_time_grids = self.select(instruments_code=instrument_codes)
+            travel_time_grids = self.select(instrument_codes=instrument_codes)
 
         kwargs = {'grid_space': grid_space,
                   'max_iter': max_iter}
@@ -1783,7 +1783,7 @@ class TravelTimeEnsemble:
     def seeds(self):
         seeds = []
         for seed_label in self.seed_labels:
-            seeds.append(self.select(instruments_code=seed_label)[0].seed)
+            seeds.append(self.select(instrument_codes=seed_label)[0].seed)
 
         return np.array(seeds)
 
