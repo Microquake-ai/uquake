@@ -206,7 +206,8 @@ class Coordinates:
         :return: Northing coordinate based on system.
         :rtype: float
         """
-        return self.y if self.coordinate_system == CoordinateSystem.NED else self.x
+        return self.y if (self.coordinate_system == CoordinateSystem.NED) or \
+                         (self.coordinate_system == CoordinateSystem.NEU) else self.x
 
     @property
     def easting(self):
@@ -216,7 +217,8 @@ class Coordinates:
         :return: Easting coordinate based on system.
         :rtype: float
         """
-        return self.x if self.coordinate_system == CoordinateSystem.NED else self.y
+        return self.x if (self.coordinate_system == CoordinateSystem.ENU) or \
+                         (self.coordinate_system == CoordinateSystem.END) else self.y
 
     @property
     def up(self):
@@ -228,7 +230,8 @@ class Coordinates:
         """
         if self.transformation:
             return self.transformation.convert_elevation_depth(self.z, to_depth=False)
-        return -self.z if self.coordinate_system == CoordinateSystem.NED else self.z
+        return -self.z if (self.coordinate_system == CoordinateSystem.NED) or \
+                          (self.coordinate_system == CoordinateSystem.END) else self.z
 
     @property
     def down(self):
@@ -240,7 +243,8 @@ class Coordinates:
         """
         if self.transformation:
             return self.transformation.convert_elevation_depth(self.z, to_depth=True)
-        return self.z if self.coordinate_system == CoordinateSystem.NED else -self.z
+        return self.z if (self.coordinate_system == CoordinateSystem.NED) or \
+                         (self.coordinate_system == CoordinateSystem.END) else -self.z
 
     @property
     def loc(self):
