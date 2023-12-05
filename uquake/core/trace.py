@@ -205,6 +205,6 @@ class Trace(ObspyTrace, ABC):
 
         pulse = np.roll(pulse, self.time_to_index(shift_time))
 
-        pulse = np.linalg.norm(pulse)
+        pulse /= np.linalg.norm(pulse)
 
         return pulse
