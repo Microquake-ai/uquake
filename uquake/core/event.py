@@ -305,6 +305,12 @@ class Ray(object):
         v = self.nodes[-1] - self.nodes[-2]
         return v / np.linalg.norm(v)
 
+    @property
+    def takeoff_vector(self):
+        """Get the takeoff vector regardless of the coordinate system."""
+        v = self.nodes[1] - self.nodes[0]
+        return v / np.linalg.norm(v)
+
     def _find_sv_sh_vectors(self):
 
         self.coordinate_system
