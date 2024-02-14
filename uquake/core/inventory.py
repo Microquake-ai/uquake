@@ -555,10 +555,19 @@ class Network(inventory.Network):
         return instruments
 
     @property
+    def sensors(self):
+        return self.instruments
+
+    @property
     def instrument_coordinates(self):
         coordinates = []
         for instrument in self.instruments:
             coordinates.append(instrument.loc)
+        return np.array(coordinates)
+
+    @property
+    def sensor_coordinates(self):
+        return self.instrument_coordinates
 
 
 class Station(inventory.Station):
@@ -693,11 +702,19 @@ class Station(inventory.Station):
         return instruments
 
     @property
+    def sensors(self):
+        return self.instruments
+
+    @property
     def instrument_coordinates(self):
         coordinates = []
         for instrument in self.instruments:
             coordinates.append(instrument.loc)
         return np.array(coordinates)
+
+    @property
+    def sensor_coordinates(self):
+        return self.instrument_coordinates
 
     def __str__(self):
         contents = self.get_contents()
