@@ -26,6 +26,8 @@ from typing import List, Union
 import re
 from uquake.io.data_exchange.zarr import (read_zarr, write_zarr, get_inventory,
                                           get_catalog)
+import zarr
+
 import numpy as np
 import io
 
@@ -172,7 +174,7 @@ class MicroseismicDataExchange(object):
             self.catalog[i].event_type = event_types[i]
 
     @classmethod
-    def read(cls, file_path: str, waveform_tag: str = 'default') \
+    def read(cls, file_path: str, waveform_tag: str = 'default', ) \
             -> 'MicroseismicDataExchange':
         """
         Reads the stream, catalog, and inventory data from a ASDF file.
@@ -439,13 +441,15 @@ class ZarrHandler:
         write_zarr(file_path, mde)
 
     @staticmethod
-    def read(file_path):
+    def read(file_path, networks: List[str] = None, stations: List[str] = None,
+                   locations: List[str] = None, channels: List[str] = None):
         """
         Read a MicroseismicDataExchange object from a Zarr file.
         :return:
         """
 
-        data_dict = read_zarr(file_path)
+        data_dict = read_zarr(file_path, networks=networks, stations=stations,
+                              locations=locations, channels=channels)
         return MicroseismicDataExchange(**data_dict)
 
     @staticmethod
@@ -464,8 +468,7 @@ class ZarrHandler:
         """
         return get_catalog(file_path)
 
-    def get_stream(self, networks: List[str] = [], stations: List[str] = [],
-                   locations: List[str] = [], channels: List[str] = []):
+    def get_stream(self, ):
         """
         Retrieve specific waveforms from the Zarr dataset.
         :param networks: List of network codes

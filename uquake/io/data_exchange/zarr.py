@@ -5,6 +5,8 @@ from uquake.core import read_inventory, read_events
 import io
 import zarr
 from pathlib import Path
+import numpy as np
+from typing import List, Union
 
 
 def write_zarr(filepath, mde):
@@ -24,13 +26,13 @@ def write_zarr(filepath, mde):
     if mde.catalog is not None:
         z['catalog'] = mde.catalog.to_bytes
     else:
-        z['catalog'] = None
+        pass
 
     # Serialize and store Inventory
     if mde.inventory is not None:
         z['inventory'] = mde.inventory.to_bytes()
     else:
-        z['inventory'] = None
+        pass
 
     # Store Stream
     if mde.stream is not None:
@@ -68,11 +70,16 @@ def stream_to_zarr_group(stream, zarr_group_path):
             arr.attrs[key] = str(tr.stats[key])
 
 
-def read_zarr(filepath):
+def read_zarr(filepath, networks: List[str] = None, stations: List[str] = None,
+              locations: List[str] = None, channels: List[str] = None):
     """
     Read a MicroseismicDataExchange object from a zarr file
 
     :param filepath: The path of the zarr file to read from
+    :param networks: List of networks
+    :param stations: List of stations
+    :param locations: List of locations
+    :param channels: List of channels
     :return: A reconstructed MicroseismicDataExchange object
     """
 
@@ -88,7 +95,9 @@ def read_zarr(filepath):
 
     # Reconstruct Stream
     if 'stream' in z:
-        stream = zarr_to_stream(filepath + '/stream')
+        stream = zarr_to_stream(filepath + '/stream', networks=networks,
+                                stations=stations, locations=locations,
+                                channels=channels)
     else:
         stream = None
 
@@ -137,7 +146,9 @@ def get_inventory(file_path):
     return inventory
 
 
-def zarr_to_stream(zarr_group_path):
+def zarr_to_stream(zarr_group_path, networks: List[str] = None,
+                   stations: List[str] = None, locations: List[str] = None,
+                   channels: List[str] = None):
     """
     Reconstructs an ObsPy/uQuake Stream from a Zarr group.
     :param zarr_group_path: Path to the Zarr group
@@ -148,16 +159,29 @@ def zarr_to_stream(zarr_group_path):
     stream = Stream()
     traces = []
 
-    for network in root_group:
-        for station in root_group[network]:
-            for location in root_group[network][station]:
-                # Iterate over each channel within the location
-                for channel in root_group[network][station][location]:
-                    # Access the Zarr array for the channel
-                    arr = root_group[network][station][location][channel]
+    list_networks = [network[0] for network in root_group.groups()]
+    networks = networks if networks else list_networks
+    for net in networks:
+        list_stations = [station[0] for station in root_group[net].groups()]
+        stations = stations if stations else list_stations
+        for sta in stations:
+            list_locations = [location[0] for location in
+                              list(root_group[net][sta].groups())]
+            locations = locations if locations else list_locations
+            for loc in locations:
+                if channels:
+                    chas = channels
+                else:
+                    # List all datasets (channels) directly under the current location
+                    chas = [name for name in root_group[net][
+                        sta][loc].array_keys()]
 
-                    # Process the array (e.g., reconstruct the Trace object)
-                    tr = Trace(data=arr[:])
+                for cha in chas:
+                    arr = root_group[net][sta][loc][cha]
+
+                    # Construct the Trace object
+                    tr_data = np.array(arr)
+                    tr = Trace(data=tr_data)
 
                     # Retrieve and set stats from Zarr attributes
                     for key in arr.attrs.keys():
@@ -166,10 +190,9 @@ def zarr_to_stream(zarr_group_path):
                         except AttributeError as e:
                             pass
 
-                    tr.stats.calib = float(tr.stats.calib)
-                    traces.append(tr)
+                    stream.append(tr)
 
-    return Stream(traces=traces)
+    return stream
 
 
 def process_channel(arr, stream):
