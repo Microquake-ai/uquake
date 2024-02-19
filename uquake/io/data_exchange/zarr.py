@@ -146,9 +146,10 @@ def get_inventory(file_path):
     return inventory
 
 
-def zarr_to_stream(zarr_group_path, networks: List[str] = None,
-                   stations: List[str] = None, locations: List[str] = None,
-                   channels: List[str] = None):
+def zarr_to_stream(zarr_group_path, networks: Union[List[str], str] = None,
+                   stations: Union[List[str], str] = None,
+                   locations: Union[List[str], str] = None,
+                   channels: Union[List[str], str] = None):
     """
     Reconstructs an ObsPy/uQuake Stream from a Zarr group.
     :param zarr_group_path: Path to the Zarr group
@@ -158,6 +159,15 @@ def zarr_to_stream(zarr_group_path, networks: List[str] = None,
     root_group = zarr.open_group(zarr_group_path, mode='r')
     stream = Stream()
     traces = []
+
+    if isinstance(networks, str):
+        networks = [networks]
+    if isinstance(stations, str):
+        stations = [stations]
+    if isinstance(locations, str):
+        locations = [locations]
+    if isinstance(channels, str):
+        channels = [channels]
 
     list_networks = [network[0] for network in root_group.groups()]
     networks = networks if networks else list_networks
