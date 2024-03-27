@@ -96,7 +96,7 @@ def sliding_snr(sig, ipick, wlen_search, stepsize, snr_wlens, plot=False):
     i1 = min(len(sig) - wl_sig, ipick + hl)
 
     origin_inds = np.arange(i0, i1, stepsize)
-    snrs = np.zeros(len(origin_inds), dtype=np.float32)
+    snrs = np.zeros(len(origin_inds), dtype=float32)
 
     for i, og in enumerate(origin_inds):
         energy_noise = np.mean((sig[og - wl_noise:og]) ** 2)
@@ -139,7 +139,7 @@ def stream_to_array(st, t0, npts_fix, taplen=0.05):
     nsig = len(st)
     taplen_npts = int(npts_fix * taplen)
 
-    data = np.zeros((nsig, npts_fix), dtype=np.float32)
+    data = np.zeros((nsig, npts_fix), dtype=float32)
 
     for i, tr in enumerate(st):
         i0 = int((tr.stats.starttime - t0) * sr + 0.5)
@@ -206,7 +206,7 @@ def roll_data(data, tts):
 
 def velstack(data, dists2src, sr, vels):
     dnorm = norm2d(data)
-    dstack = np.zeros((len(vels), dnorm.shape[1]), dtype=np.float32)
+    dstack = np.zeros((len(vels), dnorm.shape[1]), dtype=float32)
 
     for ivel, vel in enumerate(vels):
         shifts = (dists2src / vel * sr + 0.5).astype(int)
@@ -327,7 +327,7 @@ def freq_window(cf, npts, sr):
     cf = np.array(cf, dtype=float)
     cx = (cf * fsr + 0.5).astype(int)
 
-    win = np.zeros(nfreq, dtype=np.float32)
+    win = np.zeros(nfreq, dtype=float32)
     win[:cx[0]] = 0
     win[cx[0]:cx[1]] = taper_cosine(cx[1] - cx[0])
     win[cx[1]:cx[2]] = 1

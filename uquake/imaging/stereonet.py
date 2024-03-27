@@ -86,7 +86,7 @@ def plot_beachball(cat, lower_hemisphere=True, legend=False, output_file=None):
     p2 = ax.plane(s2, d2, 'k')
 
     polarities = [ar.polarity for ar in cat[0].preferred_origin().arrivals]
-    polarities = np.array(polarities, dtype=np.float)
+    polarities = np.array(polarities, dtype=float)
 
     up = polarities > 0
     dn = polarities < 0

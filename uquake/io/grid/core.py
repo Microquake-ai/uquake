@@ -240,10 +240,10 @@ def read_nlloc(filename, float_type=__default_float_type__):
     # buf_file = Path(path) / f'{base_name}.buf'
     if (float_type.value == 'FLOAT') | (float_type.value == 'float32'):
         data = np.fromfile(buf_file,
-                           dtype=np.float32)
+                           dtype=float32)
     elif (float_type.value == 'DOUBLE') | (float_type.value == 'float64'):
         data = np.fromfile(buf_file,
-                           dtype=np.float64)
+                           dtype=float64)
     else:
         msg = f'float_type = {float_type} is not valid\n' \
               f'float_type should be one of the following valid float ' \

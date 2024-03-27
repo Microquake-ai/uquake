@@ -754,7 +754,7 @@ class WaveformPlotting(object):
                 # The times are not supposed to change.
                 trace.stats.delta = (
                         old_time_range / float(trace.stats.npts - 1))
-            trace.data = np.require(trace.data, np.float64) * trace.stats.calib
+            trace.data = np.require(trace.data, float64) * trace.stats.calib
             if self.type == 'relative':
                 # use seconds of relative sample times and shift by trace's
                 # start time, which was set relative to `reftime`.
@@ -817,7 +817,7 @@ class WaveformPlotting(object):
             max_ = data.max(axis=1) * tr.stats.calib
             # Calculate extreme_values and put them into new array.
             if remaining_samples:
-                extreme_values = np.empty((pixel_count + 1, 2), dtype=np.float)
+                extreme_values = np.empty((pixel_count + 1, 2), dtype=float)
                 extreme_values[:-1, 0] = min_
                 extreme_values[:-1, 1] = max_
                 extreme_values[-1, 0] = \
@@ -825,7 +825,7 @@ class WaveformPlotting(object):
                 extreme_values[-1, 1] = \
                     tr.data[-remaining_samples:].max() * tr.stats.calib
             else:
-                extreme_values = np.empty((pixel_count, 2), dtype=np.float)
+                extreme_values = np.empty((pixel_count, 2), dtype=float)
                 extreme_values[:, 0] = min_
                 extreme_values[:, 1] = max_
             # Finally plot the data.
@@ -982,7 +982,7 @@ class WaveformPlotting(object):
         It will also convert all values to floats.
         """
         # Convert to native floats.
-        self.extreme_values = self.extreme_values.astype(np.float) * \
+        self.extreme_values = self.extreme_values.astype(float) * \
                               self.stream[0].stats.calib
         # Make sure that the mean value is at 0
         self.extreme_values -= self.extreme_values.mean()
@@ -1097,11 +1097,11 @@ class WaveformPlotting(object):
         # is set.
         if intervals <= 5 or self.one_tick_per_line:
             tick_steps = list(range(0, intervals))
-            ticks = np.arange(intervals, 0, -1, dtype=np.float)
+            ticks = np.arange(intervals, 0, -1, dtype=float)
             ticks -= 0.5
         else:
             tick_steps = list(range(0, intervals, self.repeat))
-            ticks = np.arange(intervals, 0, -1 * self.repeat, dtype=np.float)
+            ticks = np.arange(intervals, 0, -1 * self.repeat, dtype=float)
             ticks -= 0.5
 
         # Complicated way to calculate the label of

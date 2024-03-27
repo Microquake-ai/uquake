@@ -1094,7 +1094,7 @@ def moment_magnitude(stream, cat, inventory, vp, vs, only_triaxial=True,
     for origin in origins:
         ev_loc = np.array([origin.x, origin.y, origin.z])
 
-        if not ((type(vp) == np.float) or (type(vp) == np.int)):
+        if not ((type(vp) == float) or (type(vp) == int)):
             vp_src = vp.interpolate(ev_loc, grid_space=False)
             vs_src = vs.interpolate(ev_loc, grid_space=False)
         else:
