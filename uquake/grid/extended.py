@@ -1245,7 +1245,7 @@ class SeededGrid(TypedGrid):
                 out_file.write(self.data.astype(float32).tobytes())
 
             elif self.float_type.value == 'float64':
-                out_file.write(self.data.astype(float64).tobytes())
+                out_file.write(self.data.astype(np.float64).tobytes())
 
     def _write_grid_header(self, path='.'):
 

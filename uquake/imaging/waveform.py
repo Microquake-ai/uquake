@@ -754,7 +754,7 @@ class WaveformPlotting(object):
                 # The times are not supposed to change.
                 trace.stats.delta = (
                         old_time_range / float(trace.stats.npts - 1))
-            trace.data = np.require(trace.data, float64) * trace.stats.calib
+            trace.data = np.require(trace.data, np.float64) * trace.stats.calib
             if self.type == 'relative':
                 # use seconds of relative sample times and shift by trace's
                 # start time, which was set relative to `reftime`.

@@ -243,7 +243,7 @@ def read_nlloc(filename, float_type=__default_float_type__):
                            dtype=float32)
     elif (float_type.value == 'DOUBLE') | (float_type.value == 'float64'):
         data = np.fromfile(buf_file,
-                           dtype=float64)
+                           dtype=np.float64)
     else:
         msg = f'float_type = {float_type} is not valid\n' \
               f'float_type should be one of the following valid float ' \
