@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "uquake"
-version = "3.0.4"
+version = "3.0.5"
 description = "extension of the ObsPy library for local seismicity"
 authors = ["uQuake development team <dev@uquake.org>"]
 license = "AGPL-3.0-or-later"
@@ -11,7 +11,6 @@ license = "AGPL-3.0-or-later"
 python = ">=3.9,<4.0"
 numpy = "^1.18.0"
 loguru = "^0.5.3"
-pandas = "^1.2.1"
 openpyxl = "^3.0.6"
 obspy = "^1.2.2"
 vtk = "^9.3.0"
@@ -25,6 +24,7 @@ pyasdf = "^0.8.1"
 zarr = "^2.16.1"
 matplotlib = "^3.8.2"
 mplstereonet = "^0.6.3"
+pandas = "^2.2.1"
 
 [tool.poetry.group.test.dependencies]
 black = ">=23.3.0"
