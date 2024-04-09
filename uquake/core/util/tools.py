@@ -19,14 +19,12 @@ import numpy as np
 from scipy.fftpack import fft, fftfreq, ifft
 from scipy.signal import iirfilter, sosfilt, zpk2sos
 import pyproj
+import utm
 
 
-def lon_lat_x_y(input_projection, output_projection, longitude, latitude):
-    transformer = pyproj.Transformer.from_crs(input_projection,
-                                              output_projection,
-                                              always_xy=True)
-
-    return transformer.transform(longitude, latitude)
+def lon_lat_x_y(longitude, latitude):
+    easting, northing, zone_number, lat_zone = utm.from_latlon(latitude, longitude)
+    return easting, northing
 
 
 def datetime_to_epoch_sec(dtime):

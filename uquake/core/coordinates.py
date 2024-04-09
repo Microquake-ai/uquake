@@ -16,6 +16,8 @@
 from enum import Enum
 import json
 from obspy.core.util import AttribDict
+import utm
+import pyproj
 
 
 class CoordinateSystem(Enum):
@@ -65,7 +67,8 @@ class CoordinateTransformation:
     """
 
     def __init__(
-        self, translation=0, rotation=0, epsg_code=None, scaling=None, reference_elevation=0.0
+        self, translation=0, rotation=0, epsg_code=None, scaling=None,
+            reference_elevation=0.0
     ):
         self.translation = translation
         self.rotation = rotation
@@ -169,6 +172,26 @@ class CoordinateTransformation:
     @classmethod
     def from_json(cls, string):
         return cls(**json.loads(string))
+
+    @property
+    def utm_crs(self):
+        return pyproj.CRS(f'epsg:{self.epsg_code}')
+
+    @property
+    def sph_crs(self):
+        return pyproj.CRS(f'epsg:4326')
+
+    def to_latlon(self, x, y):
+        transformation = pyproj.Transformer.from_crs(
+            self.utm_crs, self.sph_crs, always_xy=True)
+        return transformation.transform(x, y)
+        pass
+
+    def from_latlon(self, lat, lon):
+        transformation = pyproj.Transformer.from_crs(
+            self.sph_crs, self.utm_crs, always_xy=True)
+        return transformation.transform(lon, lat)
+        pass
 
 
 class Coordinates:
@@ -316,3 +339,18 @@ class Coordinates:
     @classmethod
     def from_extra_key(cls, extra_key):
         return cls.from_json(extra_key["value"])
+
+    @classmethod
+    def from_lat_lon(cls, latitude, longitude, z,
+                     coordinate_system: CoordinateSystem = CoordinateSystem.NED):
+        easting, northing, zone_number, lat_zone = utm.from_latlon(latitude, longitude)
+        if latitude >= 0:
+            epsg_code = 32600 + zone_number  # Northern hemisphere
+        else:
+            epsg_code = 32700 + zone_number  # Southern hemisphere
+
+        coordinate_transformation = CoordinateTransformation(epsg_code=epsg_code)
+        return cls(northing, easting, z, coordinate_system=coordinate_system,
+                   transformation=coordinate_transformation)
+
+

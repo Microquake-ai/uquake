@@ -273,9 +273,7 @@ class Inventory(inventory.Inventory):
 
     @classmethod
     def from_obspy_inventory_object(cls, obspy_inventory,
-                                    xy_from_lat_lon=False,
-                                    input_projection=4326,
-                                    output_projection=None):
+                                    xy_from_lat_lon=False):
 
         source = ns  # Network ID of the institution sending
         # the message.
@@ -285,11 +283,7 @@ class Inventory(inventory.Inventory):
         for network in obspy_inventory.networks:
             inv.networks.append(Network.from_obspy_network(network,
                                                            xy_from_lat_lon=
-                                                           xy_from_lat_lon,
-                                                           input_projection=
-                                                           input_projection,
-                                                           output_projection=
-                                                           output_projection))
+                                                           xy_from_lat_lon))
 
         return inv
 
@@ -487,11 +481,7 @@ class Network(inventory.Network):
 
         for i, station in enumerate(obspy_network.stations):
             net.stations.append(Station.from_obspy_station(station,
-                                                           xy_from_lat_lon,
-                                                           input_projection=
-                                                           input_projection,
-                                                           output_projection=
-                                                           output_projection))
+                                                           xy_from_lat_lon))
 
         return net
 
@@ -618,9 +608,7 @@ class Station(inventory.Station):
         return self.coordinates == other.coordinates
 
     @classmethod
-    def from_obspy_station(cls, obspy_station, xy_from_lat_lon=False,
-                           output_projection=None,
-                           input_projection=4326):
+    def from_obspy_station(cls, obspy_station, xy_from_lat_lon=False):
 
         #     cls(*params) is same as calling Station(*params):
 
@@ -636,11 +624,13 @@ class Station(inventory.Station):
         if xy_from_lat_lon:
             if (stn.latitude is not None) and (stn.longitude is not None):
 
-                stn.x, stn.y = lon_lat_x_y(input_projection, output_projection,
-                                           longitude=stn.longitude,
-                                           latitude=stn.latitude)
+                x, y = lon_lat_x_y(
+                    longitude=stn.longitude, latitude=stn.latitude)
 
-                stn.z = obspy_station.elevation
+                z = obspy_station.elevation
+
+                stn.coordinates = Coordinates(
+                    x, y, z, coordinate_system=CoordinateSystem.NEU)
 
             else:
                 logger.warning(f'Latitude or Longitude are not'
@@ -653,11 +643,7 @@ class Station(inventory.Station):
         for channel in obspy_station.channels:
             stn.channels.append(Channel.from_obspy_channel(channel,
                                                            xy_from_lat_lon=
-                                                           xy_from_lat_lon,
-                                                           input_projection=
-                                                           input_projection,
-                                                           output_projection=
-                                                           output_projection))
+                                                           xy_from_lat_lon))
 
         return stn
 
@@ -943,11 +929,13 @@ class Channel(inventory.Channel):
         if xy_from_lat_lon:
             if (cha.latitude is not None) and (cha.longitude is not None):
 
-                cha.x, cha.y = lon_lat_x_y(input_projection, output_projection,
-                                           longitude=cha.longitude,
-                                           latitude=cha.latitude)
+                x, y = lon_lat_x_y(longitude=cha.longitude, latitude=cha.latitude)
 
-                cha.z = cha.elevation
+                z = cha.elevation
+
+                coordinates = Coordinates(
+                    x, y, z, coordinate_system=CoordinateSystem.NEU)
+                cha.coordinates = coordinates
 
         return cha
 
@@ -1343,27 +1331,19 @@ def load_from_excel(file_name) -> Inventory:
 
 @expand_input_format_compatibility
 def read_inventory(path_or_file_object, format='STATIONXML',
-                   xy_from_lat_lon=False, input_projection=4326,
-                   output_projection=None, *args, **kwargs) -> Inventory:
+                   xy_from_lat_lon=False, *args, **kwargs) -> Inventory:
     """
     Read inventory file
     :param path_or_file_object: the path to the inventory file or a file object
     :param format: the format
     :param xy_from_lat_lon: if True convert populate the XY field by converting
     the latitude and longitude to UTM
-    :param input_projection: The input projection. Applicable if
-    xy_from_lat_lon is True (default=4326 for latitude longitude)
-    :param output_projection: The output projection. Has to be specified if
-    xy_from_lat_lon is True. Default=None
     :param args: see obspy.core.inventory.read_inventory for more information
     :param kwargs: see obspy.core.inventory.read_inventory for more information
     :return: an inventory object
     :rtype: ~uquake.core.inventory.Inventory
     """
 
-    if xy_from_lat_lon and (output_projection is None):
-        raise ValueError('the output projection is needed for conversion'
-                         'from latitude-longitude to UTM')
 
     if type(path_or_file_object) is Path:
         path_or_file_object = str(path_or_file_object)
@@ -1377,9 +1357,7 @@ def read_inventory(path_or_file_object, format='STATIONXML',
                                              **kwargs)
 
         return Inventory.from_obspy_inventory_object(
-            obspy_inv, xy_from_lat_lon=xy_from_lat_lon,
-            output_projection=output_projection,
-            input_projection=input_projection)
+            obspy_inv, xy_from_lat_lon=xy_from_lat_lon)
 
     else:
         format_ep = ENTRY_POINTS['inventory'][format]

@@ -25,6 +25,7 @@ zarr = "^2.16.1"
 matplotlib = "^3.8.2"
 mplstereonet = "^0.6.3"
 pandas = "^2.2.1"
+utm = "^0.7.0"
 
 [tool.poetry.group.test.dependencies]
 black = ">=23.3.0"
