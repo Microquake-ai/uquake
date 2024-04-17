@@ -2549,6 +2549,36 @@ docs = ["myst-parser", "pydata-sphinx-theme", "sphinx"]
 test = ["argcomplete (>=3.0.3)", "mypy (>=1.7.0)", "pre-commit", "pytest (>=7.0,<8.1)", "pytest-mock", "pytest-mypy-testing"]
 
 [[package]]
+name = "ttcrpy"
+version = "1.3.4"
+description = "Code to perform raytracing for geophysical applications"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "ttcrpy-1.3.4-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:b64aadf58a1824b21048e3a8fd0aa4d1d3118803d5ab6bdbe9b302cc32419133"},
+    {file = "ttcrpy-1.3.4-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:8317b53058bd0ab54b5e7f1e522a71150b2a8a5a41aaa50d24ecdbf0a999306d"},
+    {file = "ttcrpy-1.3.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f1a7ac03616b09646c513914ff9cf5ddd072d20f549d08ceac6ff01502ae32f0"},
+    {file = "ttcrpy-1.3.4-cp310-cp310-win_amd64.whl", hash = "sha256:41e3bbeb0b3184acdc6ed02c8b87c53d25f51ac2213effac874f5be9cd8a4e13"},
+    {file = "ttcrpy-1.3.4-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:3028b4e4cd9dd1aa5b921a395ab6c4f078afbd4266528de1b1520742f5729c69"},
+    {file = "ttcrpy-1.3.4-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:ae84b13c9783d31f03a7c7e75d4451fda5e8961553737ee59cf509bf5ccecdfc"},
+    {file = "ttcrpy-1.3.4-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b35ef6a275f17d867832f6ede0e6fe90de60b971e02ad5c1b82aa0650194430c"},
+    {file = "ttcrpy-1.3.4-cp311-cp311-win_amd64.whl", hash = "sha256:0d67c9044dbf3139432326b6d5201228f341c8b0a8d5d05a252eae53c9de12d6"},
+    {file = "ttcrpy-1.3.4-cp312-cp312-macosx_10_9_x86_64.whl", hash = "sha256:7b341b4c4c2196342d4d736082d591b6f2b6f879273f9b00879b1713eb308f88"},
+    {file = "ttcrpy-1.3.4-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:6e73302aef4112d24124824fefcf3958260e62548dd3414d082f58a39681e4e2"},
+    {file = "ttcrpy-1.3.4-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7372fb7749b570367622372cd00282a259d62e11c1cdf9435fa5789bbf2a43cb"},
+    {file = "ttcrpy-1.3.4-cp312-cp312-win_amd64.whl", hash = "sha256:656667c534b396d1c4b40d4b04218e4ed4461c2416ebe6ab54af297c51437b5f"},
+    {file = "ttcrpy-1.3.4-cp38-cp38-macosx_10_9_x86_64.whl", hash = "sha256:7169cebfdce846330cafe6531099114f2918b9055c7f1547335c5940fbd6bd6c"},
+    {file = "ttcrpy-1.3.4-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:77489fc632360c72fdb34e3c1949b6f605f9dfa588dc617314c1b3fd7f643bb0"},
+    {file = "ttcrpy-1.3.4-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:c32c1739455418566bb411da5abe27ecd01c60b397cca0adba5075e9bdd712fa"},
+    {file = "ttcrpy-1.3.4-cp38-cp38-win_amd64.whl", hash = "sha256:a0c98940c0ba723d4564bf13cd8d91d05a627e2f39d7a3a311f8e9c10ad85b82"},
+    {file = "ttcrpy-1.3.4-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:9c218e6b726202cb7672e546d4f1bc28f5254527ddb4bf59e6263ca52b36382e"},
+    {file = "ttcrpy-1.3.4-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:70655b8f48a493216c5ccfc4c0790b13dce74ede74c90e9182196566cef2485e"},
+    {file = "ttcrpy-1.3.4-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ce930ea2be932f27cd21c62a092b418c20e8acd5123e1ba945ace7611fa40de0"},
+    {file = "ttcrpy-1.3.4-cp39-cp39-win_amd64.whl", hash = "sha256:b8dd3b44047d2ba15ee22a87428b8a52b94803ee373d4f4546901e5047cf7518"},
+    {file = "ttcrpy-1.3.4.tar.gz", hash = "sha256:7fa4f7357790692c76f26023c9d7e5cb8bfb41da23e984eeed489620bdf74b6b"},
+]
+
+[[package]]
 name = "typing-extensions"
 version = "4.10.0"
 description = "Backported and Experimental Type Hints for Python 3.8+"
@@ -2722,4 +2752,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<4.0"
-content-hash = "8605cd9e97a7b0247ec46e3f5e38ea9278d31f3eaa5ddbd8f17ed45bc3a6237c"
+content-hash = "e02491e03de6322be31a96242ff1fccad6746369c67bf1889bfc3aeeeebcded9"

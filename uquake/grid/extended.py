@@ -53,7 +53,8 @@ from uquake.synthetic.inventory import generate_unique_instrument_code
 from uquake.core.event import ResourceIdentifier
 from .base import __default_grid_label__
 from typing import Union, Tuple
-import h5py
+from ttcrpy import rgrid
+from scipy.ndimage import convolve
 
 __cpu_count__ = cpu_count()
 
@@ -692,6 +693,77 @@ class VelocityGrid3D(TypedGrid):
                          grid_units=grid_units, coordinate_system=coordinate_system,
                          float_type=float_type,
                          grid_id=grid_id, label=label)
+
+    import numpy as np
+
+    def fill_checkerboard(self, anomaly_size, base_velocity, velocity_perturbation):
+        # Initialize the data array as a copy of the original grid's data.
+        data = np.zeros_like(self.data)
+
+        # Convert anomaly size to grid index units and calculate the starting
+        # and ending indices.
+        step = (anomaly_size / self.spacing).astype(int)
+        start = self.transform_to_grid(self.origin + anomaly_size / 2).astype(int)
+        end = self.transform_to_grid(self.corner).astype(int)
+
+        # Generate the range of indices for each dimension.
+        x = np.arange(start[0], end[0], step[0])
+        y = np.arange(start[1], end[1], step[1])
+        z = np.arange(start[2], end[2], step[2])
+
+        # Create a meshgrid to represent all points in the 3D grid space.
+        x_grid, y_grid, z_grid = np.meshgrid(x, y, z, indexing='ij')
+
+        # Set the perturbation values based on the checkerboard pattern rule.
+        for i in range(x_grid.shape[0]):
+            for j in range(x_grid.shape[1]):
+                for k in range(x_grid.shape[2]):
+                    # Calculate the perturbation value based on the sum of the indices.
+                    if (i + j + k) % 2 == 0:
+                        data[x_grid[i, j, k], y_grid[i, j, k], z_grid[
+                            i, j, k]] = 1
+                    else:
+                        data[x_grid[i, j, k], y_grid[i, j, k], z_grid[
+                            i, j, k]] = -1
+
+            # Define the smoothing kernel as a uniform 3D box.
+            kernel_size = step  # Kernel size in each dimension
+            blackman_x = np.blackman(step[0]) * velocity_perturbation
+            blackman_y = np.blackman(step[1]) * velocity_perturbation
+            blackman_z = np.blackman(step[2]) * velocity_perturbation
+
+            # Create a 3D Blackman window by taking the outer product.
+            kernel = blackman_x[:, None, None] * \
+                     blackman_y[None, :, None] * \
+                     blackman_z[None, None, :]
+
+            padded_kernel = np.zeros_like(data)
+            kernel_center = [k // 2 for k in kernel.shape]
+            padded_kernel[:kernel.shape[0], :kernel.shape[1], :kernel.shape[2]] = kernel
+
+            data_ft = np.fft.fftn(data)
+            kernel_ft = np.fft.fftn(np.fft.fftshift(padded_kernel))
+
+            convolved_ft = data_ft * kernel_ft
+
+            # Inverse Fourier transform to get the convolved data back in spatial domain
+            smoothed_data = np.fft.ifftn(convolved_ft).real
+
+            self.data = smoothed_data
+
+    def to_rgrid(self, nsnx: int = 2):
+
+        xrnge = np.arange(
+            self.origin[0], self.corner[0], self.spacing[0]).astype(np.float64)
+        yrnge = np.arange(
+            self.origin[1], self.corner[1], self.spacing[1]).astype(np.float64)
+        zrnge = np.arange(
+            self.origin[2], self.corner[2], self.spacing[2]).astype(np.float64)
+        grid = rgrid.Grid3d(x=xrnge, y=yrnge, z=zrnge, cell_slowness=False,
+                            method='SPM', nsnx=nsnx,
+                            translate_grid=True)
+        grid.set_velocity(self.data)
+        return grid
 
     @classmethod
     def from_inventory(cls, network_code: str, inventory: Inventory,

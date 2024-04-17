@@ -40,7 +40,6 @@ import random
 from uquake.core.event import ResourceIdentifier
 from copy import deepcopy
 from hashlib import sha256
-from scipy.interpolate import interp1d
 
 
 def read_grid(filename, format='PICKLE', **kwargs):
@@ -331,6 +330,9 @@ class Grid(object):
         self.smooth(smooth_sigma)
         self.data = self.data * std / np.std(self.data) + mean
 
+    def checkerboard(self):
+        pass
+
     def generate_points(self, pt_spacing=None):
         """
         Generate points within the grid
@@ -561,8 +563,6 @@ class Grid(object):
                     z_stas.append(loc[2])
 
             plt.plot([np.mean(values)] * len(z_stas), z_stas, 'kv')
-
-
 
             plt.plot()
 
