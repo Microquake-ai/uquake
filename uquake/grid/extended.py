@@ -36,7 +36,6 @@ from .base import Grid
 from pathlib import Path
 import matplotlib.pyplot as plt
 from loguru import logger
-import skfmm
 from multiprocessing import Pool, cpu_count
 from functools import partial
 from typing import Optional
@@ -54,6 +53,7 @@ from uquake.core.event import ResourceIdentifier
 from .base import __default_grid_label__
 from typing import Union, Tuple
 from ttcrpy import rgrid
+from scipy.signal import fftconvolve
 from scipy.ndimage import convolve
 
 __cpu_count__ = cpu_count()
@@ -696,60 +696,55 @@ class VelocityGrid3D(TypedGrid):
 
     import numpy as np
 
-    def fill_checkerboard(self, anomaly_size, base_velocity, velocity_perturbation):
-        # Initialize the data array as a copy of the original grid's data.
+    def fill_checkerboard(self, anomaly_size, base_velocity, velocity_perturbation, n_sigma):
         data = np.zeros_like(self.data)
-
         # Convert anomaly size to grid index units and calculate the starting
         # and ending indices.
-        step = (anomaly_size / self.spacing).astype(int)
-        start = self.transform_to_grid(self.origin + anomaly_size / 2).astype(int)
-        end = self.transform_to_grid(self.corner).astype(int)
-
+        step_anomaly = (np.array(anomaly_size) / np.array(self.spacing)).astype(int)
+        if np.any(step_anomaly.shape > self.data.shape):
+            raise Exception("Anomaly size exceed the grid !")
+        # start = self.transform_to_grid(self.origin + anomaly_size / 2).astype(int)
+        #end = self.transform_to_grid(self.corner).astype(int)
+        start_x = (self.data.shape[0] % step_anomaly[0] + step_anomaly[0]) // 2 - 1
+        start_y = (self.data.shape[1] % step_anomaly[1] + step_anomaly[1]) // 2 - 1
+        start_z = (self.data.shape[2] % step_anomaly[2] + step_anomaly[2]) // 2 - 1
         # Generate the range of indices for each dimension.
-        x = np.arange(start[0], end[0], step[0])
-        y = np.arange(start[1], end[1], step[1])
-        z = np.arange(start[2], end[2], step[2])
+        x = np.arange(start_x , self.data.shape[0], step_anomaly[0])
+        y = np.arange(start_y , self.data.shape[1], step_anomaly[1])
+        z = np.arange(start_z , self.data.shape[2], step_anomaly[2])
 
         # Create a meshgrid to represent all points in the 3D grid space.
-        x_grid, y_grid, z_grid = np.meshgrid(x, y, z, indexing='ij')
-
+        x_grid, y_grid, z_grid = np.meshgrid(np.arange(len(x)), np.arange(len(y)), \
+                                             np.arange(len(z)), indexing='ij')
+        indices = np.column_stack((x_grid.reshape((-1, )), y_grid.reshape((-1, )), \
+                                z_grid.reshape((-1, ))))
         # Set the perturbation values based on the checkerboard pattern rule.
-        for i in range(x_grid.shape[0]):
-            for j in range(x_grid.shape[1]):
-                for k in range(x_grid.shape[2]):
-                    # Calculate the perturbation value based on the sum of the indices.
-                    if (i + j + k) % 2 == 0:
-                        data[x_grid[i, j, k], y_grid[i, j, k], z_grid[
-                            i, j, k]] = 1
-                    else:
-                        data[x_grid[i, j, k], y_grid[i, j, k], z_grid[
-                            i, j, k]] = -1
+        # calculate the sum of indices
+        summ = indices[:, 0] + indices[:, 1] + indices[:, 2]
+        ind = np.where(summ % 2 == 0)[0] # indices with even sum
+        data[x[indices[ind, 0]], y[indices[ind, 1]], z[indices[ind, 2]]] = 1
+        ind = np.where(summ % 2 == 1)[0] # indices with odd sum
+        data[x[indices[ind, 0]], y[indices[ind, 1]], z[indices[ind, 2]]] = - 1
+        # Create 3D Gaussian kernel
 
-            # Define the smoothing kernel as a uniform 3D box.
-            kernel_size = step  # Kernel size in each dimension
-            blackman_x = np.blackman(step[0]) * velocity_perturbation
-            blackman_y = np.blackman(step[1]) * velocity_perturbation
-            blackman_z = np.blackman(step[2]) * velocity_perturbation
-
-            # Create a 3D Blackman window by taking the outer product.
-            kernel = blackman_x[:, None, None] * \
-                     blackman_y[None, :, None] * \
-                     blackman_z[None, None, :]
-
-            padded_kernel = np.zeros_like(data)
-            kernel_center = [k // 2 for k in kernel.shape]
-            padded_kernel[:kernel.shape[0], :kernel.shape[1], :kernel.shape[2]] = kernel
-
-            data_ft = np.fft.fftn(data)
-            kernel_ft = np.fft.fftn(np.fft.fftshift(padded_kernel))
-
-            convolved_ft = data_ft * kernel_ft
-
-            # Inverse Fourier transform to get the convolved data back in spatial domain
-            smoothed_data = np.fft.ifftn(convolved_ft).real
-
-            self.data = smoothed_data
+        kernelx, kernely, kernelz = np.meshgrid(np.arange(step_anomaly[0]) * self.spacing[0],\
+                                                np.arange(step_anomaly[1]) * self.spacing[1], \
+                                                np.arange(step_anomaly[2]) * self.spacing[2])
+        mu = np.array([step_anomaly[0] * self.spacing[0] / 2.,step_anomaly[1] * \
+                       self.spacing[1] / 2., step_anomaly[2] * self.spacing[2] / 2.])
+        sigma = np.array([step_anomaly[0] * self.spacing[0] / n_sigma , step_anomaly[1] *\
+                          self.spacing[1] / n_sigma, step_anomaly[2] * self.spacing[2] / n_sigma])
+        kernel = np.exp(- ((kernelx - mu[0]) ** 2 / sigma[0] ** 2 + (kernely - mu[1]) ** 2 /\
+                           sigma[1] ** 2 + (kernelz - mu[2]) ** 2 / sigma[2] ** 2))
+        kernel = kernel / np.sum(kernel) # normalization
+        # Create a 3D Blackman window by taking the outer product.
+        # kernel = blackman_x[:, None, None] * \
+        #              blackman_y[None, :, None] * \
+        #              blackman_z[None, None, :]
+        data = fftconvolve(data, kernel, mode="same")
+        data /= np.max(np.abs(data))
+        smoothed_data = data * velocity_perturbation * base_velocity + base_velocity
+        self.data = smoothed_data
 
     def to_rgrid(self, nsnx: int = 2):
 

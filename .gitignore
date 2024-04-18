@@ -130,3 +130,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# paraview
+*.vtr
+
+# test reports
+tests/reports
+
+# Spyder
+*.DS_Store
