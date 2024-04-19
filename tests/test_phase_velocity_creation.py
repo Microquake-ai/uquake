@@ -24,3 +24,5 @@ density = DensityGrid3D('NT', [10, 10, 10], [10, 10, 10],
 spge = SeismicPropertyGridEnsemble(p_velocity, s_velocity, density)
 spge.to_phase_velocities(period_min=0.1, period_max=10, n_periods=10,
                           logspace=True)
+
+# z_vel = p_velocity.interpolate(coords, grid_space=False, mode='nearest', order=1)

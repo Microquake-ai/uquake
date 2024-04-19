@@ -1302,7 +1302,9 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
                 pd = PhaseDispersion(thickness, vp_ij, vs_ij, d_ij,
                                      algorithm='fast-delta',
                                      dc=0.0001)
-                cmod = pd(periods, mode=0, wave="rayleigh").velocity
+                from ipdb import set_trace; set_trace()
+                period = 2
+                # cmod = pd(periods, mode=0, wave="rayleigh").velocity
         return
 
 

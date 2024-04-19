@@ -30,7 +30,7 @@ from ..core.logging import logger
 from pkg_resources import load_entry_point
 from ..core.util import ENTRY_POINTS
 from pathlib import Path
-from scipy.ndimage.interpolation import map_coordinates
+from scipy.ndimage import map_coordinates
 import matplotlib.pyplot as plt
 from scipy.ndimage.filters import gaussian_filter
 from uquake.core.coordinates import CoordinateSystem, Coordinates
