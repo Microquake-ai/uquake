@@ -54,7 +54,8 @@ from .base import __default_grid_label__
 from typing import Union, Tuple
 from ttcrpy import rgrid
 from scipy.signal import fftconvolve
-from scipy.ndimage import convolve
+from disba import PhaseDispersion
+
 
 __cpu_count__ = cpu_count()
 
@@ -83,6 +84,7 @@ class GridTypes(Enum):
     ANGLE2D = 'ANGLE2D'
     AZIMUTH = 'AZIMUTH'
     TAKEOFF = 'TAKEOFF'
+    DENSITY = 'DENSITY_KG_METERS3'
 
     def __str__(self):
         return self.value
@@ -102,7 +104,8 @@ valid_grid_types = (
     'PROB_DENSITY',
     'MISFIT',
     'ANGLE',
-    'ANGLE2D'
+    'ANGLE2D',
+    'DENSITY'
 )
 
 
@@ -698,6 +701,7 @@ class VelocityGrid3D(TypedGrid):
 
     #MAHER
     def to_phase_velocity_grid(self, periods: List[float]):
+
         pass
 
     def fill_checkerboard(self, anomaly_size, base_velocity, velocity_perturbation, n_sigma):
@@ -1108,9 +1112,13 @@ class VelocityGridEnsemble:
         if p_velocity_grid.label != s_velocity_grid.label:
             raise ValueError('p and s velocity grids must have the same '
                              'label')
+        if density_grid.dims != s_velocity_grid.label.dims:
+            raise ValueError('density and velocity grids must have the same '
+                             'label')
 
         self.p_velocity_grid = p_velocity_grid
         self.s_velocity_grid = s_velocity_grid
+        self.density_grid = density_grid
         self.label = p_velocity_grid.label
         self.__i__ = 0
 
@@ -1197,6 +1205,33 @@ class VelocityGridEnsemble:
 
     # MAHER
     def get_phase_velocity(self, period):
+        phase_velocity = np.zeros(shape = (self.p_velocity_grid.shape[0],
+                                         self.p_velocity_grid.shape[1]))
+        thickness = self.s_velocity_grid.spacing[2] * np.ones(
+            shape=(self.p_velocity_grid.shape[1] - 1))
+        if self.s_velocity_grid.grid_units.value == 'METER':
+            thickness /= 1.e3
+            vels = self.s_velocity_grid.data / 1.e3
+            velp = self.p_velocity_grid.data / 1.e3
+        else:
+            vels = self.s_velocity_grid.data
+            velp = self.p_velocity_grid.data
+        for i in range(self.p_velocity_grid.shape[0]):
+            for j in range(self.p_velocity_grid.shape[1]):
+                vs_ij = vels[i, j, :]
+                vs_ij = 0.5 * (vs_ij[1:] + vs_ij[:-1])
+                vp_ij = velp[i, j, :]
+                vp_ij = 0.5 * (vp_ij[1:] + vp_ij[:-1])
+                d_ij = self.density_grid_grid.data[i, j, :]
+                d_ij = 0.5 * (d_ij[1:] + d_ij[:-1])
+                pd = PhaseDispersion(thickness, vp_ij, vs_ij,  d_ij, algorithm='fast-delta',
+                                     dc=0.0001)
+                cmod = pd(period, mode=0, wave="rayleigh").velocity
+
+
+
+
+
         return phase_velocity_from_3d_grid(self, period)
 
 
