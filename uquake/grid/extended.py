@@ -1177,6 +1177,36 @@ class SeededGridType(Enum):
         return str(self.value)
 
 
+class PeriodPhaseVelocityGrid(Grid):
+    def __init__(self, data_or_dims: Union[np.ndarray, List, Tuple],
+                 spacing: Union[np.ndarray, List, Tuple] = None,
+                 origin: Union[np.ndarray, List, Tuple] = None,
+                 resource_id: ResourceIdentifier = ResourceIdentifier(),
+                 value: float = 0,
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED,
+                 label: str = __default_grid_label__, period=1, velocity_model_id):
+
+        """
+        can hold both 2 and 3 dimensional grid
+        :param data_or_dims: either a numpy array or a Tuple/List with the grid
+        dimensions. If grid dimensions are specified, the grid is initialized
+        with value
+        :param spacing: a set of two or three values containing the grid spacing
+        :type spacing: Tuple, List or numpy.ndarray
+        :param origin: a set of two or three values origin of the grid
+        :type origin: tuple, List or numpy.ndarray
+        :param resource_id: unique identifier for the grid, if set to None,
+        :param value: value to fill the grid should dims be specified
+        :type value:
+        uuid4 is used to define a unique identifier.
+        :param coordinate_system: Coordinate system
+        :type coordinate_system: ~uquake.core.coordinates.CoordinateSystem
+        :param label: Label providing additional information on the grid usage
+        :type label: str
+        """
+
+
+
 class SeededGrid(TypedGrid):
     """
     container for seeded grids (e.g., travel time, azimuth and take off angle)
