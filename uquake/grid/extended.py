@@ -702,53 +702,78 @@ class VelocityGrid3D(TypedGrid):
 
     def fill_checkerboard(self, anomaly_size, base_velocity, velocity_perturbation, n_sigma):
         data = np.zeros_like(self.data)
+
         # Convert anomaly size to grid index units and calculate the starting
         # and ending indices.
         step_anomaly = (np.array(anomaly_size) / np.array(self.spacing)).astype(int)
-        if np.any(step_anomaly.shape > self.data.shape):
-            raise Exception("Anomaly size exceed the grid !")
-        # start = self.transform_to_grid(self.origin + anomaly_size / 2).astype(int)
-        #end = self.transform_to_grid(self.corner).astype(int)
+
+        if step_anomaly[0] >= self.data.shape[0]:
+            raise Exception("Dimension mismatch: anomaly exceeds the first axis "
+                            "of the grid!\n")
+        if step_anomaly[1] >= self.data.shape[1]:
+            raise Exception("Dimension mismatch: anomaly exceeds the second axis "
+                            "of the grid!\n")
+        if step_anomaly[2] >= self.data.shape[2]:
+            raise Exception("Dimension mismatch: anomaly exceeds the third axis "
+                            "of the grid!\n")
+
+        # Starting indices
         start_x = (self.data.shape[0] % step_anomaly[0] + step_anomaly[0]) // 2 - 1
         start_y = (self.data.shape[1] % step_anomaly[1] + step_anomaly[1]) // 2 - 1
         start_z = (self.data.shape[2] % step_anomaly[2] + step_anomaly[2]) // 2 - 1
+
         # Generate the range of indices for each dimension.
-        x = np.arange(start_x , self.data.shape[0], step_anomaly[0])
-        y = np.arange(start_y , self.data.shape[1], step_anomaly[1])
-        z = np.arange(start_z , self.data.shape[2], step_anomaly[2])
+        x = np.arange(start_x, self.data.shape[0], step_anomaly[0])
+        y = np.arange(start_y, self.data.shape[1], step_anomaly[1])
+        z = np.arange(start_z, self.data.shape[2], step_anomaly[2])
 
         # Create a meshgrid to represent all points in the 3D grid space.
-        x_grid, y_grid, z_grid = np.meshgrid(np.arange(len(x)), np.arange(len(y)), \
-                                             np.arange(len(z)), indexing='ij')
-        indices = np.column_stack((x_grid.reshape((-1, )), y_grid.reshape((-1, )), \
-                                z_grid.reshape((-1, ))))
-        # Set the perturbation values based on the checkerboard pattern rule.
-        # calculate the sum of indices
-        summ = indices[:, 0] + indices[:, 1] + indices[:, 2]
-        ind = np.where(summ % 2 == 0)[0] # indices with even sum
-        data[x[indices[ind, 0]], y[indices[ind, 1]], z[indices[ind, 2]]] = 1
-        ind = np.where(summ % 2 == 1)[0] # indices with odd sum
-        data[x[indices[ind, 0]], y[indices[ind, 1]], z[indices[ind, 2]]] = - 1
-        # Create 3D Gaussian kernel
+        x_grid, y_grid, z_grid = np.meshgrid(
+            np.arange(len(x)),
+            np.arange(len(y)),
+            np.arange(len(z)),
+            indexing='ij'
+        )
+        indices = np.column_stack(
+            (x_grid.reshape((-1,)), y_grid.reshape((-1,)), z_grid.reshape((-1,))))
 
-        kernelx, kernely, kernelz = np.meshgrid(np.arange(step_anomaly[0]) * self.spacing[0],\
-                                                np.arange(step_anomaly[1]) * self.spacing[1], \
-                                                np.arange(step_anomaly[2]) * self.spacing[2])
-        mu = np.array([step_anomaly[0] * self.spacing[0] / 2.,step_anomaly[1] * \
-                       self.spacing[1] / 2., step_anomaly[2] * self.spacing[2] / 2.])
-        sigma = np.array([step_anomaly[0] * self.spacing[0] / n_sigma , step_anomaly[1] *\
-                          self.spacing[1] / n_sigma, step_anomaly[2] * self.spacing[2] / n_sigma])
-        kernel = np.exp(- ((kernelx - mu[0]) ** 2 / sigma[0] ** 2 + (kernely - mu[1]) ** 2 /\
-                           sigma[1] ** 2 + (kernelz - mu[2]) ** 2 / sigma[2] ** 2))
-        kernel = kernel / np.sum(kernel) # normalization
-        # Create a 3D Blackman window by taking the outer product.
-        # kernel = blackman_x[:, None, None] * \
-        #              blackman_y[None, :, None] * \
-        #              blackman_z[None, None, :]
+        # Set the perturbation values based on the checkerboard pattern rule.
+        # Calculate the sum of the indices
+        summ = indices[:, 0] + indices[:, 1] + indices[:, 2]
+        ind = np.where(summ % 2 == 0)[0]  # indices with even sum
+        data[x[indices[ind, 0]], y[indices[ind, 1]], z[indices[ind, 2]]] = 1
+        ind = np.where(summ % 2 == 1)[0]  # indices with odd sum
+        data[x[indices[ind, 0]], y[indices[ind, 1]], z[indices[ind, 2]]] = -1
+
+        # Create 3D Gaussian kernel
+        kernel_x, kernel_y, kernel_z = np.meshgrid(
+            np.arange(step_anomaly[0]) * self.spacing[0],
+            np.arange(step_anomaly[1]) * self.spacing[1],
+            np.arange(step_anomaly[2]) * self.spacing[2]
+        )
+        mu = np.array([
+            step_anomaly[0] * self.spacing[0] / 2.,
+            step_anomaly[1] * self.spacing[1] / 2.,
+            step_anomaly[2] * self.spacing[2] / 2.
+        ])
+        sigma = np.array([
+            step_anomaly[0] * self.spacing[0] / n_sigma,
+            step_anomaly[1] * self.spacing[1] / n_sigma,
+            step_anomaly[2] * self.spacing[2] / n_sigma
+        ])
+        kernel = np.exp(-(
+                    (kernel_x - mu[0]) ** 2 / sigma[0] ** 2 + (kernel_y - mu[1]) ** 2 /
+                    sigma[1] ** 2 + (kernel_z - mu[2]) ** 2 / sigma[2] ** 2))
+        kernel = kernel / np.sum(np.abs(kernel))  # normalization
+
+        # Convolution in the frequency domain
         data = fftconvolve(data, kernel, mode="same")
         data /= np.max(np.abs(data))
+
+        # Rescale the data
         smoothed_data = data * velocity_perturbation * base_velocity + base_velocity
         self.data = smoothed_data
+
 
     def to_rgrid(self, nsnx: int = 2):
 
