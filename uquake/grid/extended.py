@@ -696,6 +696,10 @@ class VelocityGrid3D(TypedGrid):
 
     import numpy as np
 
+    #MAHER
+    def to_phase_velocity_grid(self, periods: List[float]):
+        pass
+
     def fill_checkerboard(self, anomaly_size, base_velocity, velocity_perturbation, n_sigma):
         data = np.zeros_like(self.data)
         # Convert anomaly size to grid index units and calculate the starting
@@ -1166,6 +1170,15 @@ class VelocityGridEnsemble:
     def S(self):
         return self['S']
 
+    # MAHER
+    def get_phase_velocity(self, period):
+        return phase_velocity_from_3d_grid(self, period)
+
+
+# MAHER
+def phase_velocity_from_3d_grid(s_velocity_grid, period):
+    pass
+
 
 class SeededGridType(Enum):
     TIME = 'TIME'
@@ -1177,6 +1190,7 @@ class SeededGridType(Enum):
         return str(self.value)
 
 
+#MAHER
 class PeriodPhaseVelocityGrid(Grid):
     def __init__(self, data_or_dims: Union[np.ndarray, List, Tuple],
                  spacing: Union[np.ndarray, List, Tuple] = None,
@@ -1184,7 +1198,8 @@ class PeriodPhaseVelocityGrid(Grid):
                  resource_id: ResourceIdentifier = ResourceIdentifier(),
                  value: float = 0,
                  coordinate_system: CoordinateSystem = CoordinateSystem.NED,
-                 label: str = __default_grid_label__, period=1, velocity_model_id):
+                 label: str = __default_grid_label__, period=1,
+                 velocity_model_id=None, phase='S'):
 
         """
         can hold both 2 and 3 dimensional grid
@@ -1205,6 +1220,34 @@ class PeriodPhaseVelocityGrid(Grid):
         :type label: str
         """
 
+        self.period = period
+
+        # super().__init__(data_or_dims: Union[np.ndarray, List, Tuple],
+        #          spacing: Union[np.ndarray, List, Tuple] = None,
+        #          origin: Union[np.ndarray, List, Tuple] = None,
+        #          resource_id: ResourceIdentifier = ResourceIdentifier(),
+        #          value: float = 0,
+        #          coordinate_system: CoordinateSystem = CoordinateSystem.NED,
+        #          label: str = __default_grid_label__)
+
+        pass
+
+    @classmethod
+    def from_velocity_grid_3d(cls, velocity_grid_3d: VelocityGrid3D,
+                              period: float):
+        # To create phase velocity grid from VelocityGrid3D using
+        # sensitivity kernel for the different periods.
+        pass
+
+
+#MAHER
+class PeriodPhaseVelocityGridEnsemble:
+    # Contains a list of tuple (PeriodPhaseVelocityGrid)
+    def __init__(self):
+        pass
+
+    def get_grid_period(self, period: float):
+        pass
 
 
 class SeededGrid(TypedGrid):

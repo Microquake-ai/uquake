@@ -86,6 +86,7 @@ def read_hdf5(filename, **kwargs):
     :param kwargs: additional keyword argument passed from wrapper.
     :return: uquake.core.data.grid.GridCollection
     """
+    pass
 
 
 def write_hdf5(grid, filename, **kwargs):
