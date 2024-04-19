@@ -55,6 +55,7 @@ from typing import Union, Tuple
 from ttcrpy import rgrid
 from scipy.signal import fftconvolve
 from disba import PhaseDispersion
+from tqdm import tqdm
 
 
 __cpu_count__ = cpu_count()
@@ -379,7 +380,7 @@ class TypedGrid(Grid):
     base 3D rectilinear grid object
     """
 
-    def __init__(self, data_or_dims, origin, spacing, phase: Phases,
+    def __init__(self, data_or_dims, origin, spacing, phase: Phases = None,
                  value=0, grid_type=GridTypes.VELOCITY_METERS,
                  grid_units=__default_grid_units__,
                  float_type="FLOAT",
@@ -659,6 +660,45 @@ class LayeredVelocityModel(object):
         return ax
 
 
+class DensityGrid3D(TypedGrid):
+
+    def __init__(self, network_code, data_or_dims, origin, spacing, value=0,
+                 float_type=__default_float_type__,
+                 grid_id: ResourceIdentifier = ResourceIdentifier(),
+                 grid_type=GridTypes.DENSITY,
+                 grid_units=__default_grid_units__,
+                 coordinate_system=CoordinateSystem.NED,
+                 label: str = __default_grid_label__, **kwargs):
+
+        """
+
+        :param network_code:
+        :param data_or_dims:
+        :param origin:
+        :param spacing:
+        :param phase:
+        :param value:
+        :param float_type:
+        :param grid_id:
+        :param grid_type:
+        :param grid_units:
+        param coordinate_system:
+        :param label:
+        :param kwargs:
+        """
+
+        self.network_code = network_code
+
+        if (type(spacing) is int) | (type(spacing) is float):
+            spacing = [spacing, spacing, spacing]
+
+        super().__init__(data_or_dims, origin, spacing, None,
+                         value=value, grid_type=grid_type,
+                         grid_units=grid_units, coordinate_system=coordinate_system,
+                         float_type=float_type,
+                         grid_id=grid_id, label=label)
+
+
 class VelocityGrid3D(TypedGrid):
 
     def __init__(self, network_code, data_or_dims, origin, spacing,
@@ -697,14 +737,7 @@ class VelocityGrid3D(TypedGrid):
                          float_type=float_type,
                          grid_id=grid_id, label=label)
 
-    import numpy as np
-
-    #MAHER
-    def to_phase_velocity_grid(self, periods: List[float]):
-
-        pass
-
-    def fill_checkerboard(self, anomaly_size, base_velocity, velocity_perturbation, n_sigma):
+    def fill_checkerboard(self, anomaly_size, base_velocity, velocity_perturbation,n_sigma):
         data = np.zeros_like(self.data)
 
         # Convert anomaly size to grid index units and calculate the starting
@@ -777,7 +810,6 @@ class VelocityGrid3D(TypedGrid):
         # Rescale the data
         smoothed_data = data * velocity_perturbation * base_velocity + base_velocity
         self.data = smoothed_data
-
 
     def to_rgrid(self, nsnx: int = 2):
 
@@ -1085,8 +1117,7 @@ class VelocityGrid3D(TypedGrid):
         :return:
         """
 
-        super().mv(self, self.base_name,
-                   origin, destination)
+        super().mv(self, self.base_name, origin, destination)
 
     @property
     def base_name(self):
@@ -1112,13 +1143,9 @@ class VelocityGridEnsemble:
         if p_velocity_grid.label != s_velocity_grid.label:
             raise ValueError('p and s velocity grids must have the same '
                              'label')
-        if density_grid.dims != s_velocity_grid.label.dims:
-            raise ValueError('density and velocity grids must have the same '
-                             'label')
 
         self.p_velocity_grid = p_velocity_grid
         self.s_velocity_grid = s_velocity_grid
-        self.density_grid = density_grid
         self.label = p_velocity_grid.label
         self.__i__ = 0
 
@@ -1203,41 +1230,80 @@ class VelocityGridEnsemble:
     def S(self):
         return self['S']
 
-    # MAHER
-    def get_phase_velocity(self, period):
-        phase_velocity = np.zeros(shape = (self.p_velocity_grid.shape[0],
-                                         self.p_velocity_grid.shape[1]))
+
+
+class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
+    def __init__(self,
+                 p_velocity_grid: VelocityGrid3D,
+                 s_velocity_grid: VelocityGrid3D,
+                 density_grid: DensityGrid3D):
+        """
+
+        :param p_velocity_grid: p-wave 3D velocity grid
+        :type p_velocity_grid: VelocityGrid3D
+        :param s_velocity_grid: s-wave 3D velocity grid
+        :type s_velocity_grid: VelocityGrid3D
+        :param density_grid: density grid
+        :type density_grid: DensityGrid3D
+
+        :NOTE: the p and s velocity and the density grids must have the same dimensions
+        and the same label
+        """
+
+        if density_grid.dims != s_velocity_grid.dims:
+            raise ValueError('p and s velocity and the density grids must have the same '
+                             'dimensions')
+        if density_grid.label != s_velocity_grid.label:
+            raise ValueError('p and s velocity and the deisity grids must have the same '
+                             'label')
+
+        self.density_grid = density_grid
+
+        super().__init__(p_velocity_grid, s_velocity_grid)
+
+    def __repr__(self):
+        return (f'P Velocity: {self.p_velocity_grid}\n'
+                f'S Velocity: {self.s_velocity_grid}\n'
+                f'Density   : {self.density_grid}')
+
+    @property
+    def dims(self):
+        return self.p_velocity_grid.dims
+
+    @property
+    def shape(self):
+        return self.p_velocity_grid.shape
+
+    def to_phase_velocities(self, period_min=0.1, period_max=10, n_periods=10,
+                            logspace=True):
+        if logspace:
+            periods = np.logspace(np.log10(period_min), np.log10(period_max), n_periods)
+        else:
+            periods = np.linspace(period_min, period_max, n_periods)
+
+        phase_velocity = np.zeros(self.shape[:2])
         thickness = self.s_velocity_grid.spacing[2] * np.ones(
             shape=(self.p_velocity_grid.shape[1] - 1))
-        if self.s_velocity_grid.grid_units.value == 'METER':
+        if self.s_velocity_grid.grid_units.value == GridUnits.METER:
             thickness /= 1.e3
             vels = self.s_velocity_grid.data / 1.e3
             velp = self.p_velocity_grid.data / 1.e3
         else:
             vels = self.s_velocity_grid.data
             velp = self.p_velocity_grid.data
-        for i in range(self.p_velocity_grid.shape[0]):
-            for j in range(self.p_velocity_grid.shape[1]):
+        for i in tqdm(range(self.shape[0])):
+            for j in tqdm(range(self.shape[1])):
                 vs_ij = vels[i, j, :]
                 vs_ij = 0.5 * (vs_ij[1:] + vs_ij[:-1])
                 vp_ij = velp[i, j, :]
                 vp_ij = 0.5 * (vp_ij[1:] + vp_ij[:-1])
-                d_ij = self.density_grid_grid.data[i, j, :]
+                d_ij = self.density_grid.data[i, j, :]
                 d_ij = 0.5 * (d_ij[1:] + d_ij[:-1])
-                pd = PhaseDispersion(thickness, vp_ij, vs_ij,  d_ij, algorithm='fast-delta',
+                pd = PhaseDispersion(thickness, vp_ij, vs_ij, d_ij,
+                                     algorithm='fast-delta',
                                      dc=0.0001)
-                cmod = pd(period, mode=0, wave="rayleigh").velocity
-
-
-
-
-
-        return phase_velocity_from_3d_grid(self, period)
-
-
-# MAHER
-def phase_velocity_from_3d_grid(s_velocity_grid, period):
-    pass
+                cmod = pd(periods, mode=0, wave="rayleigh").velocity
+        return
 
 
 class SeededGridType(Enum):
@@ -1249,65 +1315,6 @@ class SeededGridType(Enum):
     def __str__(self):
         return str(self.value)
 
-
-#MAHER
-class PeriodPhaseVelocityGrid(Grid):
-    def __init__(self, data_or_dims: Union[np.ndarray, List, Tuple],
-                 spacing: Union[np.ndarray, List, Tuple] = None,
-                 origin: Union[np.ndarray, List, Tuple] = None,
-                 resource_id: ResourceIdentifier = ResourceIdentifier(),
-                 value: float = 0,
-                 coordinate_system: CoordinateSystem = CoordinateSystem.NED,
-                 label: str = __default_grid_label__, period=1,
-                 velocity_model_id=None, phase='S'):
-
-        """
-        can hold both 2 and 3 dimensional grid
-        :param data_or_dims: either a numpy array or a Tuple/List with the grid
-        dimensions. If grid dimensions are specified, the grid is initialized
-        with value
-        :param spacing: a set of two or three values containing the grid spacing
-        :type spacing: Tuple, List or numpy.ndarray
-        :param origin: a set of two or three values origin of the grid
-        :type origin: tuple, List or numpy.ndarray
-        :param resource_id: unique identifier for the grid, if set to None,
-        :param value: value to fill the grid should dims be specified
-        :type value:
-        uuid4 is used to define a unique identifier.
-        :param coordinate_system: Coordinate system
-        :type coordinate_system: ~uquake.core.coordinates.CoordinateSystem
-        :param label: Label providing additional information on the grid usage
-        :type label: str
-        """
-
-        self.period = period
-
-        # super().__init__(data_or_dims: Union[np.ndarray, List, Tuple],
-        #          spacing: Union[np.ndarray, List, Tuple] = None,
-        #          origin: Union[np.ndarray, List, Tuple] = None,
-        #          resource_id: ResourceIdentifier = ResourceIdentifier(),
-        #          value: float = 0,
-        #          coordinate_system: CoordinateSystem = CoordinateSystem.NED,
-        #          label: str = __default_grid_label__)
-
-        pass
-
-    @classmethod
-    def from_velocity_grid_3d(cls, velocity_grid_3d: VelocityGrid3D,
-                              period: float):
-        # To create phase velocity grid from VelocityGrid3D using
-        # sensitivity kernel for the different periods.
-        pass
-
-
-#MAHER
-class PeriodPhaseVelocityGridEnsemble:
-    # Contains a list of tuple (PeriodPhaseVelocityGrid)
-    def __init__(self):
-        pass
-
-    def get_grid_period(self, period: float):
-        pass
 
 
 class SeededGrid(TypedGrid):
