@@ -11,11 +11,11 @@ s_velocity = VelocityGrid3D('NT', [10, 10, 10],
                             [100, 100, 100], [10, 10, 10], Phases.S,
                             label=label, value=5000)
 
-# p_velocity.fill_checkerboard(anomaly_size=200, base_velocity=5000,
-#                              velocity_perturbation=0.2, n_sigma=2)
-#
-# s_velocity.fill_checkerboard(anomaly_size=200, base_velocity=5000,
-#                              velocity_perturbation=0.2, n_sigma=2)
+p_velocity.fill_checkerboard(anomaly_size=200, base_velocity=5000,
+                             velocity_perturbation=0.2, n_sigma=2)
+
+s_velocity.fill_checkerboard(anomaly_size=200, base_velocity=5000,
+                             velocity_perturbation=0.2, n_sigma=2)
 
 
 density = DensityGrid3D('NT', [10, 10, 10], [10, 10, 10],
