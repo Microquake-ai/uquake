@@ -56,6 +56,8 @@ from ttcrpy import rgrid
 from scipy.signal import fftconvolve
 from disba import PhaseDispersion
 from tqdm import tqdm
+# import dask
+
 
 
 __cpu_count__ = cpu_count()
@@ -66,6 +68,8 @@ valid_phases = ('P', 'S')
 class Phases(Enum):
     P = 'P'
     S = 'S'
+    RAYLEIGH = 'RAYLEIGH'
+    LOVE = 'LOVE'
 
 
 class GridTypes(Enum):
@@ -1124,6 +1128,46 @@ class VelocityGrid3D(TypedGrid):
         return self.get_base_name(self.network_code, self.phase)
 
 
+class PhaseVelocity(Grid):
+    def __init__(self, network: str, data_or_dims: Union[np.ndarray, List, Tuple],
+                 period: float, phase: Phases = Phases.RAYLEIGH,
+                 grid_type=GridTypes.VELOCITY_METERS, grid_units=GridUnits.METER,
+                 spacing: Union[np.ndarray, List, Tuple] = None,
+                 origin: Union[np.ndarray, List, Tuple] = None,
+                 resource_id: ResourceIdentifier = ResourceIdentifier(),
+                 value: float = 0,
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED,
+                 label: str = __default_grid_label__,
+                 float_type: FloatTypes = FloatTypes.FLOAT):
+
+        self.network = network
+        self.period = period
+        self.phase = phase
+        self.grid_type = grid_type
+        self.grid_units = grid_units
+        self.float_type = float_type
+
+        super().__init__(data_or_dims, origin=origin, spacing=spacing,
+                         resource_id=resource_id, value=value,
+                         coordinate_system=coordinate_system,
+                         label=label)
+
+        # to do...
+        # @classmethod
+        # def from_seismic_property_grid_ensemble(cls, grid: SeismicPropertyGridEnsemble, period: float):
+        #     # calculate the phase velocity (disba)
+        #     # create the class
+        #
+        #     phase_velocity = grid.to_phase_velocities()
+        #
+        #     return [cls(network, phase_velocity, ...)]
+        #
+
+
+class PhaseVelocityEnsemble(List):
+    pass
+
+
 class VelocityGridEnsemble:
     def __init__(self, p_velocity_grid, s_velocity_grid):
         """
@@ -1274,38 +1318,56 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
     def shape(self):
         return self.p_velocity_grid.shape
 
-    def to_phase_velocities(self, period_min=0.1, period_max=10, n_periods=10,
-                            logspace=True):
-        if logspace:
-            periods = np.logspace(np.log10(period_min), np.log10(period_max), n_periods)
-        else:
-            periods = np.linspace(period_min, period_max, n_periods)
-
-        phase_velocity = np.zeros(self.shape[:2])
-        thickness = self.s_velocity_grid.spacing[2] * np.ones(
-            shape=(self.p_velocity_grid.shape[1] - 1))
-        if self.s_velocity_grid.grid_units.value == GridUnits.METER:
-            thickness /= 1.e3
-            vels = self.s_velocity_grid.data / 1.e3
-            velp = self.p_velocity_grid.data / 1.e3
-        else:
-            vels = self.s_velocity_grid.data
-            velp = self.p_velocity_grid.data
-        for i in tqdm(range(self.shape[0])):
-            for j in tqdm(range(self.shape[1])):
-                vs_ij = vels[i, j, :]
-                vs_ij = 0.5 * (vs_ij[1:] + vs_ij[:-1])
-                vp_ij = velp[i, j, :]
-                vp_ij = 0.5 * (vp_ij[1:] + vp_ij[:-1])
-                d_ij = self.density_grid.data[i, j, :]
-                d_ij = 0.5 * (d_ij[1:] + d_ij[:-1])
-                pd = PhaseDispersion(thickness, vp_ij, vs_ij, d_ij,
-                                     algorithm='fast-delta',
-                                     dc=0.0001)
-                from ipdb import set_trace; set_trace()
-                period = 2
-                # cmod = pd(periods, mode=0, wave="rayleigh").velocity
-        return
+    #import dask.array as da
+    # def to_phase_velocities(self, period_min=0.1, period_max=10, n_periods=10,
+    #                         logspace=True):
+    #     if logspace:
+    #         periods = np.logspace(np.log10(period_min), np.log10(period_max), n_periods)
+    #     else:
+    #         periods = np.linspace(period_min, period_max, n_periods)
+    #
+    #     import dask.array as da
+    #
+    #     phase_velocity =  [da.zeros((self.shape[0], self.shape[1]))
+    #                        for _ in range(n_periods)]
+    #     # thickness of sublayers (model 1D)
+    #     thickness = self.s_velocity_grid.spacing[2] * np.ones(
+    #         shape=(self.p_velocity_grid.shape[2] - 1))
+    #     if self.s_velocity_grid.grid_units == GridUnits.METER:
+    #         thickness /= 1.e3
+    #         vels = self.s_velocity_grid.data / 1.e3
+    #         velp = self.p_velocity_grid.data / 1.e3
+    #     else:
+    #         vels = self.s_velocity_grid.data
+    #         velp = self.p_velocity_grid.data
+    #
+    #     x, y = np.meshgrid(np.arange(self.shape[0]), np.arange(self.shape[1]), indexing="ij")
+    #     indices = np.column_stack((x.reshape((-1,1)), y.reshape((-1,1))))
+    #     vels_layers = 0.5 * (vels[:, :, 1:] + vels[:, :, :-1])
+    #     velp_layers = 0.5 * (velp[:, :, 1:] + velp[:, :, :-1])
+    #     density_layers = 0.5 * (self.density_grid.data[:, :, 1:] + self.density_grid.data[:, :, :-1])
+    #     @dask.delayed
+    #     def phasevel_pnt(i, j, vels_cells, velp_cells, density_cells):
+    #         vs_ij = vels_cells[i, j]
+    #         vp_ij = velp_cells[i, j]
+    #         d_ij = density_cells[i, j]
+    #         pd = PhaseDispersion(thickness, vp_ij, vs_ij, d_ij,
+    #                              algorithm='fast-delta',
+    #                              dc=0.0001)
+    #         cmod = pd(periods, mode=0, wave="rayleigh").velocity
+    #     results = []
+    #     for i in range(self.shape[0]):
+    #         cmodij = []
+    #         results.append(cmodij)
+    #         for j in range(self.shape[1]):
+    #             cmodijk = []
+    #             cmodij.append(cmodijk)
+    #             cmod = phasevel_pnt(i, j,vels_layers, velp_layers, density_layers)
+    #             for k in range(len(periods)):
+    #                 cmodijk.append(cmod[k])
+    #
+    #     phase_velocity = dask.compute(*results, scheduler='distributed')
+    #     return periods, phase_velocity
 
 
 class SeededGridType(Enum):
