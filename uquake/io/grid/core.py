@@ -46,6 +46,7 @@ from datetime import datetime
 from typing import Union, List, Tuple, Dict, Any, Optional
 import os
 from enum import Enum
+from pyevtk.hl import gridToVTK
 
 
 def read_pickle(filename, protocol=-1, **kwargs):
@@ -151,48 +152,36 @@ def read_csv(filename, *args, **kwargs):
     pass
 
 
-def write_vtk(grid, filename, **kwargs):
+def write_vtk(grid, filename, field_name=None, **kwargs):
     """
     write a GridData object to disk in VTK format (Paraview, MayaVi2,
     etc.) using
     the pyevtk module.
     param filename: full path to file with the extension. Note that the
     extension for vtk image data (grid data) is usually .vti.
-    :type filename; str
+    :type filename: str
     :param grid: grid to be saved
     :type grid: ~uquake.core.data.grid.GridData
+    :param field_name: field to save
     .. NOTE:
         see the imageToVTK function from the pyevtk.hl module for more
         information on possible additional paramter.
     """
-    import vtk
-
-    if filename[-4:] in ['.vti', '.vtk']:
-        filename = filename[:-4]
-
-    image_data = vtk.vtkImageData()
-    image_data.SetDimensions(grid.shape)
-    image_data.SetSpacing(grid.spacing)
-    image_data.SetOrigin(grid.origin)
-    image_data.AllocateScalars(vtk.VTK_FLOAT, 1)
 
     if grid.ndim == 3:
-        for z in range(grid.shape[2]):
-            for y in range(grid.shape[1]):
-                for x in range(grid.shape[0]):
-                    image_data.SetScalarComponentFromFloat(x, y, z, 0,
-                                                           grid.data[x, y, z])
+        x_ref = np.arange(grid.origin[0], grid.corner[0], grid.spacing[0])
+        y_ref = np.arange(grid.origin[1], grid.corner[1], grid.spacing[1])
+        z_ref = np.arange(grid.origin[2], grid.corner[2], grid.spacing[2])
+        gridToVTK(filename, x_ref, y_ref, z_ref,
+                  pointData={field_name: grid.data})
 
     if grid.ndim == 2:
-        for y in range(grid.shape[1]):
-            for x in range(grid.shape[0]):
-                image_data.SetScalarComponentFromFloat(x, y, 0,
-                                                       grid.data[x, y])
+        x_ref = np.arange(grid.origin[0], grid.corner[0], grid.spacing[0])
+        y_ref = np.arange(grid.origin[1], grid.corner[1], grid.spacing[1])
+        z_ref = np.zeros((1,))
+        gridToVTK(filename, x_ref, y_ref, z_ref,
+                  pointData={field_name: np.expand_dims(grid.data, axis=2)})
 
-    writer = vtk.vtkXMLImageDataWriter()
-    writer.SetFileName(f'{filename}.vti')
-    writer.SetInputData(image_data)
-    writer.Write()
     return True
 
 

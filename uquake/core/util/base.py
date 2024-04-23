@@ -20,8 +20,7 @@ from obspy.core.util.base import ENTRY_POINTS, _get_entry_points
 
 # appending elements to the obspy ENTRY_POINTS
 ENTRY_POINTS['grid'] = _get_entry_points('uquake.io.grid', 'readFormat')
-ENTRY_POINTS['grid_write'] = _get_entry_points('uquake.io.grid',
-                                               'writeFormat')
+ENTRY_POINTS['grid_write'] = _get_entry_points('uquake.io.grid', 'writeFormat')
 
 gfr_entry_points = _get_entry_points('uquake.io.waveform', 'readFormat')
 gfw_entry_points = _get_entry_points('uquake.io.waveform', 'writeFormat')

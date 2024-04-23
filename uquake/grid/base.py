@@ -514,7 +514,7 @@ class Grid(object):
 
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
 
-        if format not in ENTRY_POINTS['grid'].keys():
+        if format not in ENTRY_POINTS['grid_write'].keys():
             raise TypeError(f'format {format} is currently not supported '
                             f'for Grid objects')
 
