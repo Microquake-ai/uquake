@@ -59,6 +59,7 @@ import os
 from .util.requests import download_file_from_url
 from uquake.core.util.attribute_handler import set_extra, get_extra, namespace
 import hashlib
+from enum import Enum
 
 
 class SystemResponse(object):

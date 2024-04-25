@@ -208,3 +208,34 @@ class Trace(ObspyTrace, ABC):
         pulse /= np.linalg.norm(pulse)
 
         return pulse
+
+    def equalize(self, equalization_window_length_sec, water_level=1e-10):
+        window_length_samples = int(equalization_window_length_sec
+                                    * self.stats.sampling_frequency)
+
+        # # One-bit normalization: Normalize signal to just its sign
+        # normalized_signal = self.data / np.std(self.data)
+
+        # Mirror the normalized signal at both ends
+        # Mirror the normalized signal at both ends
+        extended_signal = np.concatenate([
+            np.flip(self.data[:window_length_samples]),  # Mirror beginning
+            self.data,
+            np.flip(self.data[-window_length_samples:])  # Mirror end
+        ])
+
+        # Compute the moving average using a uniform filter
+        window = np.ones(window_length_samples) / window_length_samples
+        smoothed_signal = scipy.signal.fftconvolve(extended_signal, window, mode='valid')
+
+        # Scale the original normalized signal by the smoothed signal
+        # This step enhances the uniform energy distribution across the signal
+        # To prevent division by zero, add a small epsilon where smoothed_signal is zero
+        scaled_signal = normalized_signal / (np.sqrt(smoothed_signal + water_level))
+        scaled_signal_normalized = scaled_signal / np.std(scaled_signal)
+
+        self.data = scaled_signal_normalized
+
+        # Return the scaled signal of the same length as the input signal
+        return self
+
