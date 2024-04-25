@@ -1,6 +1,6 @@
 import time
 import matplotlib.pyplot as plt
-from uquake.io.grid.core import write_vtk
+#from uquake.io.grid.core import write_vtk
 
 
 from uquake.grid.extended import (VelocityGrid3D, Phases,
@@ -14,7 +14,7 @@ p_velocity = VelocityGrid3D('NT', [80, 80, 30],
 s_velocity = VelocityGrid3D('NT', [80, 80, 30],
                             [100, 100, 100], [50, 50, 50], Phases.S,
                             label=label, value=1500, grid_units=unit)
-p_velocity.write("vs.vtk", format="pickle", field_name="Vp")
+p_velocity.write("vs.vtk", format="vtk", field_name="Vp")
 # p_velocity.fill_checkerboard(anomaly_size=[850, 850, 350], base_velocity=5000,
 #                              velocity_perturbation=0.2, n_sigma=4)
 # write_vtk(p_velocity, "/Users/mahernasr/Out_uquake/vs", "Velp")
