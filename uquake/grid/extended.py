@@ -2369,6 +2369,13 @@ class PhaseVelocityEnsemble(list):
             cmod.append(k.data[i, j])
         periods = self.periods
         plt.semilogx(periods, cmod, "-ob")
+        plt.xlabel("Period (s)")
+        if self[0].grid_units == GridUnits.METER:
+            plt.ylabel("Phase velocity (m/s)")
+        if self[0].grid_units == GridUnits.KILOMETER:
+            plt.ylabel("Phase velocity (km/s)")
+        plt.grid(which='major', linewidth=0.8)
+        plt.grid(which='minor', linestyle=':', linewidth=0.5)
         plt.show()
 
     def plot_sensitivity_kernel(self, x: Union[float, int], y: Union[float, int],
