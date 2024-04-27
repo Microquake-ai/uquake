@@ -55,10 +55,8 @@ from typing import Union, Tuple
 from ttcrpy import rgrid
 from scipy.signal import fftconvolve
 from disba import PhaseDispersion
-from tqdm import tqdm
-# import dask
-
-
+import skfmm
+import dask
 
 __cpu_count__ = cpu_count()
 
@@ -75,6 +73,7 @@ class Phases(Enum):
 class GridTypes(Enum):
     VELOCITY = 'VELOCITY'
     VELOCITY_METERS = 'VELOCITY_METERS'
+    VELOCITY_KILOMETERS = 'VELOCITY_KILOMETERS'
     SLOWNESS = 'SLOWNESS'
     VEL2 = 'VEL2'
     SLOW2 = 'SLOW2'
@@ -98,6 +97,7 @@ class GridTypes(Enum):
 valid_grid_types = (
     'VELOCITY',
     'VELOCITY_METERS',
+    'VELOCITY_KILOMETERS'
     'SLOWNESS',
     'VEL2',
     'SLOW2',
@@ -145,12 +145,35 @@ valid_grid_units = (
     'KILOMETER',
 )
 
+
 __velocity_grid_location__ = Path('model')
 __time_grid_location__ = Path('time')
 
-
 __default_grid_units__ = GridUnits.METER
 __default_float_type__ = FloatTypes.FLOAT
+
+
+class DisbaAlgorithm(Enum):
+    dunkin = 'dunkin'
+    phase_delta = 'phase-delta'
+
+
+class DisbaParam:
+    def __init__(self, algorithm: DisbaAlgorithm = DisbaAlgorithm.dunkin,
+                 dc: float = 0.005):
+        """
+        :param algorithm
+        """
+        self.__algorithm__= algorithm
+        self.__dc__ = dc
+
+    @property
+    def algorithm(self):
+        return self.__algorithm__.value
+
+    @property
+    def dc(self):
+        return self.__dc__
 
 
 class Seed:
@@ -200,7 +223,7 @@ class Seed:
 
     @property
     def label(self):
-            return f'{self.station}.{self.location}'
+        return f'{self.station}.{self.location}'
 
     @property
     def instrument_code(self):
@@ -468,6 +491,25 @@ class TypedGrid(Grid):
     def model_id(self):
         return self.resource_id
 
+    def is_like(self, other):
+        if self.dims != other.dims:
+            return False
+        if list(self.origin) != list(other.origin):
+            return False
+        if list(self.spacing) != list(other.spacing):
+            return False
+        if self.grid_units != other.grid_units:
+            return False
+        if self.label != other.label:
+            return False
+        return True
+
+    def __eq__(self, other):
+        if isinstance(other, type(self)):
+            return all([self.is_like(other), self.data == other.data])
+        else:
+            return False
+
 
 class Direction(Enum):
     UP = 'UP'
@@ -702,6 +744,13 @@ class DensityGrid3D(TypedGrid):
                          float_type=float_type,
                          grid_id=grid_id, label=label)
 
+    def write(self, filename, format='VTK', **kwargs):
+        field_name = None
+        if format == 'VTK':
+            field_name = f'density'
+
+        super().write(filename, format=format, field_name=field_name, **kwargs)
+
 
 class VelocityGrid3D(TypedGrid):
 
@@ -741,20 +790,20 @@ class VelocityGrid3D(TypedGrid):
                          float_type=float_type,
                          grid_id=grid_id, label=label)
 
-    def fill_checkerboard(self, anomaly_size, base_velocity, velocity_perturbation,n_sigma):
-        data = np.zeros_like(self.data)
+    def fill_checkerboard(self, anomaly_size, base_velocity, velocity_perturbation, n_sigma):
+        data = np.zeros(shape=self.data.shape)
 
         # Convert anomaly size to grid index units and calculate the starting
         # and ending indices.
         step_anomaly = (np.array(anomaly_size) / np.array(self.spacing)).astype(int)
 
-        if step_anomaly[0] >= self.data.shape[0]:
+        if step_anomaly[0] >= self.shape[0]:
             raise Exception("Dimension mismatch: anomaly exceeds the first axis "
                             "of the grid!\n")
-        if step_anomaly[1] >= self.data.shape[1]:
+        if step_anomaly[1] >= self.shape[1]:
             raise Exception("Dimension mismatch: anomaly exceeds the second axis "
                             "of the grid!\n")
-        if step_anomaly[2] >= self.data.shape[2]:
+        if step_anomaly[2] >= self.shape[2]:
             raise Exception("Dimension mismatch: anomaly exceeds the third axis "
                             "of the grid!\n")
 
@@ -803,8 +852,8 @@ class VelocityGrid3D(TypedGrid):
             step_anomaly[2] * self.spacing[2] / n_sigma
         ])
         kernel = np.exp(-(
-                    (kernel_x - mu[0]) ** 2 / sigma[0] ** 2 + (kernel_y - mu[1]) ** 2 /
-                    sigma[1] ** 2 + (kernel_z - mu[2]) ** 2 / sigma[2] ** 2))
+                (kernel_x - mu[0]) ** 2 / sigma[0] ** 2 + (kernel_y - mu[1]) ** 2 /
+                sigma[1] ** 2 + (kernel_z - mu[2]) ** 2 / sigma[2] ** 2))
         kernel = kernel / np.sum(np.abs(kernel))  # normalization
 
         # Convolution in the frequency domain
@@ -1004,7 +1053,7 @@ class VelocityGrid3D(TypedGrid):
 
         phi = np.ones_like(X_i)
         phi[int(np.floor(len(x_i) / 2)), int(np.floor(len(y_i) / 2)),
-            int(np.floor(len(z_i) / 2))] = 0
+        int(np.floor(len(z_i) / 2))] = 0
 
         tt_tmp = skfmm.travel_time(phi, vel, dx=sub_grid_spacing)
 
@@ -1127,45 +1176,12 @@ class VelocityGrid3D(TypedGrid):
     def base_name(self):
         return self.get_base_name(self.network_code, self.phase)
 
+    def write(self, filename, format='VTK', **kwargs):
+        field_name = None
+        if format == 'VTK':
+            field_name = f'velocity_{self.phase.value}'
 
-class PhaseVelocity(Grid):
-    def __init__(self, network: str, data_or_dims: Union[np.ndarray, List, Tuple],
-                 period: float, phase: Phases = Phases.RAYLEIGH,
-                 grid_type=GridTypes.VELOCITY_METERS, grid_units=GridUnits.METER,
-                 spacing: Union[np.ndarray, List, Tuple] = None,
-                 origin: Union[np.ndarray, List, Tuple] = None,
-                 resource_id: ResourceIdentifier = ResourceIdentifier(),
-                 value: float = 0,
-                 coordinate_system: CoordinateSystem = CoordinateSystem.NED,
-                 label: str = __default_grid_label__,
-                 float_type: FloatTypes = FloatTypes.FLOAT):
-
-        self.network = network
-        self.period = period
-        self.phase = phase
-        self.grid_type = grid_type
-        self.grid_units = grid_units
-        self.float_type = float_type
-
-        super().__init__(data_or_dims, origin=origin, spacing=spacing,
-                         resource_id=resource_id, value=value,
-                         coordinate_system=coordinate_system,
-                         label=label)
-
-        # to do...
-        # @classmethod
-        # def from_seismic_property_grid_ensemble(cls, grid: SeismicPropertyGridEnsemble, period: float):
-        #     # calculate the phase velocity (disba)
-        #     # create the class
-        #
-        #     phase_velocity = grid.to_phase_velocities()
-        #
-        #     return [cls(network, phase_velocity, ...)]
-        #
-
-
-class PhaseVelocityEnsemble(List):
-    pass
+        super().write(filename, format=format, field_name=field_name, **kwargs)
 
 
 class VelocityGridEnsemble:
@@ -1181,12 +1197,8 @@ class VelocityGridEnsemble:
         label
         """
 
-        if p_velocity_grid.dims != s_velocity_grid.dims:
-            raise ValueError('p and s velocity grids must have the same '
-                             'dimensions')
-        if p_velocity_grid.label != s_velocity_grid.label:
-            raise ValueError('p and s velocity grids must have the same '
-                             'label')
+        if not p_velocity_grid.is_like(s_velocity_grid):
+            raise ValueError('The p and s velocity grid must be compatible')
 
         self.p_velocity_grid = p_velocity_grid
         self.s_velocity_grid = s_velocity_grid
@@ -1274,6 +1286,49 @@ class VelocityGridEnsemble:
     def S(self):
         return self['S']
 
+    @property
+    def network(self):
+        return self.s.network_code
+
+    @property
+    def network_code(self):
+        return self.s.network_code
+
+    @property
+    def dims(self):
+        return self.s.shape
+
+    @property
+    def shape(self):
+        return self.s.shape
+
+    @property
+    def origin(self):
+        return self.s.origin
+
+    @property
+    def spacing(self):
+        return self.s.spacing
+
+    @property
+    def grid_type(self):
+        return self.s.grid_type
+
+    @property
+    def grid_units(self):
+        return self.s.grid_units
+
+    @property
+    def resource_id(self):
+        return self.s.resource_id
+
+    @property
+    def coordinate_system(self):
+        return self.s.coordinate_system
+
+    @property
+    def float_type(self):
+        return self.s.float_type
 
 
 class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
@@ -1294,16 +1349,33 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
         and the same label
         """
 
-        if density_grid.dims != s_velocity_grid.dims:
-            raise ValueError('p and s velocity and the density grids must have the same '
-                             'dimensions')
-        if density_grid.label != s_velocity_grid.label:
-            raise ValueError('p and s velocity and the deisity grids must have the same '
-                             'label')
+        if not p_velocity_grid.is_like(s_velocity_grid) :
+            raise ValueError(f'the p and s velocity grids are incompatible\n'
+                             f'P velocity: {p_velocity_grid}'
+                             f'S velocity: {s_velocity_grid}')
+
+        if not p_velocity_grid.is_like(density_grid):
+            raise ValueError(f'the p velocity and the density grids are incompatible\n'
+                             f'P velocity: {p_velocity_grid}'
+                             f'Density   : {density_grid}')
 
         self.density_grid = density_grid
 
         super().__init__(p_velocity_grid, s_velocity_grid)
+
+    def __getitem__(self, item):
+        if item.upper() == 'P':
+            return self.p_velocity_grid
+
+        elif item.upper() == 'S':
+            return self.s_velocity_grid
+
+        elif item.upper() == 'DENSITY':
+            return self.density_grid
+
+        else:
+            raise ValueError(f'{item} is not a valid key. '
+                             f'The key value must either be "P" or "S"')
 
     def __repr__(self):
         return (f'P Velocity: {self.p_velocity_grid}\n'
@@ -1311,63 +1383,89 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
                 f'Density   : {self.density_grid}')
 
     @property
-    def dims(self):
-        return self.p_velocity_grid.dims
+    def density(self):
+        return self['density']
 
-    @property
-    def shape(self):
-        return self.p_velocity_grid.shape
+    def to_phase_velocities(self, period_min: float = 0.1, period_max: float = 10.,
+                            n_periods: int = 10, logspace: bool = True,
+                            phase: Union[Phases, str] = Phases.RAYLEIGH,
+                            multithreading: bool = True,
+                            disba_param: Union[DisbaParam] = DisbaParam()):
 
-    #import dask.array as da
-    # def to_phase_velocities(self, period_min=0.1, period_max=10, n_periods=10,
-    #                         logspace=True):
-    #     if logspace:
-    #         periods = np.logspace(np.log10(period_min), np.log10(period_max), n_periods)
-    #     else:
-    #         periods = np.linspace(period_min, period_max, n_periods)
-    #
-    #     import dask.array as da
-    #
-    #     phase_velocity =  [da.zeros((self.shape[0], self.shape[1]))
-    #                        for _ in range(n_periods)]
-    #     # thickness of sublayers (model 1D)
-    #     thickness = self.s_velocity_grid.spacing[2] * np.ones(
-    #         shape=(self.p_velocity_grid.shape[2] - 1))
-    #     if self.s_velocity_grid.grid_units == GridUnits.METER:
-    #         thickness /= 1.e3
-    #         vels = self.s_velocity_grid.data / 1.e3
-    #         velp = self.p_velocity_grid.data / 1.e3
-    #     else:
-    #         vels = self.s_velocity_grid.data
-    #         velp = self.p_velocity_grid.data
-    #
-    #     x, y = np.meshgrid(np.arange(self.shape[0]), np.arange(self.shape[1]), indexing="ij")
-    #     indices = np.column_stack((x.reshape((-1,1)), y.reshape((-1,1))))
-    #     vels_layers = 0.5 * (vels[:, :, 1:] + vels[:, :, :-1])
-    #     velp_layers = 0.5 * (velp[:, :, 1:] + velp[:, :, :-1])
-    #     density_layers = 0.5 * (self.density_grid.data[:, :, 1:] + self.density_grid.data[:, :, :-1])
-    #     @dask.delayed
-    #     def phasevel_pnt(i, j, vels_cells, velp_cells, density_cells):
-    #         vs_ij = vels_cells[i, j]
-    #         vp_ij = velp_cells[i, j]
-    #         d_ij = density_cells[i, j]
-    #         pd = PhaseDispersion(thickness, vp_ij, vs_ij, d_ij,
-    #                              algorithm='fast-delta',
-    #                              dc=0.0001)
-    #         cmod = pd(periods, mode=0, wave="rayleigh").velocity
-    #     results = []
-    #     for i in range(self.shape[0]):
-    #         cmodij = []
-    #         results.append(cmodij)
-    #         for j in range(self.shape[1]):
-    #             cmodijk = []
-    #             cmodij.append(cmodijk)
-    #             cmod = phasevel_pnt(i, j,vels_layers, velp_layers, density_layers)
-    #             for k in range(len(periods)):
-    #                 cmodijk.append(cmod[k])
-    #
-    #     phase_velocity = dask.compute(*results, scheduler='distributed')
-    #     return periods, phase_velocity
+        if not isinstance(disba_param, DisbaParam):
+            raise TypeError(f'disba_param must be type DisbaParam')
+
+        if isinstance(phase, str):
+            Phases(phase.upper())
+
+        if isinstance(phase, Phases):
+            phase = phase.value.lower()
+
+        if logspace:
+            periods = np.logspace(np.log10(period_min), np.log10(period_max), n_periods)
+        else:
+            periods = np.linspace(period_min, period_max, n_periods)
+        thickness = self.spacing[2] * np.ones(
+            shape=(self.shape[2] - 1))
+        if self.grid_units == GridUnits.METER:
+            thickness /= 1.e3
+            velocity_s = self.s.data * 1.e-3
+            velocity_p = self.p.data * 1.e-3
+        else:
+            velocity_s = self.s.data
+            velocity_p = self.p.data
+        layers_s = 0.5 * (velocity_s[:, :, 1:] + velocity_s[:, :, :-1])
+        layers_p = 0.5 * (velocity_p[:, :, 1:] + velocity_p[:, :, :-1])
+        layers_density = 0.5 * (self.density.data[:, :, 1:] +
+                                self.density.data[:, :, :-1])
+
+        algorithm = disba_param.algorithm
+        dc = disba_param.dc
+
+        if multithreading:
+            @dask.delayed
+            def phase_velocity_pnt(index_i, index_j, cells_s, cells_p, cells_density,
+                                   list_periods, layers_thickness):
+                velocity_sij = cells_s[index_i, index_j]
+                velocity_pij = cells_p[index_i, index_j]
+                density_profile_ij = cells_density[index_i, index_j]
+                phase_disp = PhaseDispersion(thickness=layers_thickness,
+                                             velocity_p=velocity_pij,
+                                             velocity_s=velocity_sij,
+                                             density=density_profile_ij,
+                                             algorithm=algorithm,
+                                             dc=dc)
+                return phase_disp(list_periods, mode=0, wave=phase).velocity
+
+            results = []
+            for i in range(self.shape[0]):
+                cmod_ij = []
+                results.append(cmod_ij)
+                for j in range(self.shape[1]):
+                    cmod_ij.append(phase_velocity_pnt(i, j, layers_s, layers_p,
+                                                      layers_density, periods,
+                                                      thickness))
+
+            phase_velocity = dask.compute(*results)  #todo see other arguments
+            phase_velocity = np.array(phase_velocity)
+            phase_velocity = [phase_velocity[:, :, k] for k in range(n_periods)]
+        else:
+            phase_velocity = [np.zeros(shape=(self.shape[0], self.shape[1]))
+                              for _ in range(n_periods)]
+            for i in range(self.shape[0]):
+                for j in range(self.shape[1]):
+                    velocity_s_ij = layers_s[i, j]
+                    velocity_p_ij = layers_p[i, j]
+                    density_ij = layers_density[i, j]
+                    pd = PhaseDispersion(thickness=thickness, velocity_p=velocity_p_ij,
+                                         velocity_s=velocity_s_ij, density=density_ij,
+                                         algorithm=algorithm,
+                                         dc=dc)
+                    cmod = pd(periods, mode=0, wave=phase).velocity
+                    for k in range(n_periods):
+                        phase_velocity[k][i, j] = cmod[k]
+
+        return periods, phase_velocity
 
 
 class SeededGridType(Enum):
@@ -1378,7 +1476,6 @@ class SeededGridType(Enum):
 
     def __str__(self):
         return str(self.value)
-
 
 
 class SeededGrid(TypedGrid):
@@ -1584,7 +1681,6 @@ class TTGrid(SeededGrid):
                  float_type: FloatTypes = __default_float_type__,
                  grid_id: ResourceIdentifier = ResourceIdentifier(),
                  label=__default_grid_label__):
-
         super().__init__(network_code, data_or_dims, origin, spacing, seed,
                          velocity_model_id=velocity_model_id, phase=phase,
                          value=value, grid_type=GridTypes.TIME,
@@ -1831,7 +1927,7 @@ class TravelTimeEnsemble:
             phases = [Phases.P.value, Phases.S.value]
         else:
             phases = [phase.value if isinstance(phase, Phases) else Phases(phase).value
-                     for phase in phase]
+                      for phase in phase]
 
         returned_grids = []
         for travel_time_grid in self.travel_time_grids:
@@ -1897,7 +1993,7 @@ class TravelTimeEnsemble:
         for tt_grid in tt_grids:
             labels.append(tt_grid.seed.label)
             tts.append(tt_grid.interpolate(seed.T,
-                       grid_space=False)[0])
+                                           grid_space=False)[0])
             phases.append(tt_grid.phase)
 
         tts_dict = {}
@@ -1932,8 +2028,8 @@ class TravelTimeEnsemble:
             raise ValueError(f'{format} is not a valid format')
 
     def angles(self, seed, grid_space: bool = False,
-                seed_labels: Optional[list] = None,
-                phase: Optional[list] = None, **kwargs):
+               seed_labels: Optional[list] = None,
+               phase: Optional[list] = None, **kwargs):
         """
         calculate the azimuth at a specific point for a series of location
         ids
@@ -2099,7 +2195,6 @@ class AngleGrid(SeededGrid):
                  grid_type: GridTypes = GridTypes.ANGLE,
                  grid_id: ResourceIdentifier = ResourceIdentifier(),
                  label=__default_grid_label__):
-
         super().__init__(network_code, data_or_dims, origin, spacing, seed,
                          velocity_model_id=velocity_model_id, phase=phase,
                          value=value, grid_type=grid_type,
@@ -2111,3 +2206,193 @@ class AngleGrid(SeededGrid):
     def write_nlloc(self, path='.'):
         super().write_nlloc(path=path)
 
+
+class PhaseVelocity(Grid):
+    def __init__(self, network_code: str, data_or_dims: Union[np.ndarray, List, Tuple],
+                 period: float, phase: Phases = Phases.RAYLEIGH,
+                 grid_type=GridTypes.VELOCITY_METERS, grid_units=GridUnits.METER,
+                 spacing: Union[np.ndarray, List, Tuple] = None,
+                 origin: Union[np.ndarray, List, Tuple] = None,
+                 resource_id: ResourceIdentifier = ResourceIdentifier(),
+                 value: float = 0,
+                 coordinate_system: CoordinateSystem = CoordinateSystem.NED,
+                 label: str = __default_grid_label__,
+                 float_type: FloatTypes = FloatTypes.FLOAT):
+        self.network_code = network_code
+        self.period = period
+        self.grid_type = grid_type
+        self.grid_units = grid_units
+        self.phase = phase
+        self.float_type = float_type
+
+        super().__init__(data_or_dims, origin=origin, spacing=spacing,
+                         resource_id=resource_id, value=value,
+                         coordinate_system=coordinate_system,
+                         label=label)
+
+    @classmethod
+    def from_seismic_property_grid_ensemble(cls,
+                                            seismic_param: SeismicPropertyGridEnsemble,
+                                            period: float, phase: Phases,
+                                            disba_param: DisbaParam = DisbaParam()):
+        _, phase_velocity = seismic_param.to_phase_velocities(period_min=period,
+                                                              period_max=period,
+                                                              n_periods=1,
+                                                              logspace=False,
+                                                              multithreading=True,
+                                                              disba_param=disba_param)
+        phase_velocity = phase_velocity[0]
+        if seismic_param.grid_type == GridTypes.VELOCITY_METERS:
+            phase_velocity *= 1.e3
+
+        return cls(
+            network_code=seismic_param.network_code,
+            data_or_dims=phase_velocity,
+            period=period,
+            phase=phase,
+            grid_type=seismic_param.grid_type,
+            grid_units=seismic_param.grid_units,
+            spacing=(seismic_param.spacing[0], seismic_param.spacing[1]),
+            origin=(seismic_param.origin[0], seismic_param.origin[1]),
+            resource_id=seismic_param.resource_id,
+            coordinate_system=seismic_param.coordinate_system,
+            label=seismic_param.label,
+            float_type=seismic_param.float_type
+        )
+
+    def write(self, filename, format='VTK', **kwargs):
+        field_name = None
+        if format == 'VTK':
+            field_name = f'velocity_{self.phase.value}'
+
+        super().write(filename, format=format, field_name=field_name, **kwargs)
+
+    def plot(self):
+        plt.imshow(self.data.T, origin='lower', extent=(self.origin[0], self.corner[0],
+                                                        self.origin[1], self.corner[1]),
+                                                        cmap="seismic")
+
+        cb = plt.colorbar()
+        if self.grid_units == GridUnits.METER:
+            plt.xlabel("X (m)")
+            plt.ylabel("Y (m)")
+            cb.set_label('Vel ' + self.phase.value + ' (m/s)', rotation=270, labelpad=10)
+        if self.grid_units == GridUnits.KILOMETER:
+            plt.xlabel("X (km)")
+            plt.ylabel("Y (km)")
+            cb.set_label('Vel ' + self.phase.value + ' (km/s)', rotation=270, labelpad=10)
+        plt.title("period = {0:1.2f} s".format(self.period))
+        plt.show()
+
+    def __repr__(self):
+        repr_str = """
+                period :  %0.2f
+                spacing: %s
+                origin : %s
+                shape  : %s
+                """ % (self.period, self.spacing, self.origin, self.shape)
+        return repr_str
+
+    def __str__(self):
+        return self.__repr__()
+
+
+class PhaseVelocityEnsemble(list):
+
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def append(self, phase_velocity):
+        if isinstance(phase_velocity, PhaseVelocity):
+            super().append(phase_velocity)
+        else:
+            print("Only instances of the PhaseVelocity class can be added to the list.")
+
+    def add_phase_velocity(self, phase_velocity):
+        self.append(phase_velocity)
+
+    @classmethod
+    def from_seismic_property_grid_ensemble(
+            cls, seismic_properties: SeismicPropertyGridEnsemble,
+            periods: list, phase: Phases = Phases.RAYLEIGH,
+            disba_param: DisbaParam = DisbaParam()
+    ):
+        cls_obj = cls()
+        for p in periods:
+            cls_obj.append(PhaseVelocity.from_seismic_property_grid_ensemble(
+                seismic_properties, p, phase, disba_param))
+        return cls_obj
+
+    @property
+    def periods(self):
+        periods = []
+        for phase_velocity in self:
+            periods.append(phase_velocity.period)
+
+        return periods
+
+    def transform_to(self, values):
+        return self.transform_to_grid(values)
+
+    def transform_to_grid(self, values):
+        return self[0].transform_to_grid(values)
+
+    def transform_from(self, values):
+        return self[0].transform_from
+
+    def transform_from_grid(self, values):
+        return self.transform_from(values)
+
+    def plot_dispersion_curve(self, x: Union[float, int], y: Union[float, int],
+                              grid_space: bool = False):
+        """
+        plot the dispersion curve at a point x, y of the grid. If grid_space is True,
+        x, and y represent grid coordinates. If grid_space is False (default), x and
+        y represent the coordinates in spatial units (meters, km etc.).
+
+        :param x: x coordinates expressed in grid or model space
+        :type x: float or int
+        :param y: y coordinates expressed in grid or model space
+        :type y: float or int
+        :param grid_space: whether the coordinates are expressed in grid or model space
+        :type grid_space: bool
+        default value (False, model space)
+        """
+        cmod = []
+        if not grid_space:
+            tmp = self[0].transform_to((x, y))
+            i = int(tmp[0])
+            j = int(tmp[1])
+        else:
+            i, j = int(x), int(y)
+        for k in self:
+            cmod.append(k.data[i, j])
+        periods = self.periods
+        plt.semilogx(periods, cmod, "-ob")
+        plt.show()
+
+    def plot_sensitivity_kernel(self, x: Union[float, int], y: Union[float, int],
+                                grid_space: bool = False):
+        """
+        plot the sensitivity kernel at a point x, y of the grid. If grid_space is True,
+        x, and y represent grid coordinates. If grid_space is False (default), x and
+        y represent the coordinates in spatial units (meters, km etc.).
+
+        :param x: x coordinates expressed in grid or model space
+        :type x: float or int
+        :param y: y coordinates expressed in grid or model space
+        :type y: float or int
+        :param grid_space: whether the coordinates are expressed in grid or model space
+        :type grid_space: bool
+        default value (False, model space)
+        """
+        cmod = []
+        if not grid_space:
+            tmp = self[0].transform_to((x, y))
+            i = int(tmp[0])
+            j = int(tmp[1])
+        else:
+            i, j = int(x), int(y)
+        # for k in self:
+        #     cmod.append(k.data[i, j])
+        # periods = self.periods
