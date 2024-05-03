@@ -295,14 +295,20 @@ class Grid(object):
         cp = copy.deepcopy(self)
         return cp
 
-    def in_grid(self, point):
+    def in_grid(self, point: Union[List, np.ndarray, tuple], grid_space: bool=False):
         """
         Check if a point is inside the grid
         :param point: the point to check in absolute coordinate (model)
         :type point: tuple, list or numpy array
+        :param grid_space: if True, grid space, if false then assumes model space
+        default = False
         :returns: True if point is inside the grid
         :rtype: bool
         """
+
+        if grid_space:
+            point = self.transform_from_grid(point)
+
         corner1 = self.origin
         corner2 = self.origin + self.spacing * np.array(self.shape)
 
