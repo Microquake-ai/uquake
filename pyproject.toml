@@ -30,6 +30,7 @@ pyevtk = "^1.6.0"
 obspy = "^1.4.1"
 pytz = "^2024.1"
 tzdata = "^2024.1"
+pandas = "^2.2.2"
 
 [tool.poetry.group.test.dependencies]
 black = ">=23.3.0"
@@ -43,7 +44,7 @@ pytest-mock = ">=3.10.0"
 pytest-xdist = ">=3.2.1"
 pytest-asyncio = "^0.21.0"
 ruff = ">=0.0.270"
-pandas = "^1.0.0"
+ # pandas = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
 ipdb = "^0.13.9"
