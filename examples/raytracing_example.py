@@ -1,14 +1,13 @@
-import time
 import numpy as np
-
 
 from uquake.grid.extended import (VelocityGrid3D, Phases,DensityGrid3D, PhaseVelocity,
                                   SeismicPropertyGridEnsemble, GridUnits, GridTypes,
-                                  PhaseVelocityEnsemble, DisbaParam)
+                                  PhaseVelocityEnsemble, DisbaParam, Seed, SeedEnsemble)
+from uquake.core.coordinates import Coordinates
 
 dst_unit = "m"
 label = 'test'
-disba_param = DisbaParam(dc=0.001, dp=0.001)
+disba_param = DisbaParam(dc=0.001, dp=0.010)
 if dst_unit == "m":
     unit = GridUnits('METER')
     grtype = GridTypes("VELOCITY_METERS")
@@ -17,7 +16,6 @@ else:
     unit = GridUnits('KILOMETER')
     alpha = 1.e-3
     grtype = GridTypes("VELOCITY_KILOMETERS")
-
 
 p_velocity = VelocityGrid3D('NT', [90, 80, 60],
                             [100. * alpha, 100. * alpha, 0. * alpha],
@@ -42,43 +40,33 @@ density = DensityGrid3D('NT', [90, 80, 60],
                         [50 * alpha, 50 * alpha, 25 * alpha],
                         label='test', value=2.7, grid_units=unit)
 
-s_velocity.write(filename="/Users/mahernasr/Out_uquake/vs", format="VTK")
-#
 spge = SeismicPropertyGridEnsemble(p_velocity, s_velocity, density)
-#
-periods = np.logspace(np.log10(0.1), np.log10(10), 1)
 
+phase_velocity = PhaseVelocity.from_seismic_property_grid_ensemble(
+    seismic_param=spge, period=0.1, phase=Phases("RAYLEIGH"), disba_param=disba_param)
+#phase_velocity.plot()
+phase_velocity.write(filename="/Users/mahernasr/Out_uquake/Rayleigh", format="VTK")
+rcv = phase_velocity.generate_random_points_in_grid(n_points=1, grid_space=False,
+                                                      seed=1)
 
-def nasr_mercier_space(start, stop, npoints):
-    return (np.logspace(0, np.log10(10 + 1), npoints) - 10 ** 0 + start) * stop / 10
+# genrate receivers
+x = np.arange(s_velocity.origin[0] + s_velocity.spacing[0],
+              s_velocity.corner[0] - s_velocity.spacing[0],
+              10 * s_velocity.spacing[0])
+y = np.arange(s_velocity.origin[1] + s_velocity.spacing[1],
+              s_velocity.corner[1] - s_velocity.spacing[1],
+              10 * s_velocity.spacing[1])
+X, Y = np.meshgrid(x, y)
+X = X.reshape((-1, 1))
+Y = Y.reshape((-1, 1))
 
-z = [0, 10., 20, 40., 80., 150., 200., 250., 300., 350., 450, 550., 650., 750, 850, 1000., 1150.,
-     1300., 1450.,]
-z = np.array(z) * alpha + 0. * alpha
+seeds_list = []
+for n in range(len(X)):
+    seed_instance = Seed(coordinates=Coordinates(X[n], Y[n], s_velocity.origin[0]),
+                     station_code="TEST", location_code="No_location")
+    seeds_list.append(seed_instance)
+seeds = SeedEnsemble(seeds_list)
 
-
-z = (np.logspace(0, np.log10(10 + 1), 30) - 1) * 1450 / 10
-
-
-#z = np.arange(0, 1600., 50.) * alpha
-spge.plot_sensitivity_kernel(period=4, x=2300, y=1500, phase=Phases.RAYLEIGH,
-                             disba_param=disba_param, grid_space=False, z=z)
-spge.plot_sensitivity_kernel(period=4, x=2300, y=1500, phase=Phases.RAYLEIGH,
-                             disba_param=disba_param, grid_space=False, z=None)
-
-#     PhaseVelocityEnsemble
-# start_time = time.time()
-# Phe = PhaseVelocityEnsemble.from_seismic_property_grid_ensemble(
-#     spge, periods=list(periods), phase=Phases.RAYLEIGH, disba_param=disba_param)
-# end_time = time.time()
-# runtime = end_time - start_time
-# print("Runtime:", runtime, "seconds")
-# Phe.plot_dispersion_curve(9.8, 0.50)
-
-
-
-#
-# phase_velocity = PhaseVelocity.from_seismic_property_grid_ensemble(
-#     seismic_param=spge, period=0.2, phase=Phases("RAYLEIGH"), disba_param=disba_param)
-# phase_velocity.write(filename="/Users/mahernasr/Out_uquake/Rayleigh", format="VTK")
-# phase_velocity.plot()
+#phase_velocity.to_time(seed=seed_instance, method="SPM", ns=12)
+tt_ensemble = phase_velocity.to_time_multi_threaded(seeds=seeds, method="SPM", ns =5)
+#tt_grid="all", folder="/Users/mahernasr/out_uquake/model_")
