@@ -1952,6 +1952,23 @@ class TTGrid(SeededGrid):
     def location(self):
         return self.seed.location_code
 
+    def write(self, filename, format='VTK', **kwargs):
+        """Write the grid data to a file.
+
+        This method writes the grid data to a file in the specified format.
+
+        :param filename: The name of the file to write the data to.
+        :type filename: str
+        :param format: The format of the file (default: 'VTK').
+        :type format: str
+        :param **kwargs: Additional keyword arguments specific to the file format.
+        """
+        field_name = None
+        if format == 'VTK':
+            field_name = 'Travel Time'
+
+        super().write(filename, format=format, field_name=field_name, **kwargs)
+
 
 class TravelTimeEnsemble:
     def __init__(self, travel_time_grids):
@@ -2535,8 +2552,9 @@ class PhaseVelocity(Grid):
         grid.set_velocity(self.data)
         src = np.zeros(shape=(len(seeds), 2))
         for n, s in enumerate(seeds):
-            src[n, 0] = s.coordinates.x
-            src[n, 1] = s.coordinates.y
+            src[n, 0] = s.x
+            src[n, 1] = s.y
+        grid.set_use_thread_pool(False)
         grid.raytrace(src, src)
         tt_ensemble = []
         for n, s in enumerate(seeds):
