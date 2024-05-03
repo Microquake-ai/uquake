@@ -2407,24 +2407,6 @@ files = [
 ]
 
 [[package]]
-name = "scikit-fmm"
-version = "2023.4.2"
-description = "An extension module implementing the fast marching method"
-optional = false
-python-versions = "*"
-files = [
-    {file = "scikit-fmm-2023.4.2.tar.gz", hash = "sha256:d7871c47f820772aba92f25651ef14e4d27de8ce393c0ae3c02ab3c6e2423c0b"},
-    {file = "scikit_fmm-2023.4.2-cp310-cp310-win_amd64.whl", hash = "sha256:236a1c81bdd1507102851e9c65826280f7d4dff18c77295303783dd1b403719c"},
-    {file = "scikit_fmm-2023.4.2-cp311-cp311-win_amd64.whl", hash = "sha256:95e584a6193ab1bc6fa5b27ae5c711e8a513ca49de812fbfcd1b86b51df51fca"},
-    {file = "scikit_fmm-2023.4.2-cp37-cp37m-win_amd64.whl", hash = "sha256:c1f1af69f67203dc1ddf3998217ddce630933cd83c7b611c575763ee68477aa1"},
-    {file = "scikit_fmm-2023.4.2-cp38-cp38-win_amd64.whl", hash = "sha256:8eb8c724dca4a188f028c0812495e30ff9130bfc8c064b19977c853337547c10"},
-    {file = "scikit_fmm-2023.4.2-cp39-cp39-win_amd64.whl", hash = "sha256:033c2dbabc66e1833ecf5ad9d348564008ff3966f74a7b8eef31fa2666e76871"},
-]
-
-[package.dependencies]
-numpy = ">=1.0.2"
-
-[[package]]
 name = "scipy"
 version = "1.13.0"
 description = "Fundamental algorithms for scientific computing in Python"
@@ -2841,4 +2823,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<4.0"
-content-hash = "a56d7d04446673b3b5120a151328dbf14dd2f741c8f5dcd7bc4bcdf15f150663"
+content-hash = "c101b1cb637ad052c0ac0a246edab1b8b5bba8d80f5cc51cd97b3ec3e926705a"
