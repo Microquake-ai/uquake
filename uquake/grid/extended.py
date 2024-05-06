@@ -516,6 +516,84 @@ class TypedGrid(Grid):
         else:
             return False
 
+    def plot_slice(self, axis: int, slice_position: float, grid_space: bool = False,
+                   field_name=None):
+        fig, ax = plt.subplots()
+        match axis:
+            case 2:
+                if not grid_space:
+                    tmp = self.transform_to((self.origin[0], self.origin[1],
+                                             slice_position))
+                    k = int(tmp[2])
+                else:
+                    k = int(slice_position)
+                if not self.in_grid([0, 0, k], grid_space=True):
+                    raise IndexError(f'The slice plane {slice_position} falls'
+                                     f' outside the grid.')
+                im = ax.imshow(self.data[:, :, k].T, origin='lower',
+                               extent=(self.origin[0],
+                                       self.corner[0],
+                                       self.origin[1],
+                                       self.corner[1]),
+                               cmap="seismic")
+                if self.grid_units == GridUnits.METER:
+                    ax.set_xlabel("X (m)")
+                    ax.set_ylabel("Y (m)")
+                if self.grid_units == GridUnits.KILOMETER:
+                    ax.set_xlabel("X (km)")
+                    ax.set_ylabel("Y (km)")
+            case 1:
+                if not grid_space:
+                    tmp = self.transform_to((self.origin[0], slice_position,
+                                             self.origin[2]))
+                    j = int(tmp[1])
+                else:
+                    j = int(slice_position)
+                if not self.in_grid([0, j, 0], grid_space=True):
+                    raise IndexError(f'The slice plane {slice_position} falls '
+                                     f'outside the grid.')
+                im = ax.imshow(self.data[:, j, :].T, extent=(self.origin[0],
+                                                             self.corner[0],
+                                                             self.corner[2],
+                                                             self.origin[2]),
+                               cmap="seismic")
+                if self.grid_units == GridUnits.METER:
+                    ax.set_title("X (m)")
+                    ax.set_ylabel("Z (m)")
+                if self.grid_units == GridUnits.KILOMETER:
+                    ax.set_title("X (km)")
+                    ax.set_ylabel("Z (km)")
+                ax.xaxis.tick_top()
+            case 0:
+                if not grid_space:
+                    tmp = self.transform_to((slice_position, self.origin[1],
+                                             self.origin[2]))
+                    i = int(tmp[0])
+                else:
+                    i = int(slice_position)
+                if not self.in_grid([i, 0, 0], grid_space=True):
+                    raise IndexError(f'The slice plane {slice_position} falls '
+                                     f'outside the grid.')
+                im = ax.imshow(self.data[i, :, :].T, extent=(self.origin[1],
+                                                             self.corner[1],
+                                                             self.corner[2],
+                                                             self.origin[2]),
+                               cmap="seismic")
+                if self.grid_units == GridUnits.METER:
+                    ax.set_title("Y (m)")
+                    ax.set_ylabel("Z (m)")
+                if self.grid_units == GridUnits.KILOMETER:
+                    ax.set_title("Y (km)")
+                    ax.set_ylabel("Z (km)")
+                ax.xaxis.tick_top()
+
+        cb = fig.colorbar(im, ax=ax, orientation='vertical')
+        if field_name is None:
+            cb.set_label(self.grid_type.value, rotation=270, labelpad=15)
+        else:
+            cb.set_label(field_name, rotation=270, labelpad=15)
+        return fig, ax
+
 
 class Direction(Enum):
     UP = 'UP'
@@ -749,6 +827,12 @@ class DensityGrid3D(TypedGrid):
                          grid_units=grid_units, coordinate_system=coordinate_system,
                          float_type=float_type,
                          grid_id=grid_id, label=label)
+
+    def plot_slice(self, axis: int, slice_position: float, grid_space: bool = False,
+                   ** kwargs):
+        field_name = 'Density (kg/$m^{3}$)'
+        fig, ax = super().plot_slice(axis, slice_position, grid_space, field_name)
+        return fig, ax
 
     def write(self, filename, format='VTK', **kwargs):
         field_name = None
@@ -1188,6 +1272,17 @@ class VelocityGrid3D(TypedGrid):
             field_name = f'velocity_{self.phase.value}'
 
         super().write(filename, format=format, field_name=field_name, **kwargs)
+
+    def plot_slice(self, axis: int, slice_position: float, grid_space: bool = False,
+                   ** kwargs):
+        field_name = f'Velocity {self.phase.value}_wave'
+        if self.grid_units == GridUnits.METER:
+            field_name += ' (m/s)'
+        if self.grid_units == GridUnits.KILOMETER:
+            field_name += ' (km/s)'
+        fig, ax = super().plot_slice(axis, slice_position, grid_space, field_name)
+        return fig, ax
+
 
 
 class VelocityGridEnsemble:
@@ -1969,6 +2064,31 @@ class TTGrid(SeededGrid):
 
         super().write(filename, format=format, field_name=field_name, **kwargs)
 
+    def plot(self):
+        if self.ndim == 2:
+            fig = plt.figure()
+            ax = fig.add_subplot()
+            im = ax.imshow(self.data.T, origin='lower',
+                           extent=(self.origin[0], self.corner[0],
+                                   self.origin[1], self.corner[1]),
+                           cmap="seismic")
+            ax.plot(self.seed.x, self.seed.y, "o", color="green")
+
+            cb = fig.colorbar(im, ax=ax, orientation='vertical')
+            if self.grid_units == GridUnits.METER:
+                ax.set_xlabel("X (m)")
+                ax.set_ylabel("Y (m)")
+                cb.set_label('Travel time (s)', rotation=270,
+                             labelpad=10)
+            if self.grid_units == GridUnits.KILOMETER:
+                ax.set_xlabel("X (km)")
+                ax.set_ylabel("Y (km)")
+                cb.set_label('Travel time (s)', rotation=270, labelpad=10)
+
+            plt.show()
+
+
+
 
 class TravelTimeEnsemble:
     def __init__(self, travel_time_grids):
@@ -2499,7 +2619,7 @@ class PhaseVelocity(Grid):
         """
         plt.imshow(self.data.T, origin='lower', extent=(self.origin[0], self.corner[0],
                                                         self.origin[1], self.corner[1]),
-                                                        cmap="seismic")
+                   cmap="seismic")
 
         cb = plt.colorbar()
         if self.grid_units == GridUnits.METER:
@@ -2530,7 +2650,10 @@ class PhaseVelocity(Grid):
         yrange = np.arange(self.origin[1], self.corner[1], self.spacing[1])
         grid = rgrid.Grid2d(x=xrange, z=yrange, method=method, nsnx=ns, nsnz=ns,
                             cell_slowness=False)
-        grid.set_velocity(self.data)
+        if self.grid_type == GridTypes.VELOCITY_KILOMETERS:
+            grid.set_velocity(1.e3 * self.data)
+        else:
+            grid.set_velocity(self.data)
         src = np.array([[seed.x, seed.y]])
         grid.raytrace(src, src)
         tt_nodes = grid.get_grid_traveltimes()
@@ -2551,6 +2674,10 @@ class PhaseVelocity(Grid):
                             cell_slowness=False, n_threads=len(seeds))
         grid.set_velocity(self.data)
         src = np.zeros(shape=(len(seeds), 2))
+        if self.grid_type == GridTypes.VELOCITY_KILOMETERS:
+            grid.set_velocity(1.e3 * self.data)
+        else:
+            grid.set_velocity(self.data)
         for n, s in enumerate(seeds):
             src[n, 0] = s.x
             src[n, 1] = s.y
