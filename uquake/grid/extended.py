@@ -594,6 +594,8 @@ class TypedGrid(Grid):
             cb.set_label(field_name, rotation=270, labelpad=15)
         return fig, ax
 
+class TypedGridIrregular(Grid):
+
 
 class Direction(Enum):
     UP = 'UP'
@@ -1336,7 +1338,7 @@ class VelocityGridEnsemble:
 
     def write(self, path='.'):
         for key in self.keys():
-            self[key].write(path=path)
+            self[key].write(filename= key + path)
 
     def to_time_multi_threaded(self, seeds: SeedEnsemble, cpu_utilisation=0.9,
                                *args, **kwargs):
