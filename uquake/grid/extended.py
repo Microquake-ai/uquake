@@ -1338,7 +1338,7 @@ class VelocityGridEnsemble:
 
     def write(self, path='.'):
         for key in self.keys():
-            self[key].write(filename= key + path)
+            self[key].write(filename= path + key)
 
     def to_time_multi_threaded(self, seeds: SeedEnsemble, cpu_utilisation=0.9,
                                *args, **kwargs):
