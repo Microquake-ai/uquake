@@ -1337,7 +1337,7 @@ class VelocityGridEnsemble:
 
     def write(self, path='.'):
         for key in self.keys():
-            self[key].write(filename= path + "_" + key + "wave")
+            self[key].write(filename=path + "_" + key + "wave")
 
     def to_time_multi_threaded(self, seeds: SeedEnsemble, cpu_utilisation=0.9,
                                *args, **kwargs):
@@ -1609,6 +1609,7 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             if self.grid_units == GridUnits.METER:
                 velocity_s *= 1.e-3
                 velocity_p *= 1.e-3
+                z *= 1.e-3
             if multithreading:
                 results = []
                 for x_i in x:
@@ -2651,8 +2652,6 @@ class PhaseVelocity(Grid):
         if z_axis_log:
             z_max = (seismic_param.spacing[2] * seismic_param.shape[2] +
                      seismic_param.origin[2])
-            if seismic_param.grid_units == GridUnits.METER:
-                z_max *= 1.e-3
             z = (np.logspace(0, np.log10(10 + 1), npts_log_scale) - 10 ** 0 +
                  seismic_param.origin[2]) * z_max / 10
         else:
