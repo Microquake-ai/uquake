@@ -595,7 +595,7 @@ class TypedGrid(Grid):
         return fig, ax
 
 class TypedGridIrregular(Grid):
-
+    pass
 
 class Direction(Enum):
     UP = 'UP'
@@ -1286,7 +1286,6 @@ class VelocityGrid3D(TypedGrid):
         return fig, ax
 
 
-
 class VelocityGridEnsemble:
     def __init__(self, p_velocity_grid, s_velocity_grid):
         """
@@ -1338,7 +1337,7 @@ class VelocityGridEnsemble:
 
     def write(self, path='.'):
         for key in self.keys():
-            self[key].write(filename= path + key)
+            self[key].write(filename= path + "_" + key + "wave")
 
     def to_time_multi_threaded(self, seeds: SeedEnsemble, cpu_utilisation=0.9,
                                *args, **kwargs):
@@ -2871,7 +2870,8 @@ class PhaseVelocityEnsemble(list):
             periods: list, phase: Phases = Phases.RAYLEIGH, z_axis_log:bool = False,
             npts_log_scale: int = 30, disba_param: DisbaParam = DisbaParam()
     ):
-        """Create a PhaseVelocityEnsemble from a SeismicPropertyGridEnsemble.
+        """
+        Create a PhaseVelocityEnsemble from a SeismicPropertyGridEnsemble.
 
         This method constructs a PhaseVelocityEnsemble instance from a \
         SeismicPropertyGridEnsemble, associating it with the specified periods and phase.
