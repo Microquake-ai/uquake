@@ -229,8 +229,8 @@ class Coordinates:
         :return: Northing coordinate based on system.
         :rtype: float
         """
-        return self.y if (self.coordinate_system == CoordinateSystem.NED) or \
-                         (self.coordinate_system == CoordinateSystem.NEU) else self.x
+        return self.x if (self.coordinate_system == CoordinateSystem.NED) or \
+                         (self.coordinate_system == CoordinateSystem.NEU) else self.y
 
     @property
     def easting(self):
@@ -352,5 +352,3 @@ class Coordinates:
         coordinate_transformation = CoordinateTransformation(epsg_code=epsg_code)
         return cls(northing, easting, z, coordinate_system=coordinate_system,
                    transformation=coordinate_transformation)
-
-
