@@ -2682,6 +2682,71 @@ class PhaseVelocity(Grid):
             float_type=seismic_param.float_type
         )
 
+    @classmethod
+    def from_inventory(cls, network_code: str, inventory: Inventory,
+                       spacing: Union[float, Tuple[float, float]], period: float,
+                       padding: Union[float, Tuple[float, float]] = 0.2,
+                       phase: Phases = Phases.RAYLEIGH,
+                       **kwargs):
+        """
+        Create a grid object from a given inventory.
+
+        :param network_code: The network code associated with the inventory.
+        :type network_code: str
+        :param inventory: The inventory containing instrument locations.
+        :type inventory: Inventory
+        :param spacing: The spacing of the grid. Can be a single float or a tuple of
+                        floats specifying spacing in the x and y directions.
+        :type spacing: Union[float, Tuple[float, float]]
+        :param period: The period associated with the grid.
+        :type period: float
+        :param padding: The padding to be added around the inventory span. Can be a
+                        single float or a tuple of floats specifying padding in the
+                         x and y directions. Default is 0.2.
+        :type padding: Union[float, Tuple[float, float]], optional
+        :param phase: The phase type, default is Phases.RAYLEIGH.
+        :type phase: Phases, optional
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: An instance of the Grid class created from the inventory.
+        :rtype: Grid
+
+        :raises ValueError: If the padding or spacing values are invalid.
+
+        This method calculates the grid dimensions and origin by considering the
+        span of the inventory and the specified padding. It then creates and
+        returns a grid object with the calculated parameters.
+        """
+        # Get the instrument locations
+        locations_x = [instrument.x for instrument in inventory.instruments]
+        locations_y = [instrument.y for instrument in inventory.instruments]
+
+        # Determine the span of the inventory
+        min_coords = np.array([np.min(locations_x), np.min(locations_y)])
+        max_coords = np.array([np.max(locations_x), np.max(locations_y)])
+        inventory_span = max_coords - min_coords
+
+        # Calculate padding in grid units
+        if isinstance(padding, tuple):
+            padding_x, padding_y = padding
+        else:
+            padding_x = padding_y = padding
+
+        # Calculate the total padding to be added
+        total_padding = inventory_span * np.array([padding_x, padding_y])
+
+        # Adjust the origin and corner with the padding
+        padded_origin = min_coords - total_padding / 2
+        padded_corner = max_coords + total_padding / 2
+
+        # Calculate grid dimensions
+        grid_dims = np.ceil((padded_corner - padded_origin) / np.array(spacing)).astype(
+            int)
+
+        # Create and return the grid object
+        return cls(network_code, grid_dims, spacing=spacing, origin=padded_origin,
+                   period=period, phase=phase, **kwargs)
+
     @property
     def grid_id(self):
         return self.resource_id
