@@ -594,6 +594,8 @@ class TypedGrid(Grid):
             cb.set_label(field_name, rotation=270, labelpad=15)
         return fig, ax
 
+class TypedGridIrregular(Grid):
+    pass
 
 class Direction(Enum):
     UP = 'UP'
@@ -1284,7 +1286,6 @@ class VelocityGrid3D(TypedGrid):
         return fig, ax
 
 
-
 class VelocityGridEnsemble:
     def __init__(self, p_velocity_grid, s_velocity_grid):
         """
@@ -1336,7 +1337,7 @@ class VelocityGridEnsemble:
 
     def write(self, path='.'):
         for key in self.keys():
-            self[key].write(path=path)
+            self[key].write(filename=path + "_" + key + "wave")
 
     def to_time_multi_threaded(self, seeds: SeedEnsemble, cpu_utilisation=0.9,
                                *args, **kwargs):
@@ -1608,6 +1609,7 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             if self.grid_units == GridUnits.METER:
                 velocity_s *= 1.e-3
                 velocity_p *= 1.e-3
+                z *= 1.e-3
             if multithreading:
                 results = []
                 for x_i in x:
@@ -2650,8 +2652,6 @@ class PhaseVelocity(Grid):
         if z_axis_log:
             z_max = (seismic_param.spacing[2] * seismic_param.shape[2] +
                      seismic_param.origin[2])
-            if seismic_param.grid_units == GridUnits.METER:
-                z_max *= 1.e-3
             z = (np.logspace(0, np.log10(10 + 1), npts_log_scale) - 10 ** 0 +
                  seismic_param.origin[2]) * z_max / 10
         else:
@@ -2681,6 +2681,71 @@ class PhaseVelocity(Grid):
             label=seismic_param.label,
             float_type=seismic_param.float_type
         )
+
+    @classmethod
+    def from_inventory(cls, network_code: str, inventory: Inventory,
+                       spacing: Union[float, Tuple[float, float]], period: float,
+                       padding: Union[float, Tuple[float, float]] = 0.2,
+                       phase: Phases = Phases.RAYLEIGH,
+                       **kwargs):
+        """
+        Create a grid object from a given inventory.
+
+        :param network_code: The network code associated with the inventory.
+        :type network_code: str
+        :param inventory: The inventory containing instrument locations.
+        :type inventory: Inventory
+        :param spacing: The spacing of the grid. Can be a single float or a tuple of
+                        floats specifying spacing in the x and y directions.
+        :type spacing: Union[float, Tuple[float, float]]
+        :param period: The period associated with the grid.
+        :type period: float
+        :param padding: The padding to be added around the inventory span. Can be a
+                        single float or a tuple of floats specifying padding in the
+                         x and y directions. Default is 0.2.
+        :type padding: Union[float, Tuple[float, float]], optional
+        :param phase: The phase type, default is Phases.RAYLEIGH.
+        :type phase: Phases, optional
+        :param kwargs: Additional keyword arguments.
+        :type kwargs: dict
+        :return: An instance of the Grid class created from the inventory.
+        :rtype: Grid
+
+        :raises ValueError: If the padding or spacing values are invalid.
+
+        This method calculates the grid dimensions and origin by considering the
+        span of the inventory and the specified padding. It then creates and
+        returns a grid object with the calculated parameters.
+        """
+        # Get the instrument locations
+        locations_x = [instrument.x for instrument in inventory.instruments]
+        locations_y = [instrument.y for instrument in inventory.instruments]
+
+        # Determine the span of the inventory
+        min_coords = np.array([np.min(locations_x), np.min(locations_y)])
+        max_coords = np.array([np.max(locations_x), np.max(locations_y)])
+        inventory_span = max_coords - min_coords
+
+        # Calculate padding in grid units
+        if isinstance(padding, tuple):
+            padding_x, padding_y = padding
+        else:
+            padding_x = padding_y = padding
+
+        # Calculate the total padding to be added
+        total_padding = inventory_span * np.array([padding_x, padding_y])
+
+        # Adjust the origin and corner with the padding
+        padded_origin = min_coords - total_padding / 2
+        padded_corner = max_coords + total_padding / 2
+
+        # Calculate grid dimensions
+        grid_dims = np.ceil((padded_corner - padded_origin) / np.array(spacing)).astype(
+            int)
+
+        # Create and return the grid object
+        return cls(network_code, grid_dims, spacing=spacing, origin=padded_origin,
+                   period=period, phase=phase, **kwargs)
 
     @property
     def grid_id(self):
@@ -2869,7 +2934,8 @@ class PhaseVelocityEnsemble(list):
             periods: list, phase: Phases = Phases.RAYLEIGH, z_axis_log:bool = False,
             npts_log_scale: int = 30, disba_param: DisbaParam = DisbaParam()
     ):
-        """Create a PhaseVelocityEnsemble from a SeismicPropertyGridEnsemble.
+        """
+        Create a PhaseVelocityEnsemble from a SeismicPropertyGridEnsemble.
 
         This method constructs a PhaseVelocityEnsemble instance from a \
         SeismicPropertyGridEnsemble, associating it with the specified periods and phase.
