@@ -956,7 +956,7 @@ class VelocityGrid3D(TypedGrid):
         smoothed_data = data * velocity_perturbation * base_velocity + base_velocity
         self.data = smoothed_data
 
-    def to_rgrid(self, nsnx: int = 2):
+    def to_rgrid(self, n_secondary: Union[int, Tuple[int, int, int]], threads: int = 1):
 
         xrnge = np.arange(
             self.origin[0], self.corner[0], self.spacing[0]).astype(np.float64)
@@ -964,9 +964,17 @@ class VelocityGrid3D(TypedGrid):
             self.origin[1], self.corner[1], self.spacing[1]).astype(np.float64)
         zrnge = np.arange(
             self.origin[2], self.corner[2], self.spacing[2]).astype(np.float64)
-        grid = rgrid.Grid3d(x=xrnge, y=yrnge, z=zrnge, cell_slowness=False,
-                            method='SPM', nsnx=nsnx,
-                            translate_grid=True)
+        if isinstance(n_secondary, int):
+            grid = rgrid.Grid3d(x=xrnge, y=yrnge, z=zrnge, cell_slowness=False,
+                                method='SPM', nsnx=n_secondary, nsny=n_secondary,
+                                nsnz=n_secondary, translate_grid=True,
+                                n_threads=threads)
+        if isinstance(n_secondary, Tuple):
+            grid = rgrid.Grid3d(x=xrnge, y=yrnge, z=zrnge, cell_slowness=False,
+                                method='SPM', nsnx=n_secondary[0], nsny=n_secondary[1],
+                                nsnz=n_secondary[2], translate_grid=True,
+                                n_threads=threads)
+
         grid.set_velocity(self.data)
         return grid
 
@@ -2747,6 +2755,55 @@ class PhaseVelocity(Grid):
         return cls(network_code, grid_dims, spacing=spacing, origin=padded_origin,
                    period=period, phase=phase, **kwargs)
 
+    def to_rgrid(self, n_secondary: Union[int, Tuple[int, int]], cell_slowness=False,
+                 threads: int = 1):
+        """
+        Convert the current object to an rgrid object (see ttcrpy).
+
+        :param n_secondary: Number of secondary nodes for grid refinement. If an integer
+                            is provided, it is used for both dimensions. If a tuple is
+                            provided, it specifies the number of nodes in the x and y
+                            dimensions respectively.
+        :type n_secondary: Union[int, Tuple[int, int]]
+        :param cell_slowness: If True, the grid will be created with cell slowness.
+                              If False, the grid will be created without cell slowness.
+                              Default is False.
+        :type cell_slowness: bool, optional
+        :param threads: The number of threads to use for computation. Default is 1.
+        :type threads: int, optional
+        :return: The resulting 2D grid object from the rgrid module.
+        :rtype: rgrid.Grid2d
+        """
+
+        if isinstance(n_secondary, Tuple):
+            nsx = n_secondary[0]
+            nsy = n_secondary[1]
+        else:
+            nsx = n_secondary
+            nsy = n_secondary
+
+        if cell_slowness:
+            xrange = np.arange(self.origin[0] - self.spacing[0] * 0.5,
+                               self.corner[0] + self.spacing[0] * 0.5,
+                               self.spacing[0]).astype(np.float64)
+            yrange = np.arange(self.origin[1] - self.spacing[1] * 0.5,
+                               self.corner[1] + self.spacing[0] * 0.5,
+                               self.spacing[1]).astype(np.float64)
+            grid = rgrid.Grid2d(x=xrange, z=yrange, cell_slowness=True,
+                                method='SPM', nsnx=nsx, nsnz=nsy, n_threads=threads)
+            grid.set_velocity(self.data)
+
+        else:
+            xrange = np.arange(self.origin[0], self.corner[0],
+                               self.spacing[0]).astype(np.float64)
+            yrange = np.arange(self.origin[1], self.corner[1],
+                               self.spacing[1]).astype(np.float64)
+            grid = rgrid.Grid2d(x=xrange, z=yrange, cell_slowness=False,
+                                method='SPM', nsnx=nsx, nsnz=nsy, n_threads=threads)
+            grid.set_velocity(self.data)
+        return grid
+
+
     @property
     def grid_id(self):
         return self.resource_id
@@ -2802,11 +2859,53 @@ class PhaseVelocity(Grid):
     def __str__(self):
         return self.__repr__()
 
-    def to_time(self, seed: Seed, method: str = "SPM", ns: int = 5):
-        xrange = np.arange(self.origin[0], self.corner[0], self.spacing[0])
-        yrange = np.arange(self.origin[1], self.corner[1], self.spacing[1])
-        grid = rgrid.Grid2d(x=xrange, z=yrange, method=method, nsnx=ns, nsnz=ns,
-                            cell_slowness=False)
+    def calcul_frechet(self, sources: SeedEnsemble, receivers: SeedEnsemble,
+                       ns: Union[int, Tuple[int, int, int]] = 5,
+                       tt_cal: bool = True, cell_slowness=True, threads: int = 1):
+        """
+        Calculate the Frechet derivative and travel times.
+
+        :param sources: The source ensemble containing locations.
+        :type sources: SeedEnsemble
+        :param receivers: The receiver ensemble containing locations.
+        :type receivers: SeedEnsemble
+        :param ns: Number of secondary nodes for grid refinement.
+                   If an integer is provided, it is used for all dimensions.
+                   If a tuple is provided, it specifies the number of nodes in the x, y,
+                   and z dimensions respectively.
+        :type ns: Union[int, Tuple[int, int, int]], optional
+        :param tt_cal: If True, the travel times will also be returned. Default is True.
+        :type tt_cal: bool, optional
+        :param cell_slowness: If True, the grid will be created with cell slowness.
+                              If False, the grid will be created without cell slowness.
+                              Default is True.
+        :type cell_slowness: bool, optional
+        :param threads: The number of threads to use for computation. Default is 1.
+        :type threads: int, optional
+        :return: Frechet derivative and optionally travel times.
+        :rtype: Tuple[numpy.ndarray, numpy.ndarray] if tt_cal is True, otherwise numpy.
+                ndarray
+        """
+
+        grid = self.to_rgrid(n_secondary=ns, cell_slowness=cell_slowness,
+                             threads=threads)
+        if sources.locs.shape[1] == 3:
+            srcs = sources.locs[:, :2]
+        else:
+            srcs = sources
+        if receivers.locs.shape[1] == 3:
+            receivers = receivers.locs[:, :2]
+        else:
+            receivers = receivers
+        tt, frechet = grid.raytrace(source=srcs, rcv=receivers,
+                                    compute_L=True)
+        if tt_cal:
+            return frechet, tt
+        else:
+            return frechet
+
+    def to_time(self, seed: Seed, ns: Union[int, Tuple[int, int, int]] = 5):
+        grid = self.to_rgrid(n_secondary=ns, cell_slowness=False)
         if self.grid_type == GridTypes.VELOCITY_KILOMETERS:
             grid.set_velocity(1.e3 * self.data)
         else:
@@ -2823,12 +2922,9 @@ class PhaseVelocity(Grid):
                              label=self.label)
         return tt_out_grid
 
-    def to_time_multi_threaded(self, seeds: SeedEnsemble, method: str = "SPM",
-                               ns: int = 5):
-        xrange = np.arange(self.origin[0], self.corner[0], self.spacing[0])
-        yrange = np.arange(self.origin[1], self.corner[1], self.spacing[1])
-        grid = rgrid.Grid2d(x=xrange, z=yrange, method=method, nsnx=ns, nsnz=ns,
-                            cell_slowness=False, n_threads=len(seeds))
+    def to_time_multi_threaded(self, seeds: SeedEnsemble,
+                               ns: Union[int, Tuple[int, int, int]] = 5):
+        grid = self.to_rgrid(n_secondary=ns, threads=len(seeds), cell_slowness=False)
         grid.set_velocity(self.data)
         src = np.zeros(shape=(len(seeds), 2))
         if self.grid_type == GridTypes.VELOCITY_KILOMETERS:
