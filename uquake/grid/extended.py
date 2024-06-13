@@ -2894,11 +2894,11 @@ class PhaseVelocity(Grid):
         else:
             srcs = sources
         if receivers.locs.shape[1] == 3:
-            receivers = receivers.locs[:, :2]
+            rxs = receivers.locs[:, :2]
         else:
-            receivers = receivers
-        tt, frechet = grid.raytrace(source=srcs, rcv=receivers,
-                                    compute_L=True)
+            rxs = receivers
+        tt, _, frechet = grid.raytrace(source=srcs, rcv=rxs, compute_L=True,
+                                       return_rays=True)
         if tt_cal:
             return frechet, tt
         else:
