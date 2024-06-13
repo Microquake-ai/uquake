@@ -2864,6 +2864,8 @@ class PhaseVelocity(Grid):
                         ns: Union[int, Tuple[int, int, int]] = 5,
                         tt_cal: bool = True, cell_slowness: bool = True,
                         threads: int = 1):
+
+                      
         """
         Calculate the Frechet derivative and travel times.
 
@@ -2893,6 +2895,7 @@ class PhaseVelocity(Grid):
                              threads=threads)
 
         # Extract source locations
+
         if isinstance(sources, SeedEnsemble):
             srcs = sources.locs[:, :2]
         else:
@@ -2907,8 +2910,6 @@ class PhaseVelocity(Grid):
         # Perform ray tracing
         tt, _, frechet = grid.raytrace(source=srcs, rcv=rxs, compute_L=True,
                                        return_rays=True)
-
-        # Return the results
         if tt_cal:
             return frechet, tt
         else:

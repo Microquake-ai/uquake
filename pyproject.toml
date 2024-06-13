@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "uquake"
-version = "3.0.6"
+version = "3.0.7"
 description = "extension of the ObsPy library for local seismicity"
 authors = ["uQuake development team <dev@uquake.org>"]
 license = "AGPL-3.0-or-later"
@@ -8,11 +8,9 @@ license = "AGPL-3.0-or-later"
 # poetry config virtualenvs.create false; poetry env info
 
 [tool.poetry.dependencies]
-python = ">=3.9,<4.0"
-numpy = "^1.18.0"
+python = ">=3.10,<4.0"
 loguru = "^0.5.3"
 openpyxl = "^3.0.6"
-obspy = "^1.2.2"
 vtk = "^9.3.0"
 h5py = "^3.2.1"
 pydantic = "^1.8.2"
@@ -23,13 +21,16 @@ pyasdf = "^0.8.1"
 zarr = "^2.16.1"
 matplotlib = "^3.8.2"
 mplstereonet = "^0.6.3"
-pandas = "^2.2.1"
 utm = "^0.7.0"
 ttcrpy = "^1.3.4"
 disba = "^0.6.1"
 scipy = "^1.13.0"
-scikit-fmm = "^2023.4.2"
+#scikit-fmm = "^2023.4.2"
 pyevtk = "^1.6.0"
+obspy = "^1.4.1"
+pytz = "^2024.1"
+tzdata = "^2024.1"
+pandas = "^2.2.2"
 
 [tool.poetry.group.test.dependencies]
 black = ">=23.3.0"
@@ -43,6 +44,7 @@ pytest-mock = ">=3.10.0"
 pytest-xdist = ">=3.2.1"
 pytest-asyncio = "^0.21.0"
 ruff = ">=0.0.270"
+ # pandas = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
 ipdb = "^0.13.9"

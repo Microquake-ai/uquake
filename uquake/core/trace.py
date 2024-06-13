@@ -208,3 +208,4 @@ class Trace(ObspyTrace, ABC):
         pulse /= np.linalg.norm(pulse)
 
         return pulse
+
