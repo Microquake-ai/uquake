@@ -2859,16 +2859,18 @@ class PhaseVelocity(Grid):
     def __str__(self):
         return self.__repr__()
 
-    def calcul_frechet(self, sources: SeedEnsemble, receivers: SeedEnsemble,
-                       ns: Union[int, Tuple[int, int, int]] = 5,
-                       tt_cal: bool = True, cell_slowness=True, threads: int = 1):
+    def compute_frechet(self, sources: Union[SeedEnsemble, np.ndarray],
+                        receivers: Union[SeedEnsemble, np.ndarray],
+                        ns: Union[int, Tuple[int, int, int]] = 5,
+                        tt_cal: bool = True, cell_slowness: bool = True,
+                        threads: int = 1):
         """
         Calculate the Frechet derivative and travel times.
 
         :param sources: The source ensemble containing locations.
-        :type sources: SeedEnsemble
+        :type sources: Union[SeedEnsemble, np.ndarray]
         :param receivers: The receiver ensemble containing locations.
-        :type receivers: SeedEnsemble
+        :type receivers: Union[SeedEnsemble, np.ndarray]
         :param ns: Number of secondary nodes for grid refinement.
                    If an integer is provided, it is used for all dimensions.
                    If a tuple is provided, it specifies the number of nodes in the x, y,
@@ -2883,22 +2885,30 @@ class PhaseVelocity(Grid):
         :param threads: The number of threads to use for computation. Default is 1.
         :type threads: int, optional
         :return: Frechet derivative and optionally travel times.
-        :rtype: Tuple[numpy.ndarray, numpy.ndarray] if tt_cal is True, otherwise numpy.
-                ndarray
+        :rtype: Tuple[np.ndarray, np.ndarray] if tt_cal is True, otherwise np.ndarray
         """
 
+        # Create the grid with specified parameters
         grid = self.to_rgrid(n_secondary=ns, cell_slowness=cell_slowness,
                              threads=threads)
-        if sources.locs.shape[1] == 3:
+
+        # Extract source locations
+        if isinstance(sources, SeedEnsemble):
             srcs = sources.locs[:, :2]
         else:
             srcs = sources
-        if receivers.locs.shape[1] == 3:
+
+        # Extract receiver locations
+        if isinstance(receivers, SeedEnsemble):
             rxs = receivers.locs[:, :2]
         else:
             rxs = receivers
+
+        # Perform ray tracing
         tt, _, frechet = grid.raytrace(source=srcs, rcv=rxs, compute_L=True,
                                        return_rays=True)
+
+        # Return the results
         if tt_cal:
             return frechet, tt
         else:
