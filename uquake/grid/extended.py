@@ -2831,21 +2831,23 @@ class PhaseVelocity(Grid):
         This method plots the grid data using Matplotlib.
 
         """
-        plt.imshow(self.data.T, origin='lower', extent=(self.origin[0], self.corner[0],
+        fig, ax = plt.subplots()
+        cax = ax.imshow(self.data.T, origin='lower', extent=(self.origin[0], self.corner[0],
                                                         self.origin[1], self.corner[1]),
                    cmap="seismic")
 
-        cb = plt.colorbar()
+        cb = fig.colorbar(cax)
         if self.grid_units == GridUnits.METER:
-            plt.xlabel("X (m)")
-            plt.ylabel("Y (m)")
+            ax.set_xlabel("X (m)")
+            ax.set_ylabel("Y (m)")
             cb.set_label('Vel ' + self.phase.value + ' (m/s)', rotation=270, labelpad=10)
         if self.grid_units == GridUnits.KILOMETER:
             plt.xlabel("X (km)")
             plt.ylabel("Y (km)")
             cb.set_label('Vel ' + self.phase.value + ' (km/s)', rotation=270, labelpad=10)
-        plt.title("period = {0:1.2f} s".format(self.period))
+        ax.set_title("period = {0:1.2f} s".format(self.period))
         plt.show()
+        return fig, ax
 
     def __repr__(self):
         repr_str = """
