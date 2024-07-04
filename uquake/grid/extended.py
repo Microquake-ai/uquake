@@ -2846,7 +2846,6 @@ class PhaseVelocity(Grid):
             plt.ylabel("Y (km)")
             cb.set_label('Vel ' + self.phase.value + ' (km/s)', rotation=270, labelpad=10)
         ax.set_title("period = {0:1.2f} s".format(self.period))
-        plt.show()
         return fig, ax
 
     def __repr__(self):
@@ -2867,7 +2866,7 @@ class PhaseVelocity(Grid):
                         tt_cal: bool = True, cell_slowness: bool = True,
                         threads: int = 1):
 
-                      
+
         """
         Calculate the Frechet derivative and travel times.
 
