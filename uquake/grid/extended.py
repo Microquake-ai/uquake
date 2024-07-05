@@ -2825,11 +2825,23 @@ class PhaseVelocity(Grid):
 
         super().write(filename, format=format, field_name=field_name, **kwargs)
 
-    def plot(self):
-        """Plot the grid data.
+    def plot(self, receivers: Union[np.ndarray, SeedEnsemble] = None):
+        """
+        Plot the grid data.
 
         This method plots the grid data using Matplotlib.
+        The grid data is displayed as an image with an optional overlay
+        of receiver locations.
 
+        :param receivers: Receiver locations to be overlaid on the grid plot.
+                          If an `np.ndarray` is provided, it should have shape (N, 2)
+                          where N is the number of receivers  and the two columns
+                          represent the x and y coordinates, respectively. If a
+                          `SeedEnsemble` is provided, it should have a `locs` attribute
+                          with receiver coordinates.
+        :type receivers: Union[np.ndarray, SeedEnsemble], optional
+        :return: The Matplotlib figure and axes objects containing the plot.
+        :rtype: Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]
         """
         fig, ax = plt.subplots()
         cax = ax.imshow(self.data.T, origin='lower', extent=(self.origin[0], self.corner[0],
@@ -2846,7 +2858,11 @@ class PhaseVelocity(Grid):
             plt.ylabel("Y (km)")
             cb.set_label('Vel ' + self.phase.value + ' (km/s)', rotation=270, labelpad=10)
         ax.set_title("period = {0:1.2f} s".format(self.period))
-        plt.show()
+        if isinstance(receivers, np.ndarray):
+            ax.plot(receivers[:, 0], receivers[:, 1], 's', color='yellow')
+        if isinstance(receivers, SeedEnsemble):
+            coordinates = receivers.locs
+            ax.plot(coordinates[:, 0], coordinates[:, 1], 's', color='yellow')
         return fig, ax
 
     def __repr__(self):
@@ -2867,7 +2883,7 @@ class PhaseVelocity(Grid):
                         tt_cal: bool = True, cell_slowness: bool = True,
                         threads: int = 1):
 
-                      
+
         """
         Calculate the Frechet derivative and travel times.
 
