@@ -558,11 +558,12 @@ class TypedGrid(Grid):
                                                              self.origin[2]),
                                cmap="seismic")
                 if self.grid_units == GridUnits.METER:
-                    ax.set_title("X (m)")
+                    ax.set_xlabel("X (m)")
                     ax.set_ylabel("Z (m)")
                 if self.grid_units == GridUnits.KILOMETER:
-                    ax.set_title("X (km)")
+                    ax.set_xlabel("X (km)")
                     ax.set_ylabel("Z (km)")
+                ax.xaxis.set_label_position('top')
                 ax.xaxis.tick_top()
             case 0:
                 if not grid_space:
@@ -580,11 +581,12 @@ class TypedGrid(Grid):
                                                              self.origin[2]),
                                cmap="seismic")
                 if self.grid_units == GridUnits.METER:
-                    ax.set_title("Y (m)")
+                    ax.set_xlabel("Y (m)")
                     ax.set_ylabel("Z (m)")
                 if self.grid_units == GridUnits.KILOMETER:
-                    ax.set_title("Y (km)")
+                    ax.set_xlabel("Y (km)")
                     ax.set_ylabel("Z (km)")
+                ax.xaxis.set_label_position('top')
                 ax.xaxis.tick_top()
 
         cb = fig.colorbar(im, ax=ax, orientation='vertical')
