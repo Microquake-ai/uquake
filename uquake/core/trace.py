@@ -42,6 +42,10 @@ from uquake.core.util.decorators import update_doc
 
 from .event import Pick
 from .util import tools
+from scipy.ndimage import gaussian_filter
+from uquake.core.logging import logger
+from scipy.signal import detrend
+from .util.signal import WhiteningMethod, GaussianWhiteningParams
 
 
 @update_doc
@@ -54,6 +58,8 @@ class Stats(ObspyStats, ABC):
         if stats:
             for item in stats.__dict__.keys():
                 self.__dict__[item] = stats.__dict__[item]
+
+        self.is_one_bit = False
 
     @property
     def instrument(self):
@@ -208,4 +214,140 @@ class Trace(ObspyTrace, ABC):
         pulse /= np.linalg.norm(pulse)
 
         return pulse
+
+    def convert_to_one_bit(
+            self, whitening_method: WhiteningMethod = WhiteningMethod.Gaussian,
+            params: GaussianWhiteningParams = None
+    ):
+        """
+        Convert the data to a one-bit representation by detrending, whitening,
+        and then applying a sign function.
+
+        This method prepares the data by removing any linear and constant trends,
+        applying spectral whitening, and finally converting the signal to a one-bit
+        representation. The one-bit conversion sets all positive values to 1 and all
+        negative values to -1, resulting in a binary amplitude spectrum.
+
+        Parameters:
+        ----------
+        whitening_method : WhiteningMethod, optional
+            Specifies the whitening approach to use before one-bit conversion.
+            Options include:
+            - WhiteningMethod.Gaussian: Uses a Gaussian filter to smooth the amplitude
+              spectrum.
+            - WhiteningMethod.Basic: Sets all amplitudes to 1, preserving only phase
+              information.
+            Default is WhiteningMethod.Gaussian.
+
+        params : GaussianWhiteningParams, optional
+            Parameters for Gaussian whitening, used if `whitening_method` is set to
+            Gaussian. If not provided, default values are used. Relevant parameters
+            include:
+            - smoothing_kernel_size: Standard deviation for the Gaussian filter.
+            - water_level: Stabilization constant added to avoid division by zero.
+
+        Returns:
+        -------
+        self : instance
+            Returns the instance with `self.data` updated to contain the one-bit
+            representation.
+
+        Notes:
+        -----
+        - Detrending is applied twice: first to remove a linear trend and then a constant
+          offset to ensure the data is centered around zero.
+        - Whitening is applied based on the specified `whitening_method` to normalize
+          the spectral components before one-bit conversion.
+        - The final step, `np.sign(self.data)`, assigns 1 to positive values and -1 to
+          negative values in the data, emphasizing signal zero-crossings and reducing
+          amplitude variations.
+
+        Example:
+        --------
+        ```python
+        # Convert data to one-bit with default whitening
+        instance.convert_to_onebit()
+
+        # Convert data to one-bit with custom Gaussian whitening parameters
+        custom_params = GaussianWhiteningParams(smoothing_kernel_size=1.5,
+        water_level=0.02)
+        instance.convert_to_onebit(whitening_method=WhiteningMethod.Gaussian,
+        params=custom_params)
+        ```
+        """
+        self.data = detrend(detrend(self.data, type='linear'), type='constant')
+        self.whiten(method = whitening_method, params = params)
+        self.data = np.sign(self.data)
+
+
+    def whiten(self, method: WhiteningMethod = WhiteningMethod.Gaussian,
+               params: GaussianWhiteningParams = None):
+        """
+        Apply spectral whitening to the data, setting the amplitude of the frequency
+        components to a uniform or smoothed distribution while preserving phase
+        information.
+
+        Parameters:
+        ----------
+        method : WhiteningMethod, optional
+            Specifies the whitening approach. Options include:
+            - WhiteningMethod.Gaussian: Uses a Gaussian filter to smooth the amplitude
+              spectrum, dividing the data by the smoothed spectrum plus a water level.
+            - WhiteningMethod.Basic: Sets all amplitudes to 1, preserving only phase
+              information.
+            Default is WhiteningMethod.Gaussian.
+
+        params : GaussianWhiteningParams, optional
+            Parameters for the Gaussian smoothing method. If not provided, default values
+            from GaussianWhiteningParams are used. Relevant parameters include:
+            - smoothing_kernel_size: Standard deviation for the Gaussian filter to
+              control smoothing of the amplitude spectrum.
+            - water_level: A small constant added to avoid division by zero and stabilize
+              the spectrum.
+
+        Returns:
+        -------
+        self : instance
+            Returns the instance with `self.data` updated to contain the whitened
+            time-domain data.
+
+        Notes:
+        -----
+        - When using the Gaussian method, the amplitude spectrum of `data_fft` is first
+          smoothed with a Gaussian filter. The original data is then normalized by the
+          smoothed spectrum plus a water level for stability.
+        - When using the Basic method, the amplitude of each frequency component is set
+          to 1, preserving the original phase.
+        - If `params` is None and Gaussian whitening is selected, default values are
+          logged and used for `smoothing_kernel_size` and `water_level`.
+        - The operation is performed in place
+
+        Example:
+        --------
+        ```python
+        # Apply Gaussian whitening with custom parameters
+        custom_params = GaussianWhiteningParams(smoothing_kernel_size=2.0, water_level=0.05)
+        whitened_instance = instance.whiten(method=WhiteningMethod.Gaussian, params=custom_params)
+        ```
+        """
+
+        data = self.data
+        data_fft = np.fft.fft(data)
+        if method == WhiteningMethod.Gaussian:
+            if params is None:
+                logger.warning(
+                    f'parameter were not provided... '
+                    f'proceeding with default values\n'
+                    f'smoothing kernel: '
+                    f'{GaussianWhiteningParams.smoothing_kernel_size}\n'
+                    f'water level: {GaussianWhiteningParams.water_level}')
+            smooth_spectrum = gaussian_filter(
+                np.abs(data_fft), sigma=params.smoothing_kernel_size)
+            data_fft /= (smooth_spectrum + params.water_level)
+        else:
+            data_fft = np.exp(-1j * np.angle(data_fft))
+
+        self.data = np.real(np.fft.ifft(data_fft))
+
+
 

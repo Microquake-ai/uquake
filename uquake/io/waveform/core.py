@@ -48,7 +48,12 @@ from pytz import timezone
 
 from loguru import logger
 from ...core import Stream, Trace, read
+from ...core.inventory import Inventory
 from ...core.util.tools import datetime_to_epoch_sec
+
+from typing import List
+from .protobuf import uquake_pb2, convert_utc_to_grpc_timestamp
+from ...core.util.signal import WhiteningMethod, GaussianWhiteningParams
 
 
 def decompose_mseed(mseed_bytes, mseed_reclen=4096):
@@ -159,7 +164,6 @@ def read_IMS_ASCII(path, net='', **kwargs):
 #
 #
 #
-
 
 @uncompress
 def read_ESG_SEGY(fname, inventory=None, **kwargs):
@@ -331,3 +335,122 @@ def read_TEXCEL_CSV(filename, **kwargs):
         tr_z = Trace(data=z / 1000.0, header=stats)
 
     return Stream(traces=[tr_x, tr_y, tr_z])
+
+def write_one_bit(stream: Stream, filename: str, whiten: bool = True,
+                 whitening_method: WhiteningMethod = WhiteningMethod.Gaussian,
+                 whitening_params: GaussianWhiteningParams = GaussianWhiteningParams(),
+                 correct_response: bool = False, inventory: Inventory = None,
+                 pre_filt: List = None,
+                 output: str = 'VEL', water_level: float = None, **kwargs):
+    if isinstance(stream, Trace):
+        stream = Stream(traces=[stream])
+
+    if correct_response and (inventory is None):
+        logger.warning('an inventory object must be provided to correct the response')
+        correct_response = False
+
+    if correct_response:
+        stream.attach_response(inventory)
+        stream.remove_response(
+            inventory, pre_filt=pre_filt, output=output, water_level=water_level
+        )
+
+    traces = []
+    networks = []
+    stations = []
+    locations = []
+    channels = []
+    sampling_rates = []
+    starttimes = []
+    endtimes = []
+    nsamples = []
+    data = []
+
+    for tr in stream:
+        if hasattr(tr, 'is_one_bit'):
+            if tr.is_one_bit:
+                if whiten:
+                    logger.warning('the data are already one bit encoded. '
+                                   'whitening will be skipped...')
+        elif whiten:
+            tr.whiten(method = whitening_method,
+                      params = whitening_params)
+        data.append(np.packbits(tr.data >= 0).tobytes())
+        networks.append(tr.stats.network)
+        stations.append(tr.stats.station)
+        locations.append(tr.stats.location)
+        channels.append(tr.stats.channel)
+        sampling_rates.append(int(tr.stats.sampling_rate))
+        starttimes.append(convert_utc_to_grpc_timestamp(tr.stats.starttime))
+        endtimes.append(convert_utc_to_grpc_timestamp(tr.stats.endtime))
+        nsamples.append(int(tr.stats.npts))
+
+    OneBit = uquake_pb2.OneBit(
+        networks=networks, stations=stations, locations=locations, channels=channels,
+        sampling_rates=sampling_rates, starttimes=starttimes,
+        endtimes=endtimes, nsamples=nsamples, data=data
+    )
+
+    with open(filename, 'wb') as file_out:
+        file_out.write(OneBit.SerializeToString())
+
+
+def read_one_bit(filename, **kwargs) -> Stream:
+    # Initialize an empty Stream object
+    stream = Stream()
+
+    # Read and parse the OneBit data from file
+    one_bit = uquake_pb2.OneBit()
+    with open(filename, 'rb') as file_in:
+        one_bit.ParseFromString(file_in.read())
+
+    # Iterate through each trace in the OneBit message
+    for i in range(len(one_bit.networks)):
+        # Extract metadata for each trace
+        network = one_bit.networks[i]
+        station = one_bit.stations[i]
+        location = one_bit.locations[i]
+        channel = one_bit.channels[i]
+        sampling_rate = one_bit.sampling_rates[i]
+        starttime = one_bit.starttimes[i]
+        endtime = one_bit.endtimes[i]
+        nsamples = one_bit.nsamples[i]
+
+        # Convert protobuf Timestamp to UTCDateTime for start and end times
+        start_utc = UTCDateTime(starttime.seconds + starttime.nanos * 1e-9)
+        end_utc = UTCDateTime(endtime.seconds + endtime.nanos * 1e-9)
+
+        # Unpack the bit-packed data
+        packed_data = np.frombuffer(one_bit.data[i], dtype=np.uint8)
+        unpacked_data = np.unpackbits(packed_data)
+
+        # Normalize the unpacked data back to original form (convert 0 to -1 if necessary)
+        trace_data = np.where(unpacked_data == 0, -1, 1)  # Example: 0 -> -1, 1 -> 1
+
+        # Create Trace object with the data and metadata
+        trace = Trace(data=trace_data)
+        trace.stats.network = network
+        trace.stats.station = station
+        trace.stats.location = location
+        trace.stats.channel = channel
+        trace.stats.sampling_rate = sampling_rate
+        trace.stats.starttime = start_utc
+        trace.stats.nsamples = nsamples
+        # trace.stats.endtime = end_utc
+        trace.is_one_bit = True
+
+        # Append trace to the stream
+        stream.append(trace)
+
+    return stream
+
+
+# from scipy.ndimage import gaussian_filter
+# def whiten_spectrum(trace: Trace, smoothing_kernel: int = 5):
+#     tr_out = trace.copy()
+#     data = tr_out.data
+#     data_fft = np.fft.fft(data)
+#     smooth_spectrum = gaussian_filter(np.abs(data_fft), sigma=smoothing_kernel)
+#     data_fft /= smooth_spectrum
+#     tr_out.data = np.real(np.fft.ifft(data_fft))
+#     return tr_out

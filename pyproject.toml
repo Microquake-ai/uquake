@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "uquake"
-version = "3.0.7"
+version = "3.1.0"
 description = "extension of the ObsPy library for local seismicity"
 authors = ["uQuake development team <dev@uquake.org>"]
 license = "AGPL-3.0-or-later"
@@ -31,6 +31,8 @@ obspy = "^1.4.1"
 pytz = "^2024.1"
 tzdata = "^2024.1"
 pandas = "^2.2.2"
+protobuf = "^5.28.3"
+grpcio-tools = "^1.67.1"
 
 [tool.poetry.group.test.dependencies]
 black = ">=23.3.0"
@@ -71,6 +73,7 @@ HSF = "uquake.io.waveform"
 TEXCEL_CSV = "uquake.io.waveform"
 IMS_CONTINUOUS = "uquake.io.waveform"
 IMS_ASCII = "uquake.io.waveform"
+ONE_BIT = "uquake.io.waveform"
 
 [tool.poetry.plugins."uquake.io.waveform.ESG_SEGY"]
 readFormat = "uquake.io.waveform:read_ESG_SEGY"
@@ -80,6 +83,10 @@ readFormat = "uquake.io.waveform:read_TEXCEL_CSV"
 
 [tool.poetry.plugins."uquake.io.waveform.IMS_ASCII"]
 readFormat = "uquake.io.waveform:read_IMS_ASCII"
+
+[tool.poetry.plugins."uquake.io.waveform.ONE_BIT"]
+readFormat = "uquake.io.waveform:read_one_bit"
+writeFormat = "uquake.io.waveform:write_one_bit"
 
 [tool.poetry.plugins."uquake.io.data_exchange.zarr"]
 readFormat = "uquake.io.data_exchange:read_zarr"

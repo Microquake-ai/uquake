@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+message OneBit {
+  repeated string networks = 1;
+  repeated string stations = 2;
+  repeated string locations = 3;
+  repeated string channels = 4;
+  repeated int32 sampling_rates = 5;
+  repeated google.protobuf.Timestamp starttimes = 6;
+  repeated google.protobuf.Timestamp endtimes = 7;
+  repeated int32 nsamples = 8;
+  repeated bytes data = 9;
+}

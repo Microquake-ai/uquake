@@ -45,6 +45,7 @@ from pathlib import Path
 from .event import RayEnsemble
 from .inventory import Inventory
 from .coordinates import CoordinateSystem
+from .util.signal import WhiteningMethod, GaussianWhiteningParams
 
 
 class Stream(obsstream.Stream, ABC):
@@ -134,7 +135,15 @@ class Stream(obsstream.Stream, ABC):
 
         st_out = self.copy()
 
-        return obsstream.Stream.write(st_out, f, format, **kwargs)
+        if format in 'ONE_BIT':
+            format_ep = ENTRY_POINTS['waveform_write'][format]
+            write_format = load_entry_point(
+                format_ep.dist.key,
+                f'uquake.io.waveform.{format_ep.name}', 'writeFormat')
+            return write_format(self, filename, **kwargs)
+        else:
+
+            return obsstream.Stream.write(st_out, f, format, **kwargs)
 
     write.__doc__ = obsstream.Stream.write.__doc__.replace('obspy',
                                                            'uquake')
@@ -443,6 +452,75 @@ class Stream(obsstream.Stream, ABC):
 
         return Stream(traces=rotated_traces)
 
+    def convert_to_one_bit(
+            self, whitening_method: WhiteningMethod = WhiteningMethod.Gaussian,
+            params: GaussianWhiteningParams = None
+    ):
+        """
+        Convert the data to a one-bit representation by detrending, whitening,
+        and then applying a sign function.
+
+        This method prepares the data by removing any linear and constant trends,
+        applying spectral whitening, and finally converting the signal to a one-bit
+        representation. The one-bit conversion sets all positive values to 1 and all
+        negative values to -1, resulting in a binary amplitude spectrum.
+
+        Parameters:
+        ----------
+        whitening_method : WhiteningMethod, optional
+            Specifies the whitening approach to use before one-bit conversion.
+            Options include:
+            - WhiteningMethod.Gaussian: Uses a Gaussian filter to smooth the amplitude
+              spectrum.
+            - WhiteningMethod.Basic: Sets all amplitudes to 1, preserving only phase
+              information.
+            Default is WhiteningMethod.Gaussian.
+
+        params : GaussianWhiteningParams, optional
+            Parameters for Gaussian whitening, used if `whitening_method` is set to
+            Gaussian. If not provided, default values are used. Relevant parameters
+            include:
+            - smoothing_kernel_size: Standard deviation for the Gaussian filter.
+            - water_level: Stabilization constant added to avoid division by zero.
+
+        Returns:
+        -------
+        self : instance
+            Returns the instance with `self.data` updated to contain the one-bit
+            representation.
+
+        Notes:
+        -----
+        - Detrending is applied twice: first to remove a linear trend and then a constant
+          offset to ensure the data is centered around zero.
+        - Whitening is applied based on the specified `whitening_method` to normalize
+          the spectral components before one-bit conversion.
+        - The final step, `np.sign(self.data)`, assigns 1 to positive values and -1 to
+          negative values in the data, emphasizing signal zero-crossings and reducing
+          amplitude variations.
+
+        Example:
+        --------
+        ```python
+        # Convert data to one-bit with default whitening
+        instance.convert_to_onebit()
+
+        # Convert data to one-bit with custom Gaussian whitening parameters
+        custom_params = GaussianWhiteningParams(smoothing_kernel_size=1.5,
+        water_level=0.02)
+        instance.convert_to_onebit(whitening_method=WhiteningMethod.Gaussian,
+        params=custom_params)
+        ```
+        """
+
+        for tr in self:
+            tr.convert_to_onebit(whitening_method=whitening_method, params=params)
+
+    def whiten(self, whitening_method: WhiteningMethod = WhiteningMethod.Gaussian,
+            params: GaussianWhiteningParams = None):
+        for tr in self:
+            tr.whiten(whitening_method=whitening_method, params=params)
+
 
 def is_valid(st_in, return_stream=False, STA=0.005, LTA=0.1, min_num_valid=5):
     """
@@ -610,13 +688,19 @@ def read(filename, format='MSEED', **kwargs):
         trs = []
         for tr in st:
             tr.stats.channel = tr.stats.channel.upper()
+            tr.is_one_bit = False
             trs.append(tr.copy())
 
         st.traces = trs
 
         return st
     else:
-        return Stream(stream=obsstream.read(filename, format=format, **kwargs))
+        st = Stream(stream=obsstream.read(filename, format=format, **kwargs))
+        for tr in st:
+            tr.is_one_bit = False
+        return st
+
+
 
 
 read.__doc__ = obsstream.read.__doc__.replace('obspy', 'uquake')
