@@ -662,14 +662,7 @@ class Station(inventory.Station):
 
     @property
     def loc(self):
-        if self.extra:
-            if self.extra.get('x', None) and self.extra.get(
-                    'y', None) and self.extra.get('z', None):
-                return np.array([self.x, self.y, self.z])
-            else:
-                raise AttributeError
-        else:
-            raise AttributeError
+        return self.coordinates.loc
 
     @property
     def instruments(self):
