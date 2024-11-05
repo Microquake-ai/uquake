@@ -662,7 +662,7 @@ class Station(inventory.Station):
 
     @property
     def loc(self):
-        return self.coordinates.loc
+        return np.array(self.coordinates.loc)
 
     @property
     def instruments(self):
