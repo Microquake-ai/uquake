@@ -18,6 +18,7 @@ import json
 from obspy.core.util import AttribDict
 import utm
 import pyproj
+import numpy as np
 
 
 class CoordinateSystem(Enum):
@@ -271,7 +272,7 @@ class Coordinates:
 
     @property
     def loc(self):
-        return [self.x, self.y, self.z]
+        return np.array([self.x, self.y, self.z])
 
     def __repr__(self):
         out_str = f"""
