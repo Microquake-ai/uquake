@@ -281,7 +281,7 @@ class Trace(ObspyTrace, ABC):
 
 
     def whiten(self, method: WhiteningMethod = WhiteningMethod.Gaussian,
-               params: GaussianWhiteningParams = None):
+               params: GaussianWhiteningParams = GaussianWhiteningParams()):
         """
         Apply spectral whitening to the data, setting the amplitude of the frequency
         components to a uniform or smoothed distribution while preserving phase
