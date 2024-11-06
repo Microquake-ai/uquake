@@ -503,18 +503,18 @@ class Stream(obsstream.Stream, ABC):
         --------
         ```python
         # Convert data to one-bit with default whitening
-        instance.convert_to_onebit()
+        instance.convert_to_one_bit()
 
         # Convert data to one-bit with custom Gaussian whitening parameters
         custom_params = GaussianWhiteningParams(smoothing_kernel_size=1.5,
         water_level=0.02)
-        instance.convert_to_onebit(whitening_method=WhiteningMethod.Gaussian,
+        instance.convert_to_one_bit(whitening_method=WhiteningMethod.Gaussian,
         params=custom_params)
         ```
         """
 
         for tr in self:
-            tr.convert_to_onebit(whitening_method=whitening_method, params=params)
+            tr.convert_to_one_bit(whitening_method=whitening_method, params=params)
 
     def whiten(self, whitening_method: WhiteningMethod = WhiteningMethod.Gaussian,
             params: GaussianWhiteningParams = None):
@@ -699,8 +699,5 @@ def read(filename, format='MSEED', **kwargs):
         for tr in st:
             tr.is_one_bit = False
         return st
-
-
-
 
 read.__doc__ = obsstream.read.__doc__.replace('obspy', 'uquake')
