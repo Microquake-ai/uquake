@@ -339,8 +339,8 @@ class Trace(ObspyTrace, ABC):
                     f'parameter were not provided... '
                     f'proceeding with default values\n'
                     f'smoothing kernel: '
-                    f'{GaussianWhiteningParams.smoothing_kernel_size}\n'
-                    f'water level: {GaussianWhiteningParams.water_level}')
+                    f'{GaussianWhiteningParams().smoothing_kernel_size}\n'
+                    f'water level: {GaussianWhiteningParams().water_level}')
             smooth_spectrum = gaussian_filter(
                 np.abs(data_fft), sigma=params.smoothing_kernel_size)
             data_fft /= (smooth_spectrum + params.water_level)
