@@ -454,7 +454,7 @@ class Stream(obsstream.Stream, ABC):
 
     def convert_to_one_bit(
             self, whitening_method: WhiteningMethod = WhiteningMethod.Gaussian,
-            params: GaussianWhiteningParams = None
+            params: GaussianWhiteningParams = GaussianWhiteningParams()
     ):
         """
         Convert the data to a one-bit representation by detrending, whitening,
