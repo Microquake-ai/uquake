@@ -275,7 +275,7 @@ class Trace(ObspyTrace, ABC):
         params=custom_params)
         ```
         """
-        self.data = detrend(detrend(self.data, type='linear'), type='constant')
+        self.detrend('linear').detrend('demean')
         self.whiten(method = whitening_method, params = params)
         self.data = np.sign(self.data)
 
