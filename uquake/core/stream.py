@@ -514,7 +514,11 @@ class Stream(obsstream.Stream, ABC):
         """
 
         for tr in self:
-            tr.convert_to_one_bit(whitening_method=whitening_method, params=params)
+            try:
+                tr.convert_to_one_bit(whitening_method=whitening_method, params=params)
+            except Exception as e:
+                logger.error(e)
+                self.remove(tr)
 
     def whiten(self, whitening_method: WhiteningMethod = WhiteningMethod.Gaussian,
             params: GaussianWhiteningParams = None):
