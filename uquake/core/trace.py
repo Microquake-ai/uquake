@@ -215,7 +215,7 @@ class Trace(ObspyTrace, ABC):
 
         return pulse
 
-    def convert_to_one_bit(
+    def to_one_bit(
             self, whitening_method: WhiteningMethod = WhiteningMethod.Gaussian,
             params: GaussianWhiteningParams = GaussianWhiteningParams()
     ):
@@ -276,11 +276,11 @@ class Trace(ObspyTrace, ABC):
         ```
         """
         self.detrend('linear').detrend('demean')
-        self.whiten(method = whitening_method, params = params)
+        self.whiten(whitening_method= whitening_method, params = params)
         self.data = np.sign(self.data)
 
 
-    def whiten(self, method: WhiteningMethod = WhiteningMethod.Gaussian,
+    def whiten(self, whitening_method: WhiteningMethod = WhiteningMethod.Gaussian,
                params: GaussianWhiteningParams = GaussianWhiteningParams()):
         """
         Apply spectral whitening to the data, setting the amplitude of the frequency
@@ -333,7 +333,7 @@ class Trace(ObspyTrace, ABC):
 
         data = self.data
         data_fft = np.fft.fft(data)
-        if method == WhiteningMethod.Gaussian:
+        if whitening_method == WhiteningMethod.Gaussian:
             if params is None:
                 logger.warning(
                     f'parameter were not provided... '

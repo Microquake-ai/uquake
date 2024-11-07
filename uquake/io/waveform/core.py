@@ -373,7 +373,7 @@ def write_one_bit(stream: Stream, filename: str, whiten: bool = True,
                     logger.warning('the data are already one bit encoded. '
                                    'whitening will be skipped...')
         elif whiten:
-            tr.whiten(method = whitening_method,
+            tr.whiten(whitening_method= whitening_method,
                       params = whitening_params)
         data.append(np.packbits(tr.data >= 0).tobytes())
         networks.append(tr.stats.network)

@@ -452,7 +452,7 @@ class Stream(obsstream.Stream, ABC):
 
         return Stream(traces=rotated_traces)
 
-    def convert_to_one_bit(
+    def to_one_bit(
             self, whitening_method: WhiteningMethod = WhiteningMethod.Gaussian,
             params: GaussianWhiteningParams = GaussianWhiteningParams()
     ):
@@ -515,7 +515,7 @@ class Stream(obsstream.Stream, ABC):
 
         for tr in self:
             try:
-                tr.convert_to_one_bit(whitening_method=whitening_method, params=params)
+                tr.to_one_bit(whitening_method=whitening_method, params=params)
             except Exception as e:
                 logger.error(e)
                 self.remove(tr)
