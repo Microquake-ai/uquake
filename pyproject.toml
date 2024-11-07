@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "uquake"
-version = "3.1.7"
+version = "3.1.8"
 description = "extension of the ObsPy library for local seismicity"
 authors = ["uQuake development team <dev@uquake.org>"]
 license = "AGPL-3.0-or-later"
@@ -34,6 +34,7 @@ pandas = "^2.2.2"
 protobuf = "^5.28.3"
 grpcio-tools = "^1.67.1"
 numpy = "^1"
+jupyter-server-proxy = "^4.4.0"
 
 [tool.poetry.group.test.dependencies]
 black = ">=23.3.0"
