@@ -521,7 +521,7 @@ class Stream(obsstream.Stream, ABC):
                 self.remove(tr)
 
     def whiten(self, whitening_method: WhiteningMethod = WhiteningMethod.Gaussian,
-            params: GaussianWhiteningParams = None):
+            params: GaussianWhiteningParams = GaussianWhiteningParams()):
         for tr in self:
             tr.whiten(whitening_method=whitening_method, params=params)
 
