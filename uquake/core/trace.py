@@ -276,7 +276,7 @@ class Trace(ObspyTrace, ABC):
         ```
         """
         self.detrend('linear').detrend('demean')
-        self.whiten(whitening_method= whitening_method, params = params)
+        self.whiten(whitening_method=whitening_method, params = params)
         self.data = np.sign(self.data)
 
 
@@ -343,7 +343,7 @@ class Trace(ObspyTrace, ABC):
                     f'water level: {GaussianWhiteningParams().water_level}')
             smooth_spectrum = gaussian_filter(
                 np.abs(data_fft), sigma=params.smoothing_kernel_size)
-            data_fft /= (smooth_spectrum + params.water_level)
+            data_fft /= (smooth_spectrum + params.water_level * np.std(np.abs(data_fft)))
         else:
             data_fft = np.exp(-1j * np.angle(data_fft))
 

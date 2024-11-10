@@ -8,4 +8,4 @@ class WhiteningMethod(Enum):
 
 class GaussianWhiteningParams(BaseSettings):
     smoothing_kernel_size: float = 5
-    water_level: float = 0
+    water_level: float = 1e-3

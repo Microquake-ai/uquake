@@ -397,10 +397,13 @@ class Stream(obsstream.Stream, ABC):
                 rotated_traces.extend(st_out)
                 continue
 
-            arrival = next((arr for arr in origin.arrivals if
-                            arr.pick.waveform_id.station_code == instrument.station_code
-                            and arr.pick.waveform_id.location_code == instrument.location_code
-                            and arr.phase != 'S'), None)
+            arrival = next(
+                (arr for arr in origin.arrivals if
+                 arr.pick.waveform_id.station_code == instrument.station_code
+                 and arr.pick.waveform_id.location_code == instrument.location_code
+                 and arr.phase != 'S'),
+                None
+            )
 
             if arrival is None:
                 rotated_traces.extend(st_out)
