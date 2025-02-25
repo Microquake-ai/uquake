@@ -473,7 +473,7 @@ class Cable(BaseModel):
         )
 
 
-class System(BaseModel):
+class Device(BaseModel):
     """
     Represents a complete seismic acquisition system, including a sensor, an
     optional cable, and an optional digitizer.
