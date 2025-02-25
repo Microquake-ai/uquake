@@ -610,7 +610,7 @@ class Device(BaseModel):
 
     Attributes
     ----------
-    DeviceType : DeviceType
+    device_type : DeviceType
         The type of device.
     serial_number : str
         The serial number of the device.
@@ -631,6 +631,9 @@ class Device(BaseModel):
     serial_number: str
     calibration_date: Union[str, datetime, UTCDateTime] = None
     manufactured_date: Union[str, datetime, UTCDateTime] = None
+
+    class Config:
+        arbitrary_types_allowed = True
 
     if calibration_date is not None:
         if isinstance(calibration_date, datetime) or isinstance(calibration_date, str):
