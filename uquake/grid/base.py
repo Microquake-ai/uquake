@@ -183,7 +183,9 @@ class Grid(object):
         return out
 
     @classmethod
-    def from_ocd(cls, origin, corner, dimensions, val=0):
+    def from_ocd(cls, origin: Union[np.ndarray, List, Tuple],
+                 corner: Union[np.ndarray, List, Tuple],
+                 dimensions: Union[np.ndarray, List, Tuple], val=0):
         """
         create a grid from origin, corner and dimensions
         :param origin: grid origin (e.g., lower left corner for 2D grid)
@@ -192,6 +194,10 @@ class Grid(object):
         :param val: constant value with which to fill the grid
         :return:
         """
+
+        corner = np.array(corner)
+        origin = np.array(origin)
+        dimensions = np.array(dimensions)
 
         data = np.ones(dimensions) * val
         spacing = (corner - origin) / (dimensions - 1)
