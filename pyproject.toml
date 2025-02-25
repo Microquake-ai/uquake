@@ -34,6 +34,7 @@ grpcio-tools = "^1.67.1"
 numpy = "^1"
 jupyter-server-proxy = "^4.4.0"
 pydantic = "^2.10.3"
+#pytantic = "^1.8.2"
 pydantic-settings = "^2.6.1"
 obspy = "^1.4.1"
 

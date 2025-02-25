@@ -1,5 +1,5 @@
 from enum import Enum
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
 
 class WhiteningMethod(Enum):
     Basic='Basic'
