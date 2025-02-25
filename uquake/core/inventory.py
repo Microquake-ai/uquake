@@ -56,6 +56,7 @@ import os
 from .util.requests import download_file_from_url
 from uquake.core.util.attribute_handler import set_extra, get_extra, namespace
 import hashlib
+from obspy.core import inventory
 from enum import Enum
 from pydantic import BaseModel
 from typing import Union, Literal, Optional, List
