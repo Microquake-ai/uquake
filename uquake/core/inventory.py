@@ -61,8 +61,15 @@ from uquake.core.util.attribute_handler import set_extra, get_extra, namespace
 import hashlib
 from enum import Enum
 from pydantic import BaseModel
-from typing import Union, Litteral, Optional
+from typing import Union, Literal, Optional, List
 
+
+units_descriptions = {
+    'V': 'Volts',
+    'M/S': 'Velocity in meters per second',
+    'M/S/S': 'Acceleration in meters per second squared',
+    'COUNTS': 'ADC Counts'
+}
 
 class GenericSensor(BaseModel):
     """
@@ -73,7 +80,7 @@ class GenericSensor(BaseModel):
     ----------
     sensor_type : str
         The type of sensor (e.g., 'geophone', 'accelerometer').
-    sensor_name : str
+    model : str
         The name or model of the sensor.
     input_units : Literal['V', 'M/S', 'M/S/S', 'COUNTS']
         The input measurement unit of the sensor.
@@ -120,25 +127,17 @@ class GenericSensor(BaseModel):
       while ensuring consistency in sensitivity and response calculations.
     """
     sensor_type: str
-    sensor_name: str
-    input_units: Litteral['V', 'M/S', 'M/S/S', 'COUNTS']
-    input_units_description: Litteral[
-        'Volts', 'Velocity in meters per second',
-        'Acceleration in meters per second squared', 'ADC Counts'
-    ]
-    output_units: Litteral['V', 'M/S', 'M/S/S', 'COUNTS']
-    output_units_description: Litteral[
-        'Volts', 'Velocity in meters per second',
-        'Acceleration in meters per second squared', 'ADC Counts'
-    ]
-    gain: float
+    model: str
+    input_units: Literal['V', 'M/S', 'M/S/S', 'COUNTS']
+    output_units: Literal['V', 'M/S', 'M/S/S', 'COUNTS']
     natural_frequency: float
     sensitivity: float
     damping: float
     stage_sequence_number: int = 0
+    gain: float = 1
 
     @property
-    def sensitivity(self):
+    def instrument_sensitivity(self) -> InstrumentSensitivity:
         return InstrumentSensitivity(
             value=self.sensitivity,
             frequency=self.natural_frequency,
@@ -149,6 +148,7 @@ class GenericSensor(BaseModel):
     @property
     def response_stage(self):
         paz = corn_freq_2_paz(self.natural_frequency, damp=self.damping)
+
         pzr = PolesZerosResponseStage(
             self.stage_sequence_number,
             self.gain,
@@ -159,15 +159,15 @@ class GenericSensor(BaseModel):
             self.natural_frequency,
             paz['zeros'],
             paz['poles'],
-            name=self.sensor_name,
-            input_units_description=self.input_units_description,
-            output_units_description=self.output_units_description
+            name=self.model,
+            input_units_description=units_descriptions[self.input_units],
+            output_units_description=units_descriptions[self.output_units]
         )
 
         return pzr
 
 
-class Geophone(GenericSensorConfig):
+class Geophone(GenericSensor):
     """
     Represents the configuration parameters for a geophone sensor.
 
@@ -212,9 +212,9 @@ class Geophone(GenericSensorConfig):
       other sensor types.
     """
 
-    def __init__(self, sensitivity: float, damping: float, sensor_name: str = None):
+    def __init__(self, sensitivity: float, damping: float, model: str = None):
         super().__init__(
-            sensor_type='geophone',
+            model='geophone',
             sensor_name=sensor_name,
             input_units='V',
             input_units_description='Volts',
@@ -227,7 +227,7 @@ class Geophone(GenericSensorConfig):
         )
 
 
-class Accelerometer(GenericSensorConfig):
+class Accelerometer(GenericSensor):
     """
     Represents the configuration parameters for an accelerometer sensor.
 
@@ -272,10 +272,10 @@ class Accelerometer(GenericSensorConfig):
       other sensor types.
     """
 
-    def __init__(self, sensitivity: float, natural_frequency: float, sensor_name: str = None):
+    def __init__(self, sensitivity: float, natural_frequency: float, model: str = None):
         super().__init__(
             sensor_type='accelerometer',
-            sensor_name=sensor_name,
+            model=sensor_name,
             output_units='V',
             output_units_description='Volts',
             input_units='M/S/S',
@@ -344,7 +344,7 @@ class Digitizer(BaseModel):
     """
 
     sensor_type: str = "digitizer"
-    sensor_name: str = "generic digitizer"
+    model: str = "generic digitizer"
     input_units: Literal["V"] = "V"
     input_units_description: str = "Volts"
     output_units: Literal["COUNTS"] = "COUNTS"
@@ -372,7 +372,7 @@ class Digitizer(BaseModel):
             gain=self.gain,
             input_units=self.input_units,
             output_units=self.output_units,
-            name=self.sensor_name,
+            name=self.model,
             input_units_description=self.input_units_description,
             output_units_description=self.output_units_description
         )
@@ -554,7 +554,7 @@ class System(BaseModel):
         List[ResponseStage]
             A list of `ResponseStage` objects representing the system response.
         """
-        self.sensor.stage_number_sequence = 0
+        self.sensor.stage_sequence_number = 0
         stages = [self.sensor.response_stage]  # Sensor is always required
 
         if self.cable:
@@ -583,7 +583,7 @@ class System(BaseModel):
         InstrumentSensitivity
             The overall system sensitivity.
         """
-        sensor_sensitivity = self.sensor.sensitivity
+        sensor_sensitivity = self.sensor.instrument_sensitivity
 
         if self.digitizer:
             combined_sensitivity = sensor_sensitivity.value * self.digitizer.gain
@@ -639,7 +639,7 @@ class SystemResponse:
     def __init__(
             self,
             sensor_params: Union[
-                GeophoneConfig, AccelerometerConfig, GenericSensorConfig
+                Geophone, Accelerometer, GenericSensor
             ]
     ):
 
