@@ -127,37 +127,15 @@ class Geophone(GenericSensor):
 
     This class extends `GenericSensor`, predefining values specific to geophones,
     such as input and output units.
-
-    Parameters
-    ----------
-    model : str
-        The name or model of the geophone.
-    sensitivity : float
-        The sensitivity of the geophone, typically expressed in output units
-        per input unit (e.g., m/s per V).
-    damping : float
-        The damping factor of the geophone.
-
-    Attributes
-    ----------
-    sensor_type : str
-        Fixed as 'geophone'.
-    input_units : str
-        Fixed as 'V' (Volts) since geophones produce a voltage output.
-    output_units : str
-        Fixed as 'M/S' (meters per second), representing velocity.
-    gain : float
-        Fixed at 1, assuming unitary gain in processing.
     """
 
-    sensor_type = 'geophone'
-    input_units = 'V'
-    output_units = 'M/S'
-    gain = 1
-    stage_sequence_number = 0
+    sensor_type: Literal['geophone'] = 'geophone'  # ✅ Correctly annotated
+    input_units: Literal['V'] = 'V'  # ✅ Correctly annotated
+    output_units: Literal['M/S'] = 'M/S'  # ✅ Correctly annotated
+    gain: float = 1
+    stage_sequence_number: int = 0
 
-    def __init__(self, model: str, sensitivity: float, damping: float,
-                 natural_frequency: float):
+    def __init__(self, model: str, sensitivity: float, damping: float, natural_frequency: float):
         super().__init__(
             sensor_type=self.sensor_type,
             model=model,
@@ -177,34 +155,13 @@ class Accelerometer(GenericSensor):
 
     This class extends `GenericSensor`, predefining values specific to accelerometers,
     such as input and output units.
-
-    Parameters
-    ----------
-    model : str
-        The name or model of the accelerometer.
-    sensitivity : float
-        The sensitivity of the accelerometer, typically expressed in output units
-        per input unit (e.g., m/s² per V).
-    natural_frequency : float
-        The natural frequency of the accelerometer in Hz.
-
-    Attributes
-    ----------
-    sensor_type : str
-        Fixed as 'accelerometer'.
-    input_units : str
-        Fixed as 'V' (Volts), indicating the accelerometer produces a voltage output.
-    output_units : str
-        Fixed as 'M/S/S' (meters per second squared), representing acceleration.
-    gain : float
-        Fixed at 1, assuming unitary gain in processing.
     """
 
-    sensor_type = 'accelerometer'
-    input_units = 'V'
-    output_units = 'M/S/S'
-    gain = 1
-    stage_sequence_number = 0
+    sensor_type: Literal['accelerometer'] = 'accelerometer'  # ✅ Correctly annotated
+    input_units: Literal['V'] = 'V'  # ✅ Correctly annotated
+    output_units: Literal['M/S/S'] = 'M/S/S'  # ✅ Correctly annotated
+    gain: float = 1
+    stage_sequence_number: int = 0
 
     def __init__(self, model: str, sensitivity: float, natural_frequency: float, damping=0.707):
         super().__init__(
