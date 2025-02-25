@@ -589,18 +589,18 @@ class DeviceType(BaseModel):
     ----------
     name : str
         The name of the seismic device.
-    component_list : List[Component]
+    components : List[Component]
         A list of components included in the device.
     coordinate_system : CoordinateSystem
         The coordinate system used for defining locations. Defaults to NED (North-East-Down).
     """
 
     name: str
-    component_list: List[Component]
+    components: List[Component]
     coordinate_system: CoordinateSystem = CoordinateSystem.NED
 
 
-class Device(DeviceType):
+class Device(BaseModel):
     """
     Represents a physical seismic device.
 
@@ -610,6 +610,8 @@ class Device(DeviceType):
 
     Attributes
     ----------
+    DeviceType : DeviceType
+        The type of device.
     serial_number : str
         The serial number of the device.
     calibration_date : str
@@ -625,6 +627,7 @@ class Device(DeviceType):
         Converts this device into an ObsPy `Station` using latitude/longitude coordinates.
     """
 
+    device_type: DeviceType
     serial_number: str
     calibration_date: str
     manufactured_date: str
