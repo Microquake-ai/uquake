@@ -629,8 +629,16 @@ class Device(BaseModel):
 
     device_type: DeviceType
     serial_number: str
-    calibration_date: str
-    manufactured_date: str
+    calibration_date: Union[str, datetime, UTCDateTime] = None
+    manufactured_date: Union[str, datetime, UTCDateTime] = None
+
+    if calibration_date is not None:
+        if isinstance(calibration_date, datetime) or isinstance(calibration_date, str):
+            start_date = UTCDateTime(calibration_date)
+
+    if manufactured_date is not None:
+        if isinstance(manufactured_date, datetime) or isinstance(manufactured_date, str):
+            end_date = UTCDateTime(manufactured_date)
 
     def to_station(self, station_code, location_code, coordinates: Coordinates, sampling_rate,
                    start_date: Union[datetime, UTCDateTime, str] = None,
