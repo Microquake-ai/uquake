@@ -60,61 +60,622 @@ from .util.requests import download_file_from_url
 from uquake.core.util.attribute_handler import set_extra, get_extra, namespace
 import hashlib
 from enum import Enum
+from pydantic import BaseModel
+from typing import Union, Literal, Optional, List
 
 
-class SystemResponse(object):
-    def __init__(self, sensor_type, **sensor_params):
+units_descriptions = {
+    'V': 'Volts',
+    'M/S': 'Velocity in meters per second',
+    'M/S/S': 'Acceleration in meters per second squared',
+    'COUNTS': 'ADC Counts'
+}
+
+class GenericSensor(BaseModel):
+    """
+    Represents the configuration parameters for a generic seismic sensor,
+    including geophones and accelerometers.
+
+    Attributes
+    ----------
+    sensor_type : str
+        The type of sensor (e.g., 'geophone', 'accelerometer').
+    model : str
+        The name or model of the sensor.
+    input_units : Literal['V', 'M/S', 'M/S/S', 'COUNTS']
+        The input measurement unit of the sensor.
+    input_units_description : Literal[
+        'Volts', 'Velocity in meters per second',
+        'Acceleration in meters per second squared', 'ADC Counts'
+    ]
+        A descriptive label for the input units.
+    output_units : Literal['V', 'M/S', 'M/S/S', 'COUNTS']
+        The output measurement unit of the sensor.
+    output_units_description : Literal[
+        'Volts', 'Velocity in meters per second',
+        'Acceleration in meters per second squared', 'ADC Counts'
+    ]
+        A descriptive label for the output units.
+    gain : float
+        The overall system gain of the sensor.
+    natural_frequency : float
+        The natural (or natural) frequency of the sensor in Hz.
+    sensitivity : float
+        The sensitivity of the sensor, typically given in the ratio of
+        output units per input units.
+    damping : float
+        The damping factor of the sensor.
+    stage_sequence_number : int, optional
+        The processing stage number in a signal chain, defaulting to 0.
+
+    Properties
+    ----------
+    sensitivity : InstrumentSensitivity
+        Returns an `InstrumentSensitivity` object that represents the sensor’s
+        sensitivity at its natural frequency.
+    response_stage : PolesZerosResponseStage
+        Returns a `PolesZerosResponseStage` object, which defines the sensor's
+        response using pole-zero representation.
+
+    Notes
+    -----
+    - The `sensitivity` property encapsulates the sensor's sensitivity along with
+      its input/output units and natural frequency.
+    - The `response_stage` property calculates the pole-zero representation based
+      on the sensor’s damping and natural frequency.
+    - This class provides a structured way to define various seismic sensor configurations
+      while ensuring consistency in sensitivity and response calculations.
+    """
+    sensor_type: str
+    model: str
+    input_units: Literal['V', 'M/S', 'M/S/S', 'COUNTS']
+    output_units: Literal['V', 'M/S', 'M/S/S', 'COUNTS']
+    natural_frequency: float
+    sensitivity: float
+    damping: float
+    stage_sequence_number: int = 0
+    gain: float = 1
+
+    @property
+    def instrument_sensitivity(self) -> InstrumentSensitivity:
+        return InstrumentSensitivity(
+            value=self.sensitivity,
+            frequency=self.natural_frequency,
+            input_units=self.input_units,
+            output_units=self.output_units
+        )
+
+    @property
+    def response_stage(self):
+        paz = corn_freq_2_paz(self.natural_frequency, damp=self.damping)
+
+        pzr = PolesZerosResponseStage(
+            self.stage_sequence_number,
+            self.gain,
+            self.natural_frequency,
+            self.input_units,
+            self.output_units,
+            'LAPLACE (RADIANT/SECOND)',
+            self.natural_frequency,
+            paz['zeros'],
+            paz['poles'],
+            name=self.model,
+            input_units_description=units_descriptions[self.input_units],
+            output_units_description=units_descriptions[self.output_units]
+        )
+
+        return pzr
+
+
+class Geophone(GenericSensor):
+    """
+    Represents the configuration parameters for a geophone sensor.
+
+    This class extends `GenericSensorConfig`, predefining values specific
+    to geophones, such as input and output units.
+
+    Parameters
+    ----------
+    sensitivity : float
+        The sensitivity of the geophone, typically expressed in output units
+        per input units (e.g., m/s per V).
+    damping : float
+        The damping factor of the geophone.
+    sensor_name : str, optional
+        The name or model of the geophone.
+
+    Attributes
+    ----------
+    sensor_type : str
+        Fixed as 'geophone'.
+    input_units : Literal['V']
+        Fixed as 'V' (Volts) since geophones produce a voltage output.
+    input_units_description : str
+        Fixed as 'Volts' for clarity.
+    output_units : Literal['M/S']
+        Fixed as 'M/S' (meters per second), representing velocity.
+    output_units_description : str
+        Fixed as 'Velocity in meters per second'.
+    gain : float
+        Fixed at 1, assuming unitary gain in processing.
+    sensitivity : float
+        The specified sensitivity of the geophone.
+    damping : float
+        The damping factor of the geophone.
+    stage_sequence_number : int
+        Fixed at 0, representing the initial processing stage.
+
+    Notes
+    -----
+    - This class ensures geophone-specific configurations are set automatically.
+    - The `sensor_type` is hardcoded as 'geophone' to distinguish it from
+      other sensor types.
+    """
+
+    def __init__(self, sensitivity: float, damping: float, model: str = None):
+        super().__init__(
+            model='geophone',
+            sensor_name=sensor_name,
+            input_units='V',
+            input_units_description='Volts',
+            output_units='M/S',
+            output_units_description='Velocity in meters per second',
+            gain=1,
+            sensitivity=sensitivity,
+            damping=damping,
+            stage_sequence_number=0
+        )
+
+
+class Accelerometer(GenericSensor):
+    """
+    Represents the configuration parameters for an accelerometer sensor.
+
+    This class extends `GenericSensorConfig`, predefining values specific
+    to accelerometers, such as input and output units.
+
+    Parameters
+    ----------
+    sensitivity : float
+        The sensitivity of the accelerometer, typically expressed in output units
+        per input units (e.g., m/s² per V).
+    natural_frequency : float
+        The natural frequency of the accelerometer in Hz.
+    sensor_name : str, optional
+        The name or model of the accelerometer.
+
+    Attributes
+    ----------
+    sensor_type : str
+        Fixed as 'accelerometer'.
+    input_units : Literal['V']
+        Fixed as 'V' (Volts), indicating the accelerometer produces a voltage output.
+    input_units_description : str
+        Fixed as 'Volts' for clarity.
+    output_units : Literal['M/S/S']
+        Fixed as 'M/S/S' (meters per second squared), representing acceleration.
+    output_units_description : str
+        Fixed as 'Acceleration in meters per second squared'.
+    gain : float
+        Fixed at 1, assuming unitary gain in processing.
+    sensitivity : float
+        The specified sensitivity of the accelerometer.
+    natural_frequency : float
+        The natural frequency of the accelerometer in Hz.
+    stage_sequence_number : int
+        Fixed at 0, representing the initial processing stage.
+
+    Notes
+    -----
+    - This class ensures accelerometer-specific configurations are set automatically.
+    - The `sensor_type` is hardcoded as 'accelerometer' to distinguish it from
+      other sensor types.
+    """
+
+    def __init__(self, sensitivity: float, natural_frequency: float, model: str = None):
+        super().__init__(
+            sensor_type='accelerometer',
+            model=sensor_name,
+            output_units='V',
+            output_units_description='Volts',
+            input_units='M/S/S',
+            input_units_description='Acceleration in meters per second squared',
+            gain=1,
+            sensitivity=sensitivity,
+            natural_frequency=natural_frequency,
+            damping=0.707,  # Default damping factor for accelerometers
+            stage_sequence_number=0
+        )
+
+
+class Digitizer(BaseModel):
+    """
+    Represents the configuration and response characteristics of a seismic digitizer.
+
+    The digitizer converts an analog signal (voltage) from a sensor (e.g., geophone,
+    accelerometer) into digital ADC counts. This class defines its essential
+    parameters, including gain and sampling rate.
+
+    Parameters
+    ----------
+    gain : float
+        The gain of the digitizer, representing the scaling factor between
+        input voltage (V) and ADC counts.
+    sampling_rate : float
+        The sampling rate of the digitizer in Hz.
+    sensor_name : str, optional
+        The name or model of the digitizer.
+
+    Attributes
+    ----------
+    sensor_type : str
+        Fixed as 'digitizer'.
+    sensor_name : str
+        The name or model of the digitizer.
+    input_units : Literal['V']
+        Fixed as 'V' (Volts), representing the input unit from analog sensors.
+    input_units_description : str
+        Fixed as 'Volts' for clarity.
+    output_units : Literal['COUNTS']
+        Fixed as 'COUNTS' (ADC Counts), representing the digitized output.
+    output_units_description : str
+        Fixed as 'ADC Counts'.
+    gain : float
+        The gain of the digitizer, which scales voltage to ADC counts.
+    stage_sequence_number : int
+        Fixed at 1, representing the digitizer as the next processing stage after
+        the sensor.
+    sampling_rate : float
+        The sampling rate of the digitizer in Hz.
+
+    Properties
+    ----------
+    stage_response : CoefficientsResponseStage
+        Returns a `CoefficientsResponseStage` object representing the digitizer's
+        gain response.
+
+    Notes
+    -----
+    - The digitizer’s response is modeled using a simple gain factor.
+    - Some digitizers may include anti-aliasing filters, which are not explicitly
+      modeled here.
+    - This class ensures consistency with ObsPy’s response structure, allowing
+      integration with seismic metadata.
+    """
+
+    sensor_type: str = "digitizer"
+    model: str = "generic digitizer"
+    input_units: Literal["V"] = "V"
+    input_units_description: str = "Volts"
+    output_units: Literal["COUNTS"] = "COUNTS"
+    output_units_description: str = "ADC Counts"
+    gain: float
+    stage_sequence_number: int = 1
+    sampling_rate: float
+
+    @property
+    def stage_response(self):
         """
-        Initialize a SystemResponse object.
+        Returns the digitizer's response stage using a simple gain factor.
 
-        Parameters:
-        -----------
-        sensor_type : str
-            Type of the sensor. Accepted values are 'geophone' or 'accelerometer'.
+        This response is modeled as a coefficient response stage, as digitizers
+        generally apply a linear transformation from voltage to ADC counts.
 
-        **sensor_params : keyword arguments
-            Additional parameters for configuring the sensor response. These vary based on the `sensor_type`.
+        Returns
+        -------
+        CoefficientsResponseStage
+            A `CoefficientsResponseStage` object defining the digitizer's gain
+            and input/output unit mappings.
+        """
+        return CoefficientsResponseStage(
+            stage_sequence_number=self.stage_sequence_number,
+            gain=self.gain,
+            input_units=self.input_units,
+            output_units=self.output_units,
+            name=self.model,
+            input_units_description=self.input_units_description,
+            output_units_description=self.output_units_description
+        )
 
-            For 'geophone':
-            - resonance_frequency : float
-                The resonance frequency of the geophone, in Hz.
-            - gain : float
-                The gain of the geophone response.
-            - damping : float, optional
-                Damping factor. Default is 0.707.
-            - stage_sequence_number : int, optional
-                Stage sequence number. Default is 1.
 
-            For 'accelerometer':
-            - resonance_frequency : float
-                The resonance frequency of the accelerometer, in Hz.
-            - gain : float
-                The gain of the accelerometer response.
-            - sensitivity : float, optional
-                Sensitivity of the accelerometer. Default is 1.
-            - damping : float, optional
-                Damping factor. Default is 0.707.
-            - stage_sequence_number : int, optional
-                Stage sequence number. Default is 1.
+class Cable(BaseModel):
+    """
+    Represents the frequency response characteristics of a sensor cable.
 
-        Raises:
-        --------
-        ValueError
-            When an invalid `sensor_type` or unsupported `sensor_params` are supplied.
+    This class models the effect of cable capacitance and resistance on the
+    signal transmission. The cable can introduce a low-pass filtering effect,
+    represented by a single pole in the response.
 
-        Examples:
+    Parameters
+    ----------
+    output_resistance : float, optional
+        The output resistance of the connected sensor (Ohms). Defaults to infinity.
+    cable_length : float, optional
+        The length of the cable (meters). Defaults to 0 (no cable effect).
+    cable_capacitance : float, optional
+        The capacitance of the cable per unit length (Farads/m). Defaults to infinity.
+
+    Attributes
+    ----------
+    stage_sequence_number : int
+        Defines the sequence number of this response stage in signal processing.
+        Defaults to 1 (typically after the sensor).
+    input_units : str
+        Fixed as 'V' (Volts), representing the voltage signal input.
+    input_units_description : str
+        Fixed as 'Volts' for clarity.
+    output_units : str
+        Fixed as 'V' (Volts), as cables do not change unit types.
+    output_units_description : str
+        Fixed as 'Volts'.
+
+    Properties
+    ----------
+    poles : list
+        Returns a list of poles representing the cable's frequency response.
+    response_stage : PolesZerosResponseStage
+        Returns a `PolesZerosResponseStage` object modeling the cable’s response.
+
+    Notes
+    -----
+    - If `output_resistance * cable_length * cable_capacitance` is finite and nonzero,
+      the cable introduces a **low-pass filter effect**, modeled as a single pole.
+    - If any parameter is **infinite or zero**, the cable is treated as **ideal** (no filtering).
+    """
+
+    output_resistance: float = np.inf
+    cable_length: float = 0.0
+    cable_capacitance: float = np.inf
+    stage_sequence_number: int = 1
+
+    input_units: str = "V"
+    input_units_description: str = "Volts"
+    output_units: str = "V"
+    output_units_description: str = "Volts"
+
+    @property
+    def poles(self):
+        """
+        Computes the cable's pole based on resistance, capacitance, and length.
+
+        Returns
+        -------
+        list
+            A list containing the computed pole, or an empty list if no pole is needed.
+        """
+        if (self.output_resistance * self.cable_length * self.cable_capacitance) not in [0, np.inf]:
+            pole_cable = -1 / (self.output_resistance * self.cable_length * self.cable_capacitance)
+            return [pole_cable]
+        return []
+
+    @property
+    def response_stage(self):
+        """
+        Returns the `PolesZerosResponseStage` defining the cable's response.
+
+        Returns
+        -------
+        PolesZerosResponseStage
+            A response stage modeling the cable's effect as a low-pass filter.
+        """
+        return PolesZerosResponseStage(
+            stage_sequence_number=self.stage_sequence_number,
+            gain=1,  # Cables typically do not amplify signals
+            frequency=0,  # No reference frequency
+            input_units=self.input_units,
+            output_units=self.output_units,
+            response_type="LAPLACE (RADIANT/SECOND)",
+            normalization_frequency=0,
+            zeros=[],  # Cables do not introduce zeros
+            poles=self.poles,
+            input_units_description=self.input_units_description,
+            output_units_description=self.output_units_description
+        )
+
+
+class Device(BaseModel):
+    """
+    Represents a complete seismic acquisition system, including a sensor, an
+    optional cable, and an optional digitizer.
+
+    This class models the overall system response by combining the responses
+    of the individual components into a multi-stage response.
+
+    Parameters
+    ----------
+    sensor : Union[GenericSensor, Geophone, Accelerometer]
+        The primary sensor in the system.
+    cable : Optional[Cable], optional
+        An optional cable connecting the sensor to the digitizer.
+    digitizer : Optional[Digitizer], optional
+        An optional digitizer converting analog signals to digital counts.
+    name : str
+        The name of the seismic system.
+    type : str
+        The type of system (e.g., "seismic station", "borehole array").
+    description : Optional[str], optional
+        Additional descriptive details about the system.
+    manufacturer : Optional[str], optional
+        The company that manufactured the system.
+    vendor : Optional[str], optional
+        The vendor or distributor of the system.
+    model : Optional[str], optional
+        The specific model identifier of the system.
+    serial_number : Optional[str], optional
+        The serial number of the system.
+    calibration_date : Optional[str], optional
+        The last calibration date of the system.
+
+    Attributes
+    ----------
+    response_stages : list
+        A list of `ResponseStage` objects forming the system response.
+    system_sensitivity : InstrumentSensitivity
+        The overall system sensitivity, computed based on the sensor and digitizer.
+
+    Properties
+    ----------
+    response : Response
+        Returns an ObsPy `Response` object representing the full system response.
+    equipment : Equipment
+        Returns an ObsPy `Equipment` object containing system metadata.
+
+    Notes
+    -----
+    - The response is dynamically built based on available components.
+    - If a cable is included, its response is added before the digitizer.
+    - The `response` property ensures seamless integration with ObsPy’s response handling.
+    """
+
+    sensor: Union[GenericSensor, Geophone, Accelerometer]
+    cable: Optional[Cable] = None
+    digitizer: Optional[Digitizer] = None
+    name: str
+    type: str
+    description: Optional[str] = None
+    manufacturer: Optional[str] = None
+    vendor: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = None
+    calibration_date: Optional[str] = None
+
+    @property
+    def response_stages(self) -> List[ResponseStage]:
+        """
+        Builds and returns the list of response stages for the system.
+
+        The response chain follows this sequence:
+        1. Sensor (Required)
+        2. Cable (Optional)
+        3. Digitizer (Optional)
+
+        Returns
+        -------
+        List[ResponseStage]
+            A list of `ResponseStage` objects representing the system response.
+        """
+        self.sensor.stage_sequence_number = 0
+        stages = [self.sensor.response_stage]  # Sensor is always required
+
+        if self.cable:
+            cable.stage_sequence_number = 1
+            stages.append(self.cable.response_stage)  # Add cable if present
+
+        if self.digitizer:
+            if cable:
+                self.digitizer.stage_sequence_number = 2
+            else:
+                self.digitizer.stage_sequence_number = 1
+            stages.append(self.digitizer.stage_response)  # Add digitizer if present
+
+        return stages
+
+    @property
+    def system_sensitivity(self) -> InstrumentSensitivity:
+        """
+        Computes the overall system sensitivity.
+
+        If a digitizer is present, the system sensitivity is the combination
+        of the sensor and digitizer gains. Otherwise, it defaults to the sensor's sensitivity.
+
+        Returns
+        -------
+        InstrumentSensitivity
+            The overall system sensitivity.
+        """
+        sensor_sensitivity = self.sensor.instrument_sensitivity
+
+        if self.digitizer:
+            combined_sensitivity = sensor_sensitivity.value * self.digitizer.gain
+            return InstrumentSensitivity(
+                value=combined_sensitivity,
+                frequency=sensor_sensitivity.frequency,
+                input_units=self.sensor.output_units,
+                output_units=self.digitizer.output_units
+            )
+
+        return sensor_sensitivity  # If no digitizer, sensor sensitivity is used
+
+    @property
+    def response(self) -> Response:
+        """
+        Returns the full system response, including all response stages.
+
+        Returns
+        -------
+        Response
+            An ObsPy `Response` object containing the system sensitivity
+            and response stages.
+        """
+        return Response(
+            instrument_sensitivity=self.system_sensitivity,
+            response_stages=self.response_stages
+        )
+
+    @property
+    def equipment(self) -> Equipment:
+        """
+        Returns an `Equipment` object containing metadata about the system.
+
+        Returns
+        -------
+        Equipment
+            An ObsPy `Equipment` object with details such as manufacturer, model,
+            and calibration date.
+        """
+        return Equipment(
+            type=self.type,
+            manufacturer=self.manufacturer,
+            vendor=self.vendor,
+            model=self.model,
+            serial_number=self.serial_number,
+            calibration_date=self.calibration_date,
+        )
+
+
+
+
+class SystemResponse:
+    def __init__(
+            self,
+            sensor_params: Union[
+                Geophone, Accelerometer, GenericSensor
+            ]
+    ):
+
+        """
+        Initializes a SystemResponse object to represent the response characteristics
+        of a seismic sensor, either a geophone or an accelerometer.
+
+        Parameters
         ----------
-        >>> sr = SystemResponse('geophone', resonance_frequency=4.5, gain=2.0)
-        >>> sr = SystemResponse('accelerometer', resonance_frequency=15, gain=3.0,
-        sensitivity=0.2)
+        sensor_params : GeophoneConfig or AccelerometerConfig
+            An instance of either `GeophoneConfig` or `AccelerometerConfig`,
+            containing the relevant sensor parameters.
+
+            - For `GeophoneConfig`:
+                - corner_frequency (float): The natural frequency of the geophone (Hz).
+                - sensitivity (float): The sensor sensitivity (units depend on application).
+                - damping (float): The damping factor of the geophone.
+                - stage_sequence_number (int, optional): The sequence number of the
+                  processing stage. Default is 0.
+
+            - For `AccelerometerConfig`:
+                - natural_frequency (float): The natural frequency of the accelerometer (Hz).
+                - sensitivity (float): The sensor sensitivity (units depend on application).
+                - stage_sequence_number (int, optional): The sequence number of the
+                  processing stage. Default is 0.
+
+        Notes
+        -----
+        - The `sensor_type` is determined implicitly by the provided configuration class
+          (`GeophoneConfig` or `AccelerometerConfig`).
+        - The `stage_sequence_number` helps define the processing order when multiple
+          transformation stages are involved in the signal processing chain.
         """
 
-        self.components_info = {
-            'sensor': {'type': sensor_type,
-                       'params': sensor_params}
-        }
-
-        self.sensor_type = sensor_type
+        self.components_info = sensor_params.dict()
+        self.sensor_type = sensor_params.sensor_type
 
     def add_cable(self, **cable_params):
         if 'cable' in self.components_info:
@@ -124,7 +685,7 @@ class SystemResponse(object):
     def add_digitizer(self, **digitizer_params):
         if 'digitizer' in self.components_info:
             raise ValueError("Digitizer already added.")
-        self.components_info['digitizer'] = {'params': digitizer_params}
+        self.compronents_info['digitize'] = {'params': digitizer_params}
 
     def validate(self):
         if 'sensor' not in self.components_info:
@@ -167,19 +728,20 @@ class SystemResponse(object):
             units = 'M/S'
         else:
             units = 'M/S/S'
-        resonance_frequency = self.components_info['sensor'][
-            'params']['resonance_frequency']
-        return InstrumentSensitivity(value=1, frequency=resonance_frequency,
+        natural_frequency = self.components_info['sensor'][
+            'params']['natural_frequency']
+        return InstrumentSensitivity(value=1, frequency=natural_frequency,
                                      input_units=units, output_units=units)
 
 
-def geophone_sensor_response(resonance_frequency, gain, damping=0.707,
+def geophone_sensor_response(natural_frequency, sensitivity, gain=1, damping=0.707,
                              stage_sequence_number=1):
     """
     Generate a Poles and Zeros response stage for a geophone.
 
     Parameters:
-    - resonance_frequency (float): Resonance frequency of the geophone in Hz.
+    - natural_frequency (float): natural frequency of the geophone in Hz.
+    - sensitivity (float): Sensitivity of the sensor.
     - gain (float): Gain factor.
     - damping (float, optional): Damping ratio. Defaults to 0.707 (critical damping).
     - stage_sequence_number (int, optional): Sequence number for the response stage.
@@ -190,22 +752,23 @@ def geophone_sensor_response(resonance_frequency, gain, damping=0.707,
     Notes:
     - The function utilizes the Laplace transform in the frequency domain.
     """
-    paz = corn_freq_2_paz(resonance_frequency, damp=damping)
+    paz = corn_freq_2_paz(natural_frequency, damp=damping)
     pzr = PolesZerosResponseStage(stage_sequence_number, gain,
-                                  resonance_frequency, 'M/S', 'V',
+                                  natural_frequency, 'M/S', 'V',
                                   'LAPLACE (RADIANT/SECOND)',
-                                  resonance_frequency, paz['zeros'],
+                                  natural_frequency,
+                                  paz['zeros'],
                                   paz['poles'])
     return pzr
 
 
-def accelerometer_sensor_response(resonance_frequency, gain, sensitivity=1,
+def accelerometer_sensor_response(natural_frequency, gain, sensitivity=1,
                                   damping=0.707, stage_sequence_number=1):
     """
     Generate a Poles and Zeros response stage for an accelerometer.
 
     Parameters:
-    - resonance_frequency (float): Resonance frequency of the accelerometer in Hz.
+    - natural_frequency (float): natural frequency of the accelerometer in Hz.
     - gain (float): Gain factor.
     - sensitivity (float, optional): Sensitivity of the sensor. Defaults to 1.
     - damping (float, optional): Damping ratio. Defaults to 0.707 (critical damping).
@@ -217,12 +780,12 @@ def accelerometer_sensor_response(resonance_frequency, gain, sensitivity=1,
     Notes:
     - The function utilizes the Laplace transform in the frequency domain.
     """
-    paz = corn_freq_2_paz(resonance_frequency, damp=damping)
+    paz = corn_freq_2_paz(natural_frequency, damp=damping)
     paz['zeros'] = []
     pzr = PolesZerosResponseStage(stage_sequence_number, gain,
-                                  resonance_frequency, 'M/S/S', 'V',
+                                  natural_frequency, 'M/S/S', 'V',
                                   'LAPLACE (RADIANT/SECOND)',
-                                  resonance_frequency, paz['zeros'],
+                                  natural_frequency, paz['zeros'],
                                   paz['poles'])
     return pzr
 
