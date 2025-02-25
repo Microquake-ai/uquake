@@ -519,6 +519,26 @@ class ComponentType(BaseModel):
         )
 
 class Component(ComponentType):
+    """
+    Represents an individual seismic component within a system.
+
+    A `Component` is a subclass of `ComponentType` that includes additional
+    metadata such as orientation and channel code. It provides functionality
+    for converting itself into an ObsPy `Channel` object.
+
+    Attributes
+    ----------
+    orientation_vector : List[float]
+        A 3D vector representing the orientation of the component in space.
+    channel_code : str
+        The SEED channel code associated with this component.
+
+    Methods
+    -------
+    to_channel(location_code, sampling_rate, coordinates, serial_number, calibration_date, start_date, end_date)
+        Converts this component into an ObsPy `Channel` object.
+    """
+
     orientation_vector: List[float]
     channel_code: str
 
@@ -526,7 +546,31 @@ class Component(ComponentType):
                    calibration_date=None,
                    start_date: Union[datetime, UTCDateTime, str] = None,
                    end_date: Union[datetime, UTCDateTime, str] = None):
+        """
+        Converts the component into an ObsPy `Channel` object.
 
+        Parameters
+        ----------
+        location_code : str
+            The SEED location code for the component.
+        sampling_rate : float
+            The sampling rate of the component in Hz.
+        coordinates : Coordinates
+            The geographical or relative coordinates of the component.
+        serial_number : str, optional
+            The serial number of the component.
+        calibration_date : str, optional
+            The last calibration date of the component.
+        start_date : Union[datetime, UTCDateTime, str], optional
+            The start date of the channel's validity period.
+        end_date : Union[datetime, UTCDateTime, str], optional
+            The end date of the channel's validity period.
+
+        Returns
+        -------
+        Channel
+            An ObsPy `Channel` object representing this seismic component.
+        """
         return super().to_channel(
             channel_code=self.channel_code,
             location_code=location_code,
@@ -539,12 +583,54 @@ class Component(ComponentType):
             end_date=end_date
         )
 
+
 class DeviceType(BaseModel):
+    """
+    Represents the general characteristics of a seismic device.
+
+    A `DeviceType` defines the blueprint for a seismic device, including the
+    list of components and the coordinate system used for positioning.
+
+    Attributes
+    ----------
+    name : str
+        The name of the seismic device.
+    component_list : List[Component]
+        A list of components included in the device.
+    coordinate_system : CoordinateSystem
+        The coordinate system used for defining locations. Defaults to NED (North-East-Down).
+    """
+
     name: str
     component_list: List[Component]
     coordinate_system: CoordinateSystem = CoordinateSystem.NED
 
+
 class Device(DeviceType):
+    """
+    Represents a physical seismic device.
+
+    A `Device` extends `DeviceType` by adding unique identifiers such as
+    serial number and manufacturing/calibration dates. It also provides
+    functionality to convert itself into an ObsPy `Station`.
+
+    Attributes
+    ----------
+    serial_number : str
+        The serial number of the device.
+    calibration_date : str
+        The date when the device was last calibrated.
+    manufactured_date : str
+        The date when the device was manufactured.
+
+    Methods
+    -------
+    to_station(station_code, location_code, coordinates, sampling_rate, start_date, end_date)
+        Converts this device into an ObsPy `Station` object.
+    to_station_lat_long(station_code, location_code, latitude, longitude, elevation, sampling_rate, start_date, end_date)
+        Converts this device into an ObsPy `Station` using latitude/longitude coordinates.
+    """
+
     serial_number: str
     calibration_date: str
     manufactured_date: str
@@ -552,7 +638,29 @@ class Device(DeviceType):
     def to_station(self, station_code, location_code, coordinates: Coordinates, sampling_rate,
                    start_date: Union[datetime, UTCDateTime, str] = None,
                    end_date: Union[datetime, UTCDateTime, str] = None):
+        """
+        Converts the device into an ObsPy `Station` object.
 
+        Parameters
+        ----------
+        station_code : str
+            The SEED station code.
+        location_code : str
+            The SEED location code.
+        coordinates : Coordinates
+            The geographical or relative coordinates of the station.
+        sampling_rate : float
+            The sampling rate of the device in Hz.
+        start_date : Union[datetime, UTCDateTime, str], optional
+            The start date of the station's validity period.
+        end_date : Union[datetime, UTCDateTime, str], optional
+            The end date of the station's validity period.
+
+        Returns
+        -------
+        Station
+            An ObsPy `Station` object representing this seismic device.
+        """
         channels = []
         for component in self.component_list:
             channels.append(component.to_channel(
@@ -575,7 +683,36 @@ class Device(DeviceType):
     def to_station_lat_long(self, station_code, location_code, latitude, longitude, elevation, sampling_rate,
                             start_date: Union[datetime, UTCDateTime, str] = None,
                             end_date: Union[datetime, UTCDateTime, str] = None):
+        """
+        Converts the device into an ObsPy `Station` using latitude and longitude.
 
+        This method is useful when defining a station's location using GPS
+        coordinates instead of a pre-defined `Coordinates` object.
+
+        Parameters
+        ----------
+        station_code : str
+            The SEED station code.
+        location_code : str
+            The SEED location code.
+        latitude : float
+            The latitude of the station in degrees.
+        longitude : float
+            The longitude of the station in degrees.
+        elevation : float
+            The elevation of the station in meters.
+        sampling_rate : float
+            The sampling rate of the device in Hz.
+        start_date : Union[datetime, UTCDateTime, str], optional
+            The start date of the station's validity period.
+        end_date : Union[datetime, UTCDateTime, str], optional
+            The end date of the station's validity period.
+
+        Returns
+        -------
+        Station
+            An ObsPy `Station` object representing this seismic device.
+        """
         coordinates = Coordinates.from_lat_lon(latitude, longitude, elevation, self.coordinate_system)
 
         return self.to_station(
