@@ -363,10 +363,6 @@ class ComponentType(BaseModel):
         An optional cable connecting the sensor to the digitizer.
     digitizer : Optional[Digitizer], optional
         An optional digitizer converting analog signals to digital counts.
-    name : str
-        The name of the seismic system.
-    type : str
-        The type of system (e.g., "seismic station", "borehole array").
     description : Optional[str], optional
         Additional descriptive details about the system.
     manufacturer : Optional[str], optional
@@ -393,14 +389,10 @@ class ComponentType(BaseModel):
     sensor: Union[GenericSensor, Geophone, Accelerometer]
     cable: Optional[Cable] = None
     digitizer: Optional[Digitizer] = None
-    name: str
-    type: str
     description: Optional[str] = None
     manufacturer: Optional[str] = None
     vendor: Optional[str] = None
     model: Optional[str] = None
-    # serial_number: Optional[str] = None
-    # calibration_date: Optional[str] = None
 
     @property
     def response_stages(self) -> List[ResponseStage]:
@@ -518,7 +510,7 @@ class ComponentType(BaseModel):
             calibration_date=calibration_date,
         )
 
-class Component(ComponentType):
+class Component(BaseModel):
     """
     Represents an individual seismic component within a system.
 
@@ -541,6 +533,8 @@ class Component(ComponentType):
 
     orientation_vector: List[float]
     channel_code: str
+    name: str = None
+    component_type: ComponentType
 
     def to_channel(self, location_code, sampling_rate, coordinates, serial_number=None,
                    calibration_date=None,
@@ -571,7 +565,7 @@ class Component(ComponentType):
         Channel
             An ObsPy `Channel` object representing this seismic component.
         """
-        return super().to_channel(
+        return self.component_type.to_channel(
             channel_code=self.channel_code,
             location_code=location_code,
             orientation_vector=self.orientation_vector,
@@ -580,7 +574,7 @@ class Component(ComponentType):
             serial_number=serial_number,
             calibration_date=calibration_date,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
         )
 
 
