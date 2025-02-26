@@ -675,7 +675,7 @@ class Device(BaseModel):
             An ObsPy `Station` object representing this seismic device.
         """
         channels = []
-        for component in self.components:
+        for component in self.device_type.components:
             channels.append(component.to_channel(
                 location_code=location_code,
                 sampling_rate=sampling_rate,
