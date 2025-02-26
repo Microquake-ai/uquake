@@ -7,6 +7,7 @@ from typing import List, Optional, Union, Literal
 from datetime import datetime
 from uquake.core import UTCDateTime
 import numpy as np
+import pandas as pd
 
 
 
@@ -643,6 +644,10 @@ class Device(BaseModel):
         if isinstance(manufactured_date, datetime) or isinstance(manufactured_date, str):
             end_date = UTCDateTime(manufactured_date)
 
+    @property
+    def device_id(self):
+        return self.serial_number
+
     def to_station(self, station_code, location_code, coordinates: Coordinates, sampling_rate,
                    start_date: Union[datetime, UTCDateTime, str] = None,
                    end_date: Union[datetime, UTCDateTime, str] = None):
@@ -670,7 +675,7 @@ class Device(BaseModel):
             An ObsPy `Station` object representing this seismic device.
         """
         channels = []
-        for component in self.component_list:
+        for component in self.components:
             channels.append(component.to_channel(
                 location_code=location_code,
                 sampling_rate=sampling_rate,
@@ -686,6 +691,9 @@ class Device(BaseModel):
             start_date=start_date,
             end_date=end_date,
             coordinates=coordinates,
+            alternate_code=self.serial_number,
+            latitude=coordinates.latitude,
+            longitude=coordinates.longitude,
         )
 
     def to_station_lat_long(self, station_code, location_code, latitude, longitude, elevation, sampling_rate,

@@ -19,6 +19,7 @@ from obspy.core.util import AttribDict
 import utm
 import pyproj
 import numpy as np
+from uquake.core.logging import logger
 
 
 class CoordinateSystem(Enum):
@@ -68,7 +69,7 @@ class CoordinateTransformation:
     """
 
     def __init__(
-        self, translation=0, rotation=0, epsg_code=None, scaling=None,
+        self, translation=(0, 0, 0), rotation=None, epsg_code=None, scaling=None,
             reference_elevation=0.0
     ):
         self.translation = translation
@@ -182,11 +183,10 @@ class CoordinateTransformation:
     def sph_crs(self):
         return pyproj.CRS(f'epsg:4326')
 
-    def to_latlon(self, x, y):
+    def to_latlon(self, northing, easting):
         transformation = pyproj.Transformer.from_crs(
             self.utm_crs, self.sph_crs, always_xy=True)
-        return transformation.transform(x, y)
-        pass
+        return transformation.transform(northing, easting)
 
     def from_latlon(self, lat, lon):
         transformation = pyproj.Transformer.from_crs(
@@ -353,3 +353,25 @@ class Coordinates:
         coordinate_transformation = CoordinateTransformation(epsg_code=epsg_code)
         return cls(northing, easting, z, coordinate_system=coordinate_system,
                    transformation=coordinate_transformation)
+
+    def to_lat_lon(self):
+        if self.transformation.rotation is not None:
+            logger.warning('the rotation is not implemented')
+        if (self.coordinate_system == CoordinateSystem.NED or
+                self.coordinate_system == CoordinateSystem.NEU):
+
+            northing = self.x - self.transformation.translation[0]
+            easting = self.y - self.transformation.translation[1]
+        else:
+            northing = self.y - self.transformation.translation[0]
+            easting = self.x - self.transformation.translation[1]
+
+        return self.transformation.to_latlon(northing, easting)
+
+    @property
+    def latitude(self):
+        return self.to_lat_lon()[0]
+
+    @property
+    def longitude(self):
+        return self.to_lat_lon()[1]
