@@ -16,7 +16,7 @@ h5py = "^3.2.1"
 pyproj = "^3.2.1"
 tqdm = "^4.62.3"
 future = "^0.18.2"
-pyasdf = "^0.8.1"
+#pyasdf = "^0.8.1"
 zarr = "^2.16.1"
 matplotlib = "^3.8.2"
 mplstereonet = "^0.6.3"
@@ -36,7 +36,10 @@ jupyter-server-proxy = "^4.4.0"
 pydantic = "^2.10.3"
 #pytantic = "^1.8.2"
 pydantic-settings = "^2.6.1"
-obspy = "^1.4.1"
+#obspy = "^1.4.1"
+obspy = {git = "https://github.com/CAUR-Technologies/obspy.git", rev = "master"}
+
+
 
 [tool.poetry.group.test.dependencies]
 black = ">=23.3.0"
