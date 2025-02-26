@@ -36,23 +36,26 @@ class CoordinateSystem(Enum):
     ENU = 'ENU'
     NEU = 'NEU'
 
-    TRANSFORMATION_MAP = {
-        (NED, ENU): lambda x, y, z: (y, x, -z),
-        (NED, NEU): lambda x, y, z: (x, y, -z),
-        (NED, END): lambda x, y, z: (y, x, z),
+    @classmethod
+    def get_transformation_map(cls):
+        """Returns the transformation mapping between coordinate systems."""
+        return {
+            (cls.NED, cls.ENU): lambda x, y, z: (y, x, -z),
+            (cls.NED, cls.NEU): lambda x, y, z: (x, y, -z),
+            (cls.NED, cls.END): lambda x, y, z: (y, x, z),
 
-        (ENU, NED): lambda x, y, z: (y, x, -z),
-        (ENU, NEU): lambda x, y, z: (y, x, z),
-        (ENU, END): lambda x, y, z: (x, y, -z),
+            (cls.ENU, cls.NED): lambda x, y, z: (y, x, -z),
+            (cls.ENU, cls.NEU): lambda x, y, z: (y, x, z),
+            (cls.ENU, cls.END): lambda x, y, z: (x, y, -z),
 
-        (NEU, NED): lambda x, y, z: (x, y, -z),
-        (NEU, ENU): lambda x, y, z: (y, x, z),
-        (NEU, END): lambda x, y, z: (y, x, -z),
+            (cls.NEU, cls.NED): lambda x, y, z: (x, y, -z),
+            (cls.NEU, cls.ENU): lambda x, y, z: (y, x, z),
+            (cls.NEU, cls.END): lambda x, y, z: (y, x, -z),
 
-        (END, NED): lambda x, y, z: (y, x, z),
-        (END, ENU): lambda x, y, z: (x, y, -z),
-        (END, NEU): lambda x, y, z: (y, x, z),
-    }
+            (cls.END, cls.NED): lambda x, y, z: (y, x, z),
+            (cls.END, cls.ENU): lambda x, y, z: (x, y, -z),
+            (cls.END, cls.NEU): lambda x, y, z: (y, x, z),
+        }
 
     @classmethod
     def transform_coordinates(cls, source: 'CoordinateSystem',
@@ -71,7 +74,7 @@ class CoordinateSystem(Enum):
         if source == target:
             return x, y, z  # No transformation needed
 
-        transform_func = cls.TRANSFORMATION_MAP.get((source, target))
+        transform_func = cls.get_transformation_map().get((source, target))
 
         if transform_func is None:
             raise ValueError(
