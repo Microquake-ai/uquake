@@ -787,7 +787,6 @@ class Device(BaseModel):
 
         channels = []
         for component in self.device_type.components:
-
             channels.append(component.to_channel(
                 location_code,
                 sampling_rate,
