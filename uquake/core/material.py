@@ -768,7 +768,9 @@ class Device(BaseModel):
         # correct for the device azimuth
         azimuth = azimuth % 360
         if self.device_type.coordinate_system != coordinates.coordinate_system:
-            self.change_components_coordinate_system(self.coordinates.coordinate_system)
+            self.device_type.change_components_coordinate_system(
+                self.coordinates.coordinate_system
+            )
         self.device_type.rotate_components_azimuth(azimuth)
 
         channels = []
