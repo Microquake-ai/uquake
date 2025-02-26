@@ -403,20 +403,9 @@ class Coordinates:
         :param azimuth: Azimuth angle in degrees.
         :return: Rotated Coordinates object.
         """
-        azimuth_rad = np.radians(azimuth)
-        cos_azimuth = np.cos(azimuth_rad)
-        sin_azimuth = np.sin(azimuth_rad)
+        new_x, new_y = rotate_azimuth(self.x, self.y, self.coordinate_system, azimuth)
 
-        if self.coordinate_system in [CoordinateSystem.NED, CoordinateSystem.NEU]:
-            new_x = self.x * cos_azimuth - self.y * sin_azimuth
-            new_y = self.x * sin_azimuth + self.y * cos_azimuth
-        else:  # CoordinateSystem.ENU or CoordinateSystem.END
-            new_x = self.y * cos_azimuth - self.x * sin_azimuth
-            new_y = self.y * sin_azimuth + self.x * cos_azimuth
-
-        return Coordinates(
-            new_x, new_y, self.z, self.coordinate_system, self.transformation
-        )
+        return Coordinates(new_x, new_y, self.z, self.coordinate_system, self.transformation)
 
     @classmethod
     def from_json(cls, json_string):
@@ -486,4 +475,30 @@ class Coordinates:
     @property
     def elevation(self):
         return self.up
+
+def rotate_azimuth(
+        x: float, y: float, coordinate_system: CoordinateSystem, azimuth: float
+):
+    """
+    Coordinate system aware rotation of coordinates around the z-axis by the given azimuth
+    Args:
+        x: x-coordinate
+        y: y-coordinate
+        coordinate_system: coordinate system of the input coordinates
+        azimuth: azimuth angle in degrees
+
+    Returns:
+
+    """
+    azimuth_rad = np.radians(azimuth)
+    cos_azimuth = np.cos(azimuth_rad)
+    sin_azimuth = np.sin(azimuth_rad)
+
+    if coordinate_system in [CoordinateSystem.NED, CoordinateSystem.NEU]:
+        new_x = x * cos_azimuth - y * sin_azimuth
+        new_y = x * sin_azimuth + y * cos_azimuth
+    else:  # CoordinateSystem.ENU or CoordinateSystem.END
+        new_x = y * cos_azimuth - x * sin_azimuth
+        new_y = y * sin_azimuth + x * cos_azimuth
+    return new_x, new_y
 
