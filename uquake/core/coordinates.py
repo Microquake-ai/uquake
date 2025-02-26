@@ -321,8 +321,8 @@ class Coordinates:
         """
         if self.transformation:
             return self.transformation.convert_elevation_depth(self.z, to_depth=False)
-        return -self.z if (self.coordinate_system == CoordinateSystem.NED) or \
-                          (self.coordinate_system == CoordinateSystem.END) else self.z
+        return -self.z if self.coordinate_system in [
+            CoordinateSystem.NED, CoordinateSystem.END] else self.z
 
     @property
     def down(self):
