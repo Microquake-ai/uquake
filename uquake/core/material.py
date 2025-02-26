@@ -2,7 +2,7 @@ from .inventory import (Channel, Station, InstrumentSensitivity, Equipment, Resp
                         ResponseStage, PolesZerosResponseStage, CoefficientsTypeResponseStage)
 from obspy.signal.invsim import corn_freq_2_paz
 from .coordinates import Coordinates, CoordinateSystem, rotate_azimuth
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional, Union, Literal
 from datetime import datetime
 from uquake.core import UTCDateTime
@@ -568,7 +568,7 @@ class Components(BaseModel):
         coordinate_system (CoordinateSystem): The coordinate system in which the components are defined.
     """
 
-    components: List[Component]
+    components: List[Component] = Field(default_factory=list)
 
     def __iter__(self):
         return iter(self.components)
@@ -586,8 +586,11 @@ class Components(BaseModel):
 
     def __repr__(self):
         """Provides a string representation of the object."""
-        return (f"Components({len(self.components)} components, "
-                f"coordinate_system={self.coordinate_system})")
+        return (f"Components({len(self.components)} components")
+
+    def append(self, component: Component):
+        """Appends a new component to the list."""
+        self.components.append(component)
 
     def change_coordinate_system(self, new_coordinate_system: CoordinateSystem) -> None:
         """
@@ -601,7 +604,6 @@ class Components(BaseModel):
         """
         self.components = [component.change_coordinate_system(new_coordinate_system) for
                            component in self.components]
-        self.coordinate_system = new_coordinate_system
 
     def rotate_azimuth(self, azimuth: float) -> None:
         """
