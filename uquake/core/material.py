@@ -805,6 +805,7 @@ class Device(BaseModel):
             latitude=coordinates.latitude,
             longitude=coordinates.longitude,
             elevation=coordinates.elevation,
+            channels=channels
         )
 
     def equipment(self, installation_date=None, removal_date=None) -> Equipment:
