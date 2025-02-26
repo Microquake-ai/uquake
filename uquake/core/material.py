@@ -789,7 +789,7 @@ class Device(BaseModel):
 
             channels.append(component.to_channel(
                 location_code=location_code,
-                sampling_rate=sampling_rate,
+                sample_rate=sampling_rate,
                 coordinates=coordinates,
                 start_date=installation_date,
                 end_date=removal_date,
