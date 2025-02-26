@@ -469,9 +469,9 @@ class ComponentType(BaseModel):
         )
 
     def to_channel(self, channel_code, location_code, orientation_vector, sample_rate, coordinates,
-                   serial_number=None, calibration_date=None,
                    start_date: Union[datetime, UTCDateTime, str] = None,
-                   end_date: Union[datetime, UTCDateTime, str] = None):
+                   end_date: Union[datetime, UTCDateTime, str] = None,
+                   equipment: Equipment = None):
 
         if isinstance(start_date, datetime) or isinstance(start_date, str):
             start_date = UTCDateTime(start_date)
@@ -489,27 +489,8 @@ class ComponentType(BaseModel):
             end_date=end_date,
             sample_rate=sample_rate,
             calibration_units=self.sensor.output_units,
-            sensor=self.equipment(serial_number, calibration_date),
+            sensor=equipment,
             coordinates=coordinates
-        )
-
-    def equipment(self, serial_number, calibration_date) -> Equipment:
-        """
-        Returns an `Equipment` object containing metadata about the system.
-
-        Returns
-        -------
-        Equipment
-            An ObsPy `Equipment` object with details such as manufacturer, model,
-            and calibration date.
-        """
-        return Equipment(
-            type=self.type,
-            manufacturer=self.manufacturer,
-            vendor=self.vendor,
-            model=self.model,
-            serial_number=serial_number,
-            calibration_date=calibration_date,
         )
 
 class Component(BaseModel):
@@ -538,10 +519,10 @@ class Component(BaseModel):
     name: str = None
     component_type: ComponentType
 
-    def to_channel(self, location_code, sampling_rate, coordinates, serial_number=None,
-                   calibration_date=None,
+    def to_channel(self, location_code, sampling_rate, coordinates,
                    start_date: Union[datetime, UTCDateTime, str] = None,
-                   end_date: Union[datetime, UTCDateTime, str] = None):
+                   end_date: Union[datetime, UTCDateTime, str] = None,
+                   equipment: Equipment = None):
         """
         Converts the component into an ObsPy `Channel` object.
 
@@ -553,14 +534,12 @@ class Component(BaseModel):
             The sampling rate of the component in Hz.
         coordinates : Coordinates
             The geographical or relative coordinates of the component.
-        serial_number : str, optional
-            The serial number of the component.
-        calibration_date : str, optional
-            The last calibration date of the component.
         start_date : Union[datetime, UTCDateTime, str], optional
             The start date of the channel's validity period.
         end_date : Union[datetime, UTCDateTime, str], optional
             The end date of the channel's validity period.
+        equipment : Equipment, optional
+            The equipment metadata associated with the component.
 
         Returns
         -------
@@ -573,10 +552,9 @@ class Component(BaseModel):
             orientation_vector=self.orientation_vector,
             sample_rate=sampling_rate,
             coordinates=coordinates,
-            serial_number=serial_number,
-            calibration_date=calibration_date,
             start_date=start_date,
             end_date=end_date,
+            equipment=equipment
         )
 
 
@@ -616,9 +594,9 @@ class Device(BaseModel):
         The type of device.
     serial_number : str
         The serial number of the device.
-    calibration_date : str
+    calibration_dates : Optional[List[Union[str, datetime, UTCDateTime]]]
         The date when the device was last calibrated.
-    manufactured_date : str
+    manufactured_date : Union[str, datetime, UTCDateTime]
         The date when the device was manufactured.
 
     Methods
@@ -631,15 +609,11 @@ class Device(BaseModel):
 
     device_type: DeviceType
     serial_number: str
-    calibration_date: Union[str, datetime, UTCDateTime] = None
+    calibration_dates: List[Union[str, datetime, UTCDateTime]] = None
     manufactured_date: Union[str, datetime, UTCDateTime] = None
 
     class Config:
         arbitrary_types_allowed = True
-
-    if calibration_date is not None:
-        if isinstance(calibration_date, datetime) or isinstance(calibration_date, str):
-            start_date = UTCDateTime(calibration_date)
 
     if manufactured_date is not None:
         if isinstance(manufactured_date, datetime) or isinstance(manufactured_date, str):
@@ -650,8 +624,8 @@ class Device(BaseModel):
         return self.serial_number
 
     def to_station(self, station_code, location_code, coordinates: Coordinates, sampling_rate,
-                   start_date: Union[datetime, UTCDateTime, str] = None,
-                   end_date: Union[datetime, UTCDateTime, str] = None):
+                   installation_date: Union[datetime, UTCDateTime, str] = None,
+                   removal_date: Union[datetime, UTCDateTime, str] = None):
         """
         Converts the device into an ObsPy `Station` object.
 
@@ -665,9 +639,9 @@ class Device(BaseModel):
             The geographical or relative coordinates of the station.
         sampling_rate : float
             The sampling rate of the device in Hz.
-        start_date : Union[datetime, UTCDateTime, str], optional
+        installation_date : Union[datetime, UTCDateTime, str], optional
             The start date of the station's validity period.
-        end_date : Union[datetime, UTCDateTime, str], optional
+        removal_date : Union[datetime, UTCDateTime, str], optional
             The end date of the station's validity period.
 
         Returns
@@ -675,68 +649,50 @@ class Device(BaseModel):
         Station
             An ObsPy `Station` object representing this seismic device.
         """
+
+        if isinstance(installation_date, datetime) or isinstance(installation_date, str):
+            installation_date = UTCDateTime(installation_date)
+        if isinstance(removal_date, datetime) or isinstance(removal_date, str):
+            removal_date = UTCDateTime(removal_date)
+
         channels = []
         for component in self.device_type.components:
             channels.append(component.to_channel(
                 location_code=location_code,
                 sampling_rate=sampling_rate,
                 coordinates=coordinates,
-                serial_number=self.serial_number,
-                calibration_date=self.calibration_date,
-                start_date=start_date,
-                end_date=end_date
+                start_date=installation_date,
+                end_date=removal_date,
+                equipment=self.equipment(installation_date, removal_date)
             ))
 
         return Station(
             code=station_code,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=installation_date,
+            end_date=removal_date,
             coordinates=coordinates,
             alternate_code=self.serial_number,
             latitude=coordinates.latitude,
             longitude=coordinates.longitude,
         )
 
-    def to_station_lat_long(self, station_code, location_code, latitude, longitude, elevation, sampling_rate,
-                            start_date: Union[datetime, UTCDateTime, str] = None,
-                            end_date: Union[datetime, UTCDateTime, str] = None):
+    def equipment(self, installation_date=None, removal_date=None) -> Equipment:
         """
-        Converts the device into an ObsPy `Station` using latitude and longitude.
-
-        This method is useful when defining a station's location using GPS
-        coordinates instead of a pre-defined `Coordinates` object.
-
-        Parameters
-        ----------
-        station_code : str
-            The SEED station code.
-        location_code : str
-            The SEED location code.
-        latitude : float
-            The latitude of the station in degrees.
-        longitude : float
-            The longitude of the station in degrees.
-        elevation : float
-            The elevation of the station in meters.
-        sampling_rate : float
-            The sampling rate of the device in Hz.
-        start_date : Union[datetime, UTCDateTime, str], optional
-            The start date of the station's validity period.
-        end_date : Union[datetime, UTCDateTime, str], optional
-            The end date of the station's validity period.
+        Returns an `Equipment` object containing metadata about the system.
 
         Returns
         -------
-        Station
-            An ObsPy `Station` object representing this seismic device.
+        Equipment
+            An ObsPy `Equipment` object with details such as manufacturer, model,
+            and calibration date.
         """
-        coordinates = Coordinates.from_lat_lon(latitude, longitude, elevation, self.coordinate_system)
-
-        return self.to_station(
-            station_code=station_code,
-            location_code=location_code,
-            coordinates=coordinates,
-            sampling_rate=sampling_rate,
-            start_date=start_date,
-            end_date=end_date
+        return Equipment(
+            type=self.type,
+            manufacturer=self.manufacturer,
+            vendor=self.vendor,
+            model=self.model,
+            serial_number=self.serial_number,
+            calibration_dates=self.calibration_dates,
+            installation_date=installation_date,
+            removal_date=removal_date
         )

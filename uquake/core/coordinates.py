@@ -375,3 +375,4 @@ class Coordinates:
     @property
     def longitude(self):
         return self.to_lat_lon()[1]
+
