@@ -383,7 +383,8 @@ class Coordinates:
             self, target_system: CoordinateSystem
     ) -> 'Coordinates':
         """
-        Convert coordinates to a different coordinate system and return a new Coordinates object.
+        Convert coordinates to a different coordinate system and return a new
+        Coordinates object.
 
         :param target_system: Target coordinate system.
         :return: New Coordinates object in the target coordinate system.
@@ -393,6 +394,29 @@ class Coordinates:
         )
 
         return Coordinates(new_x, new_y, new_z, target_system, self.transformation)
+
+    def rotate_azimuth(self, azimuth) -> 'Coordinates':
+        """
+        Rotate the coordinates around the z-axis by the given azimuth angle,
+        taking the coordinate system into account.
+
+        :param azimuth: Azimuth angle in degrees.
+        :return: Rotated Coordinates object.
+        """
+        azimuth_rad = np.radians(azimuth)
+        cos_azimuth = np.cos(azimuth_rad)
+        sin_azimuth = np.sin(azimuth_rad)
+
+        if self.coordinate_system in [CoordinateSystem.NED, CoordinateSystem.NEU]:
+            new_x = self.x * cos_azimuth - self.y * sin_azimuth
+            new_y = self.x * sin_azimuth + self.y * cos_azimuth
+        else:  # CoordinateSystem.ENU or CoordinateSystem.END
+            new_x = self.y * cos_azimuth - self.x * sin_azimuth
+            new_y = self.y * sin_azimuth + self.x * cos_azimuth
+
+        return Coordinates(
+            new_x, new_y, self.z, self.coordinate_system, self.transformation
+        )
 
     @classmethod
     def from_json(cls, json_string):
