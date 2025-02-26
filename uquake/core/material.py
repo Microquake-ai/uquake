@@ -468,7 +468,8 @@ class ComponentType(BaseModel):
             response_stages=self.response_stages
         )
 
-    def to_channel(self, channel_code, location_code, orientation_vector, sample_rate, coordinates,
+    def to_channel(self, channel_code, location_code, orientation_vector, sample_rate,
+                   coordinates,
                    start_date: Union[datetime, UTCDateTime, str] = None,
                    end_date: Union[datetime, UTCDateTime, str] = None,
                    equipment: Equipment = None, **kwargs):
@@ -788,8 +789,8 @@ class Device(BaseModel):
         for component in self.device_type.components:
 
             channels.append(component.to_channel(
-                location_code=location_code,
-                sample_rate=sampling_rate,
+                location_code,
+                sampling_rate,
                 coordinates=coordinates,
                 start_date=installation_date,
                 end_date=removal_date,
