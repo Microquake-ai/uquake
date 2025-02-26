@@ -471,7 +471,7 @@ class ComponentType(BaseModel):
     def to_channel(self, channel_code, location_code, orientation_vector, sample_rate, coordinates,
                    start_date: Union[datetime, UTCDateTime, str] = None,
                    end_date: Union[datetime, UTCDateTime, str] = None,
-                   equipment: Equipment = None):
+                   equipment: Equipment = None, **kwargs):
 
         if isinstance(start_date, datetime) or isinstance(start_date, str):
             start_date = UTCDateTime(start_date)
@@ -490,7 +490,8 @@ class ComponentType(BaseModel):
             sample_rate=sample_rate,
             calibration_units=self.sensor.output_units,
             sensor=equipment,
-            coordinates=coordinates
+            coordinates=coordinates,
+            **kwargs
         )
 
 
@@ -556,6 +557,16 @@ class Component(BaseModel):
             channel_code=self.channel_code,
             name=self.name,
             component_type=self.component_type
+        )
+
+    def to_channel(self, location_code, sample_rate, coordinates,
+                   start_date: Union[datetime, UTCDateTime, str] = None,
+                   end_date: Union[datetime, UTCDateTime, str] = None,
+                   equipment: Equipment = None, **kwargs):
+
+        return self.component_type.to_channel(
+            self.channel_code, location_code, self.orientation_vector, sample_rate,
+            coordinates, start_date, end_date, equipment, **kwargs
         )
 
 
@@ -729,7 +740,7 @@ class Device(BaseModel):
     def to_station(self, station_code: str, location_code: str, coordinates: Coordinates,
                    sampling_rate: float, azimuth: float = 0, tilt: float = 0,
                    installation_date: Union[datetime, UTCDateTime, str] = None,
-                   removal_date: Union[datetime, UTCDateTime, str] = None):
+                   removal_date: Union[datetime, UTCDateTime, str] = None) -> Station:
         """
         Converts the device into an ObsPy `Station` object.
 
