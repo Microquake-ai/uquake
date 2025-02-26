@@ -389,6 +389,7 @@ class ComponentType(BaseModel):
 
     sensor: Union[GenericSensor, Geophone, Accelerometer]
     cable: Optional[Cable] = None
+    type: str
     digitizer: Optional[Digitizer] = None
     description: Optional[str] = None
     manufacturer: Optional[str] = None
