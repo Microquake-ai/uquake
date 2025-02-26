@@ -376,3 +376,11 @@ class Coordinates:
     def longitude(self):
         return self.to_lat_lon()[1]
 
+    @property
+    def depth(self):
+        return self.down
+
+    @property
+    def elevation(self):
+        return self.up
+

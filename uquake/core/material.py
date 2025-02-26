@@ -680,6 +680,7 @@ class Device(BaseModel):
             alternate_code=self.serial_number,
             latitude=coordinates.latitude,
             longitude=coordinates.longitude,
+            elevation=coordinates.elevation,
         )
 
     def equipment(self, installation_date=None, removal_date=None) -> Equipment:
