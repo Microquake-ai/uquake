@@ -569,6 +569,8 @@ class DeviceType(BaseModel):
     ----------
     name : str
         The name of the seismic device.
+    type : str
+        The type of device (e.g., 'nodal geophone', 'accelerometer').
     components : List[Component]
         A list of components included in the device.
     coordinate_system : CoordinateSystem
@@ -576,6 +578,7 @@ class DeviceType(BaseModel):
     """
 
     name: str
+    type: str
     components: List[Component]
     coordinate_system: CoordinateSystem = CoordinateSystem.NED
 
@@ -687,7 +690,7 @@ class Device(BaseModel):
             and calibration date.
         """
         return Equipment(
-            type=self.type,
+            type=self.device_type.type,
             manufacturer=self.manufacturer,
             vendor=self.vendor,
             model=self.model,
