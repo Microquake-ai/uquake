@@ -1,7 +1,7 @@
 from .inventory import (Channel, Station, InstrumentSensitivity, Equipment, Response,
                         ResponseStage, PolesZerosResponseStage, CoefficientsTypeResponseStage)
 from obspy.signal.invsim import corn_freq_2_paz
-from .coordinates import Coordinates, CoordinateSystem
+from .coordinates import Coordinates, CoordinateSystem, rotate_azimuth
 from pydantic import BaseModel
 from typing import List, Optional, Union, Literal
 from datetime import datetime
@@ -493,69 +493,128 @@ class ComponentType(BaseModel):
             coordinates=coordinates
         )
 
+
 class Component(BaseModel):
     """
     Represents an individual seismic component within a system.
 
-    A `Component` is a subclass of `ComponentType` that includes additional
-    metadata such as orientation and channel code. It provides functionality
-    for converting itself into an ObsPy `Channel` object.
-
-    Attributes
-    ----------
-    orientation_vector : List[float]
-        A 3D vector representing the orientation of the component in space.
-    channel_code : str
-        The SEED channel code associated with this component.
-
-    Methods
-    -------
-    to_channel(location_code, sampling_rate, coordinates, serial_number, calibration_date, start_date, end_date)
-        Converts this component into an ObsPy `Channel` object.
+    Attributes:
+        orientation_vector (List[float]): A 3D vector representing the orientation of the component in space.
+        coordinate_system (CoordinateSystem): The coordinate system of the component.
+        channel_code (str): The SEED channel code associated with this component.
+        name (str): Optional name for the component.
+        component_type (ComponentType): Type of the component.
     """
 
     orientation_vector: List[float]
+    coordinate_system: CoordinateSystem
     channel_code: str
     name: str = None
     component_type: ComponentType
 
-    def to_channel(self, location_code, sampling_rate, coordinates,
-                   start_date: Union[datetime, UTCDateTime, str] = None,
-                   end_date: Union[datetime, UTCDateTime, str] = None,
-                   equipment: Equipment = None):
+    def rotate_azimuth(self, azimuth: float) -> 'Component':
         """
-        Converts the component into an ObsPy `Channel` object.
+        Rotates the component's orientation vector around the vertical axis by a given azimuth angle.
 
-        Parameters
-        ----------
-        location_code : str
-            The SEED location code for the component.
-        sampling_rate : float
-            The sampling rate of the component in Hz.
-        coordinates : Coordinates
-            The geographical or relative coordinates of the component.
-        start_date : Union[datetime, UTCDateTime, str], optional
-            The start date of the channel's validity period.
-        end_date : Union[datetime, UTCDateTime, str], optional
-            The end date of the channel's validity period.
-        equipment : Equipment, optional
-            The equipment metadata associated with the component.
+        Args:
+            azimuth (float): The azimuth angle in degrees.
 
-        Returns
-        -------
-        Channel
-            An ObsPy `Channel` object representing this seismic component.
+        Returns:
+            Component: A new rotated component.
         """
-        return self.component_type.to_channel(
+        x, y, z = self.orientation_vector
+        new_x, new_y = rotate_azimuth(x, y, self.coordinate_system, azimuth)
+
+        return Component(
+            orientation_vector=[new_x, new_y, z],
+            coordinate_system=self.coordinate_system,
             channel_code=self.channel_code,
-            location_code=location_code,
-            orientation_vector=self.orientation_vector,
-            sample_rate=sampling_rate,
-            coordinates=coordinates,
-            start_date=start_date,
-            end_date=end_date,
-            equipment=equipment
+            name=self.name,
+            component_type=self.component_type
         )
+
+    def change_coordinate_system(self,
+                                 new_coordinate_system: CoordinateSystem) -> 'Component':
+        """
+        Converts the component's orientation vector to a new coordinate system.
+
+        Args:
+            new_coordinate_system (CoordinateSystem): The target coordinate system.
+
+        Returns:
+            Component: A new component in the target coordinate system.
+        """
+        new_orientation_vector = CoordinateSystem.transform_coordinates(
+            self.coordinate_system, new_coordinate_system,
+            self.orientation_vector[0], self.orientation_vector[1],
+            self.orientation_vector[2]
+        )
+
+        return Component(
+            orientation_vector=new_orientation_vector,
+            coordinate_system=new_coordinate_system,
+            channel_code=self.channel_code,
+            name=self.name,
+            component_type=self.component_type
+        )
+
+
+class Components(BaseModel):
+    """
+    Represents a collection of seismic components with an associated coordinate system.
+
+    Attributes:
+        components (List[Component]): A list of component objects.
+        coordinate_system (CoordinateSystem): The coordinate system in which the components are defined.
+    """
+
+    components: List[Component]
+
+    def __iter__(self):
+        return iter(self.components)
+
+    def __getitem__(self, item):
+        return self.components[item]
+
+    def __len__(self):
+        """Returns the number of components."""
+        return len(self.components)
+
+    def __contains__(self, component: Component):
+        """Checks if a component exists in the components list."""
+        return component in self.components
+
+    def __repr__(self):
+        """Provides a string representation of the object."""
+        return (f"Components({len(self.components)} components, "
+                f"coordinate_system={self.coordinate_system})")
+
+    def change_coordinate_system(self, new_coordinate_system: CoordinateSystem) -> None:
+        """
+        Converts all component orientation vectors to a new coordinate system.
+
+        Args:
+            new_coordinate_system (CoordinateSystem): The target coordinate system.
+
+        Returns:
+            None
+        """
+        self.components = [component.change_coordinate_system(new_coordinate_system) for
+                           component in self.components]
+        self.coordinate_system = new_coordinate_system
+
+    def rotate_azimuth(self, azimuth: float) -> None:
+        """
+        Rotates all component orientation vectors around the vertical axis by a given azimuth angle.
+
+        Args:
+            azimuth (float): The azimuth angle (in degrees) to rotate the components.
+
+        Returns:
+            None
+        """
+        self.components = [component.rotate_azimuth(azimuth) for component in
+                           self.components]
 
 
 class DeviceType(BaseModel):
@@ -582,8 +641,36 @@ class DeviceType(BaseModel):
     manufacturer: str = None,
     vendor: str = None,
     model: str = None,
-    components: List[Component]
+    components: Components
     coordinate_system: CoordinateSystem = CoordinateSystem.NED
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.components.change_coordinate_system(self.coordinate_system)
+
+    def rotate_components_azimuth(self, azimuth: float) -> None:
+        """
+        Rotates all component orientation vectors around the vertical axis by a given azimuth angle.
+
+        Args:
+            azimuth (float): The azimuth angle (in degrees) to rotate the components.
+
+        Returns:
+            None
+        """
+        self.components.rotate_azimuth(azimuth)
+
+    def change_components_coordinate_system(self, new_coordinate_system: CoordinateSystem) -> None:
+        """
+        Converts all component orientation vectors to a new coordinate system.
+
+        Args:
+            new_coordinate_system (CoordinateSystem): The target coordinate system.
+
+        Returns:
+            None
+        """
+        self.components.change_coordinate_system(new_coordinate_system)
 
 
 class Device(BaseModel):
@@ -629,7 +716,16 @@ class Device(BaseModel):
     def device_id(self):
         return self.serial_number
 
-    def to_station(self, station_code, location_code, coordinates: Coordinates, sampling_rate,
+    @property
+    def components(self):
+        return self.device_type.components
+
+    @property
+    def coordinate_system(self):
+        return self.device_type.coordinate_system
+
+    def to_station(self, station_code: str, location_code: str, coordinates: Coordinates,
+                   sampling_rate: float, azimuth: float = 0, tilt: float = 0,
                    installation_date: Union[datetime, UTCDateTime, str] = None,
                    removal_date: Union[datetime, UTCDateTime, str] = None):
         """
@@ -645,6 +741,12 @@ class Device(BaseModel):
             The geographical or relative coordinates of the station.
         sampling_rate : float
             The sampling rate of the device in Hz.
+        azimuth : float
+            The azimuth of the device north axis in degrees (0 if it is oriented north).
+        tilt : float
+            The tilt of the device in degrees (0 if it is leveled). This should be 0
+            for most devices except if the devices is equipped with omni-directional
+            sensors.
         installation_date : Union[datetime, UTCDateTime, str], optional
             The start date of the station's validity period.
         removal_date : Union[datetime, UTCDateTime, str], optional
@@ -661,8 +763,15 @@ class Device(BaseModel):
         if isinstance(removal_date, datetime) or isinstance(removal_date, str):
             removal_date = UTCDateTime(removal_date)
 
+        # correct for the device azimuth
+        azimuth = azimuth % 360
+        if self.device.coordinate_system != coordinates.coordinate_system:
+            self.change_components_coordinate_system(self.coordinates.coordinate_system)
+        self.device_type.rotate_components_azimuth(azimuth)
+
         channels = []
         for component in self.device_type.components:
+
             channels.append(component.to_channel(
                 location_code=location_code,
                 sampling_rate=sampling_rate,
