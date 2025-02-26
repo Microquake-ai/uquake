@@ -579,6 +579,9 @@ class DeviceType(BaseModel):
 
     name: str
     type: str
+    manufacturer: str = None,
+    vendor: str = None,
+    model: str = None,
     components: List[Component]
     coordinate_system: CoordinateSystem = CoordinateSystem.NED
 
@@ -691,9 +694,9 @@ class Device(BaseModel):
         """
         return Equipment(
             type=self.device_type.type,
-            manufacturer=self.manufacturer,
-            vendor=self.vendor,
-            model=self.model,
+            manufacturer=self.device_type.manufacturer,
+            vendor=self.device_type.vendor,
+            model=self.device_type.model,
             serial_number=self.serial_number,
             calibration_dates=self.calibration_dates,
             installation_date=installation_date,
