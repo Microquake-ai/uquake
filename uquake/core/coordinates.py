@@ -185,23 +185,33 @@ class CoordinateTransformation:
 
         return out_str
 
-    def convert_elevation_depth(self, z, to_depth=True):
+    def convert_elevation_depth(self, z, coordinate_system, to_depth=True):
         """
         Convert between elevation and depth using a reference elevation or depth and
         scaling.
 
         :param z: Input elevation or depth.
         :type z: float
+        :param coordinate_system: Coordinate system.
+        :type coordinate_system: CoordinateSystem
         :param to_depth: If True, convert elevation to depth. If False, convert depth to
         elevation.
         :type to_depth: bool
         :return: Converted depth or elevation.
         :rtype: float
         """
+
+        if (coordinate_system in [CoordinateSystem.NED, CoordinateSystem.END]
+                and not to_depth):
+            z = -z
+        elif (coordinate_system in [CoordinateSystem.NEU, CoordinateSystem.ENU]
+                and to_depth):
+            z = -z
+
         if to_depth:
             return (self.reference_elevation - z) * self.scaling
         else:
-            return self.reference_elevation - (z / self.scaling)
+            return z / self.scaling - self.reference_elevation
 
     def apply_transformation(self, x, y, z):
         """
@@ -320,7 +330,9 @@ class Coordinates:
         :rtype: float
         """
         if self.transformation:
-            return self.transformation.convert_elevation_depth(self.z, to_depth=False)
+            return self.transformation.convert_elevation_depth(
+                self.z, self.coordinate_system, to_depth=False
+            )
         return -self.z if self.coordinate_system in [
             CoordinateSystem.NED, CoordinateSystem.END] else self.z
 
@@ -333,7 +345,9 @@ class Coordinates:
         :rtype: float
         """
         if self.transformation:
-            return self.transformation.convert_elevation_depth(self.z, to_depth=True)
+            return self.transformation.convert_elevation_depth(
+                self.z, self.coordinate_system, to_depth=True
+            )
         return self.z if (self.coordinate_system == CoordinateSystem.NED) or \
                          (self.coordinate_system == CoordinateSystem.END) else -self.z
 
