@@ -21,7 +21,6 @@ import pyproj
 import numpy as np
 from uquake.core.logging import logger
 
-
 class CoordinateSystem(Enum):
     """
     Enum class to specify the coordinate system used in microseismic monitoring.
@@ -37,6 +36,49 @@ class CoordinateSystem(Enum):
     ENU = 'ENU'
     NEU = 'NEU'
 
+    TRANSFORMATION_MAP = {
+        (NED, ENU): lambda x, y, z: (y, x, -z),
+        (NED, NEU): lambda x, y, z: (x, y, -z),
+        (NED, END): lambda x, y, z: (y, x, z),
+
+        (ENU, NED): lambda x, y, z: (y, x, -z),
+        (ENU, NEU): lambda x, y, z: (y, x, z),
+        (ENU, END): lambda x, y, z: (x, y, -z),
+
+        (NEU, NED): lambda x, y, z: (x, y, -z),
+        (NEU, ENU): lambda x, y, z: (y, x, z),
+        (NEU, END): lambda x, y, z: (y, x, -z),
+
+        (END, NED): lambda x, y, z: (y, x, z),
+        (END, ENU): lambda x, y, z: (x, y, -z),
+        (END, NEU): lambda x, y, z: (y, x, z),
+    }
+
+    @classmethod
+    def transform_coordinates(cls, source: 'CoordinateSystem',
+                              target: 'CoordinateSystem',
+                              x: float, y: float, z: float):
+        """
+        Transform coordinates from one system to another using predefined mappings.
+
+        :param source: Source coordinate system.
+        :param target: Target coordinate system.
+        :param x: X-coordinate.
+        :param y: Y-coordinate.
+        :param z: Z-coordinate.
+        :return: Transformed coordinates as (x, y, z).
+        """
+        if source == target:
+            return x, y, z  # No transformation needed
+
+        transform_func = cls.TRANSFORMATION_MAP.get((source, target))
+
+        if transform_func is None:
+            raise ValueError(
+                f"Unsupported coordinate transformation from {source} to {target}")
+
+        return transform_func(x, y, z)
+
     def __repr__(self):
         if self.name == "NED":
             return "North, East, Down (NED)"
@@ -49,6 +91,28 @@ class CoordinateSystem(Enum):
 
     def __str__(self):
         return str(self.name)
+
+    def map(self, from_coordinate_system, to_coordinate_system):
+        coordinate_system_map = {
+            (CoordinateSystem.NED, CoordinateSystem.ENU): (self.y, self.x, -self.z),
+            (CoordinateSystem.NED, CoordinateSystem.NEU): (self.x, self.y, -self.z),
+            (CoordinateSystem.NED, CoordinateSystem.END): (self.y, self.x, self.z),
+
+            (CoordinateSystem.ENU, CoordinateSystem.NED): (self.y, self.x, -self.z),
+            (CoordinateSystem.ENU, CoordinateSystem.NEU): (self.y, self.x, self.z),
+            (CoordinateSystem.ENU, CoordinateSystem.END): (self.x, self.y, -self.z),
+
+            (CoordinateSystem.NEU, CoordinateSystem.NED): (self.x, self.y, -self.z),
+            (CoordinateSystem.NEU, CoordinateSystem.ENU): (self.y, self.x, self.z),
+            (CoordinateSystem.NEU, CoordinateSystem.END): (self.y, self.x, -self.z),
+
+            (CoordinateSystem.END, CoordinateSystem.NED): (self.y, self.x, self.z),
+            (CoordinateSystem.END, CoordinateSystem.ENU): (self.x, self.y, -self.z),
+            (CoordinateSystem.END, CoordinateSystem.NEU): (self.y, self.x, self.z),
+        }
+
+        raise ValueError(f"Cannot map {from_coordinate_system} to {to_coordinate_system}")
+
 
 
 class CoordinateTransformation:
@@ -314,6 +378,21 @@ class Coordinates:
             else:
                 out_dict[key] = self.__dict__[key]
         return json.dumps(out_dict)
+
+    def convert_coordinate_system(
+            self, target_system: CoordinateSystem
+    ) -> 'Coordinates':
+        """
+        Convert coordinates to a different coordinate system and return a new Coordinates object.
+
+        :param target_system: Target coordinate system.
+        :return: New Coordinates object in the target coordinate system.
+        """
+        new_x, new_y, new_z = CoordinateSystem.transform_coordinates(
+            self.coordinate_system, target_system, self.x, self.y, self.z
+        )
+
+        return Coordinates(new_x, new_y, new_z, target_system, self.transformation)
 
     @classmethod
     def from_json(cls, json_string):
