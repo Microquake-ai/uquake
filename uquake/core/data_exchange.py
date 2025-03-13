@@ -268,7 +268,7 @@
 #             eig_vect /= np.linalg.norm(eig_vect)
 #             ray = origin.rays.select(network=network, station=station, location=location,
 #                                      phase='P')[0]
-# 
+#
 #
 # class ASDFHandler:
 #     def __init__(self, asdf_file_path, compression='gzip-3', mode='a', **kwargs):
