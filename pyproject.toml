@@ -43,7 +43,7 @@ obspy = {git = "https://github.com/CAUR-Technologies/obspy.git", rev = "master"}
 
 [tool.poetry.group.test.dependencies]
 black = ">=23.3.0"
-coverage = { extras = ["toml"], version = ">=7.2.5" }
+coverage = {extras = ["toml"], version = ">=7.2.5" }
 mypy = ">=1.2.0"
 poethepoet = ">=0.20.0"
 pre-commit = ">=3.3.1"

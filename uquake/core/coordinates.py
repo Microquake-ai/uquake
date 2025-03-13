@@ -21,6 +21,7 @@ import pyproj
 import numpy as np
 from uquake.core.logging import logger
 
+
 class CoordinateSystem(Enum):
     """
     Enum class to specify the coordinate system used in microseismic monitoring.

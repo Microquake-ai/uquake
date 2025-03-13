@@ -318,8 +318,11 @@ class Cable(BaseModel):
         list
             A list containing the computed pole, or an empty list if no pole is needed.
         """
-        if (self.output_resistance * self.cable_length * self.cable_capacitance) not in [0, np.inf]:
-            pole_cable = -1 / (self.output_resistance * self.cable_length * self.cable_capacitance)
+        if (self.output_resistance * self.cable_length * self.cable_capacitance) \
+                not in [0, np.inf]:
+            pole_cable = -1 / (
+                    self.output_resistance * self.cable_length * self.cable_capacitance
+            )
             return [pole_cable]
         return []
 
@@ -384,7 +387,8 @@ class ComponentType(BaseModel):
     -----
     - The response is dynamically built based on available components.
     - If a cable is included, its response is added before the digitizer.
-    - The `response` property ensures seamless integration with ObsPy’s response handling.
+    - The `response` property ensures seamless integration with ObsPy’s response
+    handling.
     """
 
     sensor: Union[GenericSensor, Geophone, Accelerometer]
