@@ -1,5 +1,4 @@
 import numpy as np
-from uquake.core.trace import Trace
 
 
 class BrunePulse:
