@@ -18,6 +18,7 @@ from uquake.core.coordinates import Coordinates
 import random
 import numpy as np
 import string
+from uquake.core import material
 
 
 def generate_unique_instrument_code(n_codes: int = 1):
@@ -35,10 +36,16 @@ def generate_unique_instrument_code(n_codes: int = 1):
     return list(codes)
 
 
-def generate_inventory(n_stations=30):
+def generate_inventory(n_stations=30, geophone=True):
     stations = []
     for i in range(n_stations):
-        channels = []
+
+        station_code = f'STA{i:02d}'
+        x, y, z = [random.randint(0, 1000) for _ in range(3)]
+        station = inventory.Station(
+            station_code, coordinates=Coordinates(x, y, z), channels=[]
+        )
+
         for channel_code in ['x', 'y', 'z']:
             x, y, z = [random.randint(0, 1000) for _ in range(3)]
             location_code = '00'
@@ -46,28 +53,21 @@ def generate_inventory(n_stations=30):
                                            range(3)]).astype(float)
             orientation_vector /= np.linalg.norm(orientation_vector)
 
-            if random.choice([True, False]):
-                system_response = inventory.SystemResponse('geophone',
-                                                           resonance_frequency=15,
-                                                           gain=47)
+            if geophone:
+                sensor = material.Geophone()
             else:
-                system_response = inventory.SystemResponse('accelerometer',
-                                                           resonance_frequency=2300,
-                                                           gain=100,
-                                                           sensitivity=0.2)
+                sensor = material.Accelerometer()
 
-            system_response.add_cable(output_resistance=2500, cable_length=1000,
-                                      cable_capacitance=1e-12)
+            device = material.ComponentType(sensor=sensor)
 
-            channels.append(inventory.Channel(channel_code, location_code,
-                                              coordinates=Coordinates(x, y, z),
-                                              orientation_vector=orientation_vector,
-                                              response=system_response.response))
-        station_code = f'STA{i:02d}'
-        x, y, z = [random.randint(0, 1000) for _ in range(3)]
-        stations.append(inventory.Station(station_code,
-                                          coordinates=Coordinates(x, y, z),
-                                          channels=channels))
+            station.channels.append(
+                device.to_channel(
+                    channel_code, location_code=location_code,
+                    orientation_vector=[1, 0, 0], sample_rate=500,
+                    coordinates=Coordinates(x, y, z)
+                )
+            )
+        stations.append(station)
 
     network = inventory.Network(code='XX', stations=stations)
     inv = inventory.Inventory(networks=[network])
