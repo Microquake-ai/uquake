@@ -500,9 +500,9 @@ class Grid(object):
         """
         """
         x = []
-        for i, (dimension, spacing) in \
-                enumerate(zip(self.data.shape, self.spacing)):
-            v = np.arange(0, dimension) * spacing + self.origin[0]
+        for i, (dimension, spacing, origin) in \
+                enumerate(zip(self.data.shape, self.spacing, self.origin)):
+            v = np.arange(0, dimension) * spacing + origin
             x.append(v)
 
         if not mesh_grid:
