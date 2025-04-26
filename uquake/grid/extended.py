@@ -274,7 +274,7 @@ class Seed:
 
 class SeedEnsemble:
 
-    def __init__(self, seeds: List[Seed] = [], units: GridUnits = GridUnits.METER):
+    def __init__(self, seeds: List[Seed] = None, units: GridUnits = GridUnits.METER):
         """
         specifies a series of source location from an inventory object
         :param seeds: a list of locations containing at least the location,
@@ -290,9 +290,8 @@ class SeedEnsemble:
         >>> seeds = SeedEnsemble([seed])
 
         """
-
         self.units = units
-        self.seeds = seeds
+        self.seeds = seeds if seeds is not None else []
 
     def __len__(self):
         return len(self.seeds)
@@ -334,6 +333,15 @@ class SeedEnsemble:
     def add(self, seed: Seed):
         """
         Add a single location to the source list
+        :param location:
+        :type location: Seed
+        """
+
+        self.seeds.append(seed)
+
+    def append(self, seed: Seed):
+        """
+        Append a list of locations to the source list
         :param location:
         :type location: Seed
         """
@@ -2760,7 +2768,7 @@ class PhaseVelocity(Grid):
     def to_rgrid(self, n_secondary: Union[int, Tuple[int, int]], cell_slowness=False,
                  threads: int = 1):
         """
-        Convert the current object to an rgrid object (see ttcrpy).
+        Convert the current object to a rgrid object (see ttcrpy).
 
         :param n_secondary: Number of secondary nodes for grid refinement. If an integer
                             is provided, it is used for both dimensions. If a tuple is
