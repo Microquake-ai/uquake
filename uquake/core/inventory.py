@@ -434,7 +434,6 @@ class Station(inventory.Station):
                 logger.warning(f'Latitude or Longitude are not'
                                f'defined for station {obspy_station.code}.')
 
-                output_projection = 32725
 
         stn.channels = []
 

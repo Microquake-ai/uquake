@@ -3,7 +3,7 @@ from .inventory import (Channel, Station, InstrumentSensitivity, Equipment, Resp
 from obspy.signal.invsim import corn_freq_2_paz
 from .coordinates import Coordinates, CoordinateSystem, rotate_azimuth
 from pydantic import BaseModel, Field
-from typing import List, Optional, Union, Literal
+from typing import List, Optional, Union, Literal, ClassVar
 from datetime import datetime
 from uquake.core import UTCDateTime
 import numpy as np
@@ -130,23 +130,27 @@ class Geophone(GenericSensor):
     such as input and output units.
     """
 
-    sensor_type: Literal['geophone'] = 'geophone'  # ✅ Correctly annotated
-    input_units: Literal['V'] = 'V'  # ✅ Correctly annotated
-    output_units: Literal['M/S'] = 'M/S'  # ✅ Correctly annotated
-    gain: float = 1
-    stage_sequence_number: int = 0
+    _sensor_type: ClassVar[str] = 'geophone'
+    _input_units: ClassVar[str] = 'V'
+    _output_units: ClassVar[str] = 'M/S'
+    _gain: ClassVar[float] = 1
+    _stage_sequence_number: ClassVar[int] = 0
 
-    def __init__(self, model: str, sensitivity: float, damping: float, natural_frequency: float):
+    def __init__(self,
+                 model: str = 'geophone',
+                 sensitivity: float = 1,
+                 damping: float = 0.707,
+                 natural_frequency: float = 10):
         super().__init__(
-            sensor_type=self.sensor_type,
+            sensor_type=self._sensor_type,
             model=model,
-            input_units=self.input_units,
-            output_units=self.output_units,
+            input_units=self._input_units,
+            output_units=self._output_units,
             natural_frequency=natural_frequency,
             sensitivity=sensitivity,
             damping=damping,
-            stage_sequence_number=self.stage_sequence_number,
-            gain=self.gain
+            stage_sequence_number=self._stage_sequence_number,
+            gain=self._gain
         )
 
 
@@ -158,23 +162,27 @@ class Accelerometer(GenericSensor):
     such as input and output units.
     """
 
-    sensor_type: Literal['accelerometer'] = 'accelerometer'  # ✅ Correctly annotated
-    input_units: Literal['V'] = 'V'  # ✅ Correctly annotated
-    output_units: Literal['M/S/S'] = 'M/S/S'  # ✅ Correctly annotated
-    gain: float = 1
-    stage_sequence_number: int = 0
+    _sensor_type: ClassVar[str] = 'accelerometer'  # ✅ Correctly annotated
+    _input_units: ClassVar[str] = 'V'
+    _output_units: ClassVar[str] = 'M/S/S'
+    _gain: ClassVar[float] = 1
+    _stage_sequence_number: ClassVar[int] = 0
 
-    def __init__(self, model: str, sensitivity: float, natural_frequency: float, damping=0.707):
+    def __init__(self,
+                 model: str = 'accelerometer',
+                 sensitivity: float = 1,
+                 natural_frequency: float = 2300,
+                 damping: float = 0.707):
         super().__init__(
-            sensor_type=self.sensor_type,
+            sensor_type=self._sensor_type,
             model=model,
-            input_units=self.input_units,
-            output_units=self.output_units,
+            input_units=self._input_units,
+            output_units=self._output_units,
             natural_frequency=natural_frequency,
             sensitivity=sensitivity,
             damping=damping,  # Default damping for accelerometers
-            stage_sequence_number=self.stage_sequence_number,
-            gain=self.gain
+            stage_sequence_number=self._stage_sequence_number,
+            gain=self._gain
         )
 
 
@@ -318,8 +326,11 @@ class Cable(BaseModel):
         list
             A list containing the computed pole, or an empty list if no pole is needed.
         """
-        if (self.output_resistance * self.cable_length * self.cable_capacitance) not in [0, np.inf]:
-            pole_cable = -1 / (self.output_resistance * self.cable_length * self.cable_capacitance)
+        if (self.output_resistance * self.cable_length * self.cable_capacitance) \
+                not in [0, np.inf]:
+            pole_cable = -1 / (
+                    self.output_resistance * self.cable_length * self.cable_capacitance
+            )
             return [pole_cable]
         return []
 
@@ -384,12 +395,13 @@ class ComponentType(BaseModel):
     -----
     - The response is dynamically built based on available components.
     - If a cable is included, its response is added before the digitizer.
-    - The `response` property ensures seamless integration with ObsPy’s response handling.
+    - The `response` property ensures seamless integration with ObsPy’s response
+    handling.
     """
 
     sensor: Union[GenericSensor, Geophone, Accelerometer]
+    type: Optional[str] = 'generic'
     cable: Optional[Cable] = None
-    type: str
     digitizer: Optional[Digitizer] = None
     description: Optional[str] = None
     manufacturer: Optional[str] = None
@@ -468,7 +480,8 @@ class ComponentType(BaseModel):
             response_stages=self.response_stages
         )
 
-    def to_channel(self, channel_code, location_code, orientation_vector, sample_rate, coordinates,
+    def to_channel(self, channel_code, location_code, orientation_vector, sample_rate,
+                   coordinates,
                    start_date: Union[datetime, UTCDateTime, str] = None,
                    end_date: Union[datetime, UTCDateTime, str] = None,
                    equipment: Equipment = None, **kwargs):
@@ -786,10 +799,9 @@ class Device(BaseModel):
 
         channels = []
         for component in self.device_type.components:
-
             channels.append(component.to_channel(
-                location_code=location_code,
-                sampling_rate=sampling_rate,
+                location_code,
+                sampling_rate,
                 coordinates=coordinates,
                 start_date=installation_date,
                 end_date=removal_date,
@@ -805,6 +817,7 @@ class Device(BaseModel):
             latitude=coordinates.latitude,
             longitude=coordinates.longitude,
             elevation=coordinates.elevation,
+            channels=channels
         )
 
     def equipment(self, installation_date=None, removal_date=None) -> Equipment:
