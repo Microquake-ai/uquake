@@ -36,7 +36,7 @@ jupyter-server-proxy = "^4.4.0"
 pydantic = "^2.10.3"
 #pytantic = "^1.8.2"
 pydantic-settings = "^2.6.1"
-obspy = "1.4.0"
+obspy = "1.4.2"
 # obspy = {git = "https://github.com/CAUR-Technologies/obspy.git", rev = "master"}
 
 
