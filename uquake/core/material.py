@@ -1,5 +1,6 @@
 from .inventory import (Channel, Station, InstrumentSensitivity, Equipment, Response,
                         ResponseStage, PolesZerosResponseStage, CoefficientsTypeResponseStage)
+
 from obspy.signal.invsim import corn_freq_2_paz
 from .coordinates import Coordinates, CoordinateSystem, rotate_azimuth
 from pydantic import BaseModel, Field
@@ -253,12 +254,17 @@ class Digitizer(BaseModel):
             input_units=self.input_units,
             output_units=self.output_units,
             pz_transfer_function_type="LAPLACE (RADIANS/SECOND)",
-            zeros=[],  # no zeros
-            poles=[],  # no poles
-            normalization_factor=self.gain,
             normalization_frequency=1.0,
+            normalization_factor=1.0,
+            zeros=[],  # No poles or zeros: flat gain response
+            poles=[],
             name=self.model,
-            description="Digitizer gain stage as flat response"
+            description="Digitizer gain stage with decimation",
+            decimation_input_sample_rate=self.sampling_rate,
+            decimation_factor=1,
+            decimation_offset=0,
+            decimation_delay=0.0,
+            decimation_correction=0.0
         )
 
 
