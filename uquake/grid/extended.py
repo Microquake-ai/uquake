@@ -525,7 +525,7 @@ class TypedGrid(Grid):
             return False
 
     def plot_slice(self, axis: int, slice_position: float, grid_space: bool = False,
-                   field_name=None):
+                   field_name=None, **kwargs):
         fig, ax = plt.subplots()
         match axis:
             case 2:
@@ -543,7 +543,8 @@ class TypedGrid(Grid):
                                        self.corner[0],
                                        self.origin[1],
                                        self.corner[1]),
-                               cmap="seismic")
+                               cmap="seismic",
+                               **kwargs)
                 if self.grid_units == GridUnits.METER:
                     ax.set_xlabel("X (m)")
                     ax.set_ylabel("Y (m)")
@@ -563,8 +564,9 @@ class TypedGrid(Grid):
                 im = ax.imshow(self.data[:, j, :].T, extent=(self.origin[0],
                                                              self.corner[0],
                                                              self.corner[2],
-                                                             self.origin[2]),
-                               cmap="seismic")
+                                                             self.origin[2],),
+                               cmap="seismic",
+                               **kwargs)
                 if self.grid_units == GridUnits.METER:
                     ax.set_xlabel("X (m)")
                     ax.set_ylabel("Z (m)")
@@ -587,7 +589,8 @@ class TypedGrid(Grid):
                                                              self.corner[1],
                                                              self.corner[2],
                                                              self.origin[2]),
-                               cmap="seismic")
+                               cmap="seismic",
+                               **kwargs)
                 if self.grid_units == GridUnits.METER:
                     ax.set_xlabel("Y (m)")
                     ax.set_ylabel("Z (m)")
@@ -1296,12 +1299,12 @@ class VelocityGrid3D(TypedGrid):
 
     def plot_slice(self, axis: int, slice_position: float, grid_space: bool = False,
                    ** kwargs):
-        field_name = f'Velocity {self.phase.value}_wave'
+        field_name = f'{self.phase.value} wave velocity '
         if self.grid_units == GridUnits.METER:
             field_name += ' (m/s)'
         if self.grid_units == GridUnits.KILOMETER:
             field_name += ' (km/s)'
-        fig, ax = super().plot_slice(axis, slice_position, grid_space, field_name)
+        fig, ax = super().plot_slice(axis, slice_position, grid_space, field_name, **kwargs)
         return fig, ax
 
 
