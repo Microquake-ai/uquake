@@ -55,8 +55,8 @@ from typing import Union, Tuple
 from ttcrpy import rgrid
 from scipy.signal import fftconvolve
 from disba import PhaseDispersion, PhaseSensitivity
-import skfmm
-import dask
+# import skfmm
+# import dask
 from evtk import hl
 
 __cpu_count__ = cpu_count()
@@ -1165,6 +1165,7 @@ class VelocityGrid3D(TypedGrid):
         phi[int(np.floor(len(x_i) / 2)), int(np.floor(len(y_i) / 2)),
         int(np.floor(len(z_i) / 2))] = 0
 
+        # TODO change with ttcrpy instead of skfmm
         tt_tmp = skfmm.travel_time(phi, vel, dx=sub_grid_spacing)
 
         tt_tmp_grid = TTGrid(self.network_code, tt_tmp, [x_i[0], y_i[0], z_i[0]],
