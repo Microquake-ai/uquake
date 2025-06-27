@@ -56,8 +56,6 @@ from typing import Union, Tuple
 from ttcrpy import rgrid
 from scipy.signal import fftconvolve
 from disba import PhaseDispersion, PhaseSensitivity
-# import skfmm
-# import dask
 from evtk import hl
 
 __cpu_count__ = cpu_count()
