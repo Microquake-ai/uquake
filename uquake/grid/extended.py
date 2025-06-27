@@ -31,6 +31,7 @@
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+import matplotlib
 import numpy as np
 from .base import Grid
 from pathlib import Path
@@ -2839,44 +2840,70 @@ class PhaseVelocity(Grid):
 
         super().write(filename, format=format, field_name=field_name, **kwargs)
 
-    def plot(self, receivers: Union[np.ndarray, SeedEnsemble] = None):
+    def plot(
+        self,
+        receivers: Optional[Union[np.ndarray, SeedEnsemble]] = None,
+        figsize: Tuple[float, float] = (10, 8),
+        vmin: Optional[float] = None,
+        vmax: Optional[float] = None,
+        **imshow_kwargs,
+    ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
         """
-        Plot the grid data.
+        Plot the grid data with optional receiver overlay.
 
-        This method plots the grid data using Matplotlib.
-        The grid data is displayed as an image with an optional overlay
-        of receiver locations.
+        Parameters:
+            receivers: Optional overlay of receiver positions (np.ndarray or SeedEnsemble).
+            figsize: Matplotlib figure size in inches. Defaults to (10, 8).
+            vmin: Minimum velocity for color scale. If None, uses 1st percentile.
+            vmax: Maximum velocity for color scale. If None, uses 99th percentile.
+            **imshow_kwargs: Additional keyword arguments passed to ax.imshow().
 
-        :param receivers: Receiver locations to be overlaid on the grid plot.
-                          If an `np.ndarray` is provided, it should have shape (N, 2)
-                          where N is the number of receivers  and the two columns
-                          represent the x and y coordinates, respectively. If a
-                          `SeedEnsemble` is provided, it should have a `locs` attribute
-                          with receiver coordinates.
-        :type receivers: Union[np.ndarray, SeedEnsemble], optional
-        :return: The Matplotlib figure and axes objects containing the plot.
-        :rtype: Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]
+        Returns:
+            fig, ax: Matplotlib figure and axes with the plotted grid.
         """
-        fig, ax = plt.subplots()
-        cax = ax.imshow(self.data.T, origin='lower', extent=(self.origin[0], self.corner[0],
-                                                        self.origin[1], self.corner[1]),
-                   cmap="seismic")
 
+        fig, ax = plt.subplots(figsize=figsize)
+
+        if self.coordinate_system == CoordinateSystem.NED:
+            grid_data = self.data.T
+        else:
+            grid_data = self.data
+
+        if vmin is None:
+            vmin = np.percentile(grid_data, 1)
+        if vmax is None:
+            vmax = np.percentile(grid_data, 99)
+
+        cax = ax.imshow(
+            grid_data,
+            origin="lower",
+            extent=(self.origin[0], self.corner[0], self.origin[1], self.corner[1]),
+            cmap="seismic",
+            vmin=vmin,
+            vmax=vmax,
+            **imshow_kwargs,
+        )
         cb = fig.colorbar(cax)
+
         if self.grid_units == GridUnits.METER:
             ax.set_xlabel("X (m)")
             ax.set_ylabel("Y (m)")
-            cb.set_label('Vel ' + self.phase.value + ' (m/s)', rotation=270, labelpad=10)
+            cb.set_label("Vel " + self.phase.value + " (m/s)", rotation=270, labelpad=10)
+
         if self.grid_units == GridUnits.KILOMETER:
-            plt.xlabel("X (km)")
-            plt.ylabel("Y (km)")
-            cb.set_label('Vel ' + self.phase.value + ' (km/s)', rotation=270, labelpad=10)
-        ax.set_title("period = {0:1.2f} s".format(self.period))
+            ax.set_xlabel("X (km)")
+            ax.set_ylabel("Y (km)")
+            cb.set_label("Velocity (km/s)", rotation=270, labelpad=10)
+
+        ax.set_title("Period = {0:1.2f} s".format(self.period))
+
         if isinstance(receivers, np.ndarray):
-            ax.plot(receivers[:, 0], receivers[:, 1], 's', color='yellow')
+            ax.plot(receivers[:, 0], receivers[:, 1], "s", color="yellow")
+
         if isinstance(receivers, SeedEnsemble):
             coordinates = receivers.locs
-            ax.plot(coordinates[:, 0], coordinates[:, 1], 's', color='yellow')
+            ax.plot(coordinates[:, 0], coordinates[:, 1], "s", color="yellow")
+
         return fig, ax
 
     def __repr__(self):
