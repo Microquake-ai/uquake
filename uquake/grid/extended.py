@@ -62,7 +62,7 @@ __cpu_count__ = cpu_count()
 
 valid_phases = ('P', 'S')
 
-# In many cases, where Z is ignored North-Up-Down and North-East-Up can be treated as the same
+# In many cases, where Z is ignored, North-Up-Down and North-East-Up can be treated as the same
 NORTH_EAST_SYSTEMS = {CoordinateSystem.NED, CoordinateSystem.NEU}
 
 
