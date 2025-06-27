@@ -52,7 +52,7 @@ from uquake.core.inventory import Inventory
 from uquake.synthetic.inventory import generate_unique_instrument_code
 from uquake.core.event import ResourceIdentifier
 from .base import __default_grid_label__
-from typing import Union, Tuple
+from typing import Set, Tuple, Union
 from ttcrpy import rgrid
 from scipy.signal import fftconvolve
 from disba import PhaseDispersion, PhaseSensitivity
@@ -2741,9 +2741,8 @@ class PhaseVelocity(Grid):
         span of the inventory and the specified padding. It then creates and
         returns a grid object with the calculated parameters.
         """
-        # Get the instrument locations
-        locations_x = [instrument.x for instrument in inventory.instruments]
-        locations_y = [instrument.y for instrument in inventory.instruments]
+       
+        locations_x, locations_y, _ = normalize_inventory_coordinates(inventory, strict=True)
 
         # Determine the span of the inventory
         min_coords = np.array([np.min(locations_x), np.min(locations_y)])
@@ -3181,3 +3180,56 @@ class PhaseVelocityEnsemble(list):
         plt.grid(which='major', linewidth=0.8)
         plt.grid(which='minor', linestyle=':', linewidth=0.5)
         plt.show()
+
+
+def normalize_inventory_coordinates(
+    inventory: Inventory,
+    strict: bool = False
+) -> Tuple[List[float], List[float], Set[CoordinateSystem]]:
+    """
+    Normalize all instrument coordinates in an inventory to a consistent XY layout.
+
+    Instruments using a North-East coordinate system (like NED or NEU) are flipped
+    so that:
+        - Easting becomes X
+        - Northing becomes Y
+
+    :param inventory: The Inventory containing instruments with coordinates.
+    :param strict: If True, raise error on unknown/missing coordinate systems.
+    :return: (locations_x, locations_y, unique_coordinate_systems)
+    """
+
+    locations_x = []
+    locations_y = []
+    coord_systems = set()
+
+    for inst in inventory.instruments:
+        coords = getattr(inst, "coordinates", None)
+        if coords is None:
+            if strict:
+                raise ValueError(f"Instrument {inst} has no `.coordinates` attribute.")
+            else:
+                print(f"Warning: Instrument {inst} has no `.coordinates` — skipping.")
+                continue
+
+        coordinate_system = getattr(coords, "coordinate_system", None)
+        if coordinate_system is None:
+            if strict:
+                raise ValueError(f"Instrument {inst} has no `coordinate_system`.")
+            else:
+                print(f"Warning: Instrument {inst} has no `coordinate_system` — skipping.")
+                continue
+
+        coord_systems.add(coordinate_system)
+
+        if coordinate_system in NORTH_EAST_SYSTEMS:
+            locations_x.append(coords.y)  # Easting
+            locations_y.append(coords.x)  # Northing
+        else:
+            locations_x.append(coords.x)
+            locations_y.append(coords.y)
+
+    if not locations_x or not locations_y:
+        raise ValueError("No valid coordinates found in inventory.")
+
+    return locations_x, locations_y, coord_systems
