@@ -2865,9 +2865,9 @@ class PhaseVelocity(Grid):
         fig, ax = plt.subplots(figsize=figsize)
 
         if self.coordinate_system == CoordinateSystem.NED:
-            grid_data = self.data.T
-        else:
             grid_data = self.data
+        else:
+            grid_data = self.data.T
 
         if vmin is None:
             vmin = np.percentile(grid_data, 1)
