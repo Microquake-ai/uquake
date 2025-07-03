@@ -2864,11 +2864,10 @@ class PhaseVelocity(Grid):
 
         fig, ax = plt.subplots(figsize=figsize)
 
-        if self.coordinate_system == CoordinateSystem.NED:
-            grid_data = self.data
-        else:
-            grid_data = self.data.T
-
+        # Now that grid coords are normalized x -> easting, y -> northing, we always want to transpose the data for the
+        # spatial plot
+        grid_data = self.data.T 
+        
         if vmin is None:
             vmin = np.percentile(grid_data, 1)
         if vmax is None:
