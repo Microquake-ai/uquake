@@ -57,6 +57,9 @@ from ttcrpy import rgrid
 from scipy.signal import fftconvolve
 from disba import PhaseDispersion, PhaseSensitivity
 from evtk import hl
+from matplotlib.path import Path as matplot_path
+from matplotlib.colors import to_rgb
+
 
 __cpu_count__ = cpu_count()
 
@@ -2843,9 +2846,10 @@ class PhaseVelocity(Grid):
     def plot(
         self,
         receivers: Optional[Union[np.ndarray, SeedEnsemble]] = None,
-        figsize: Tuple[float, float] = (10, 8),
+        fig_size: Tuple[float, float] = (10, 8),
         vmin: Optional[float] = None,
         vmax: Optional[float] = None,
+        mask: Optional[dict] = None,
         **imshow_kwargs,
     ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
         """
@@ -2853,7 +2857,7 @@ class PhaseVelocity(Grid):
 
         Parameters:
             receivers: Optional overlay of receiver positions (np.ndarray or SeedEnsemble).
-            figsize: Matplotlib figure size in inches. Defaults to (10, 8).
+            fig_size: Matplotlib figure size in inches. Defaults to (10, 8).
             vmin: Minimum velocity for color scale. If None, uses 1st percentile.
             vmax: Maximum velocity for color scale. If None, uses 99th percentile.
             **imshow_kwargs: Additional keyword arguments passed to ax.imshow().
@@ -2861,23 +2865,56 @@ class PhaseVelocity(Grid):
         Returns:
             fig, ax: Matplotlib figure and axes with the plotted grid.
         """
+        if mask is not None:
+            mask_outline = mask['mask_outline']
 
-        fig, ax = plt.subplots(figsize=figsize)
+            # Check if mask_edges is a list
+            if isinstance(mask_outline, list):
+                if all(isinstance(item, (list, np.ndarray)) and len(item) == 2 for item
+                       in mask_outline):
+                    if isinstance(mask_outline[0], np.ndarray) and np.array(
+                            mask_outline).ndim == 2:
+                        polygon_path = matplot_path(np.array(mask_outline))
+                    else:
+                        raise ValueError("Mask edges list must contain 2D points.")
+                else:
+                    raise ValueError(
+                        "Mask edges list must contain lists or arrays of 2D points.")
 
-        # Now that grid coords are normalized x -> easting, y -> northing, we always want to transpose the data for the
-        # spatial plot
-        grid_data = self.data.T 
-        
+            # Check if mask_edges is a numpy array
+            elif isinstance(mask_outline, np.ndarray):
+                if mask_outline.ndim == 2:
+                    polygon_path = matplot_path(mask_outline)
+                else:
+                    raise ValueError("Mask edges must be a 2D numpy array.")
+            else:
+                raise TypeError(
+                    "Mask edges must be a 2D numpy array or a list of 2D points.")
+
+            #
+            x = self.origin[0] + np.arange(self.dims[0]) * self.spacing[0]
+            y = self.origin[1] + np.arange(self.dims[1]) * self.spacing[1]
+            x_grid, y_grid = np.meshgrid(x, y, indexing='ij')
+            grid_coordinates = np.array([x_grid.flatten(), y_grid.flatten()]).T
+            positive_mask = polygon_path.contains_points(grid_coordinates)
+            grid_data = self.data[positive_mask].T
+        else:
+            grid_data = self.data.T
+            positive_mask = np.ones_like(grid_data, dtype=bool)
+
+        fig, ax = plt.subplots(figsize=fig_size)
+
         if vmin is None:
-            vmin = np.percentile(grid_data, 1)
+            vmin = np.percentile(grid_data[positive_mask], 1)
         if vmax is None:
-            vmax = np.percentile(grid_data, 99)
+            vmax = np.percentile(grid_data[positive_mask], 99)
 
+        imshow_kwargs.setdefault('cmap', 'seismic')
+            
         cax = ax.imshow(
             grid_data,
             origin="lower",
             extent=(self.origin[0], self.corner[0], self.origin[1], self.corner[1]),
-            cmap="seismic",
             vmin=vmin,
             vmax=vmax,
             **imshow_kwargs,
@@ -2902,6 +2939,43 @@ class PhaseVelocity(Grid):
         if isinstance(receivers, SeedEnsemble):
             coordinates = receivers.locs
             ax.plot(coordinates[:, 0], coordinates[:, 1], "s", color="yellow")
+
+        # plot the mask
+        if mask is not None:
+            if 'x_resolution' in mask:
+                x_resolution = int(mask['x_resolution'])
+            else:
+                # use default value
+                x_resolution = 1000
+            if 'y_resolution' in mask:
+                y_resolution = int(mask['y_resolution'])
+            else:
+                y_resolution = 1000
+
+            x_dense = np.linspace(x.min(), x.max(),  x_resolution)
+            y_dense = np.linspace(y.min(), y.max(), y_resolution)
+            x_grid, y_grid = np.meshgrid(x_dense, y_dense,
+                                         indexing='ij')  # shape: (Ny, Nx)
+            grid_coordinates = np.array([x_grid.flatten(), y_grid.flatten()]).T
+
+            mask_xy = np.logical_not(polygon_path.contains_points(grid_coordinates))
+
+            mask_xy = mask_xy.reshape(x_grid.shape)
+            mask_img = np.ones((*mask_xy.shape, 4))  # RGBA image
+            # set the mask color
+            if 'color' in mask:
+                color = mask['color']
+            else:
+                color = 'w'
+            mask_color = to_rgb(color)
+            mask_img[..., :3] = mask_color
+            mask_img[..., 3] = mask_xy.astype(float) * 1.0  # alpha channel (0 or 1)
+
+            # hide the area outside the unmasked region with a semi-transparent image.
+            ax.imshow(mask_img,
+                      extent=(x.min(), x.max(), y.min(), y.max()),
+                      origin='lower',
+                      interpolation='none')
 
         return fig, ax
 
