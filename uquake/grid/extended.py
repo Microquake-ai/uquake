@@ -2851,7 +2851,7 @@ class PhaseVelocity(Grid):
             vmax: Optional[float] = None,
             mask: Optional[dict] = None,
             **imshow_kwargs,
-    ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
+    ):
         """
         Plot the Phase velocity with optional overlay of receiver positions.
 
