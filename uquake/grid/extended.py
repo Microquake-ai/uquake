@@ -57,8 +57,7 @@ from ttcrpy import rgrid
 from scipy.signal import fftconvolve
 from disba import PhaseDispersion, PhaseSensitivity
 from evtk import hl
-from matplotlib.path import Path as matplot_path
-from matplotlib.colors import to_rgb
+
 
 
 __cpu_count__ = cpu_count()
@@ -530,7 +529,7 @@ class TypedGrid(Grid):
             return False
 
     def plot_slice(self, axis: int, slice_position: float, grid_space: bool = False,
-                   field_name=None, **kwargs):
+                   field_name=None, mask: Optional[dict] = None,**kwargs):
         fig, ax = plt.subplots()
         match axis:
             case 2:
@@ -543,6 +542,7 @@ class TypedGrid(Grid):
                 if not self.in_grid([0, 0, k], grid_space=True):
                     raise IndexError(f'The slice plane {slice_position} falls'
                                      f' outside the grid.')
+
                 im = ax.imshow(self.data[:, :, k].T, origin='lower',
                                extent=(self.origin[0],
                                        self.corner[0],
@@ -2885,44 +2885,18 @@ class PhaseVelocity(Grid):
         ax : matplotlib.axes.Axes
             The matplotlib axes object where the grid and overlays are plotted.
         """
+        fig, ax = plt.subplots(figsize=fig_size)
         if mask is not None:
             mask_outline = mask['mask_outline']
-
-            # Check if mask_edges is a list
-            if isinstance(mask_outline, list):
-                if all(isinstance(item, (list, np.ndarray)) and len(item) == 2 for item
-                       in mask_outline):
-                    if isinstance(mask_outline[0], np.ndarray) and np.array(
-                            mask_outline).ndim == 2:
-                        polygon_path = matplot_path(np.array(mask_outline))
-                    else:
-                        raise ValueError("Mask edges list must contain 2D points.")
-                else:
-                    raise ValueError(
-                        "Mask edges list must contain lists or arrays of 2D points.")
-
-            # Check if mask_edges is a numpy array
-            elif isinstance(mask_outline, np.ndarray):
-                if mask_outline.ndim == 2:
-                    polygon_path = matplot_path(mask_outline)
-                else:
-                    raise ValueError("Mask edges must be a 2D numpy array.")
-            else:
-                raise TypeError(
-                    "Mask edges must be a 2D numpy array or a list of 2D points.")
-
-            #
-            x = self.origin[0] + np.arange(self.dims[0]) * self.spacing[0]
-            y = self.origin[1] + np.arange(self.dims[1]) * self.spacing[1]
-            x_grid, y_grid = np.meshgrid(x, y, indexing='ij')
-            grid_coordinates = np.array([x_grid.flatten(), y_grid.flatten()]).T
-            positive_mask = polygon_path.contains_points(grid_coordinates)
+            res = (mask['x_resolution'], mask['y_resolution'])
+            positive_mask = super().masked_region_xy(outline=mask_outline,
+                                                     ax=ax,
+                                                     resolution=res,
+                                                     color=mask['color'])[0]
             grid_data = self.data[positive_mask].T
         else:
             grid_data = self.data.T
             positive_mask = np.ones_like(grid_data, dtype=bool)
-
-        fig, ax = plt.subplots(figsize=fig_size)
 
         if vmin is None:
             vmin = np.percentile(grid_data[positive_mask], 1)
@@ -2959,43 +2933,6 @@ class PhaseVelocity(Grid):
         if isinstance(receivers, SeedEnsemble):
             coordinates = receivers.locs
             ax.plot(coordinates[:, 0], coordinates[:, 1], "s", color="yellow")
-
-        # plot the mask
-        if mask is not None:
-            if 'x_resolution' in mask:
-                x_resolution = int(mask['x_resolution'])
-            else:
-                # use default value
-                x_resolution = 1000
-            if 'y_resolution' in mask:
-                y_resolution = int(mask['y_resolution'])
-            else:
-                y_resolution = 1000
-
-            x_dense = np.linspace(x.min(), x.max(),  x_resolution)
-            y_dense = np.linspace(y.min(), y.max(), y_resolution)
-            x_grid, y_grid = np.meshgrid(x_dense, y_dense,
-                                         indexing='ij')  # shape: (Ny, Nx)
-            grid_coordinates = np.array([x_grid.flatten(), y_grid.flatten()]).T
-
-            mask_xy = np.logical_not(polygon_path.contains_points(grid_coordinates))
-
-            mask_xy = mask_xy.reshape(x_grid.shape)
-            mask_img = np.ones((*mask_xy.shape, 4))  # RGBA image
-            # set the mask color
-            if 'color' in mask:
-                color = mask['color']
-            else:
-                color = 'w'
-            mask_color = to_rgb(color)
-            mask_img[..., :3] = mask_color
-            mask_img[..., 3] = mask_xy.astype(float) * 1.0  # alpha channel (0 or 1)
-
-            # hide the area outside the unmasked region with a semi-transparent image.
-            ax.imshow(mask_img,
-                      extent=(x.min(), x.max(), y.min(), y.max()),
-                      origin='lower',
-                      interpolation='none')
 
         return fig, ax
 
