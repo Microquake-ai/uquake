@@ -38,6 +38,9 @@ from typing import Union, List, Tuple
 from uquake.core.inventory import Inventory, Network, Station, Channel
 import random
 from uquake.core.event import ResourceIdentifier
+from matplotlib.path import Path as matplot_path
+from matplotlib.colors import to_rgb
+from matplotlib.axes import Axes
 from copy import deepcopy
 from hashlib import sha256
 
@@ -710,6 +713,45 @@ class Grid(object):
 
     def generate_random_catalog_in_grid(self, num_event: int = 1):
         pass
+
+    def masked_region_xy(self, outline: Union[List, np.ndarray], ax: Axes,
+                         resolution: Tuple[int, int] = (1000, 1000),
+                         color: str = 'w',):
+        # check the mask validity
+        mask_coordinates = np.asarray(outline)
+        if mask_coordinates.ndim == 2 and mask_coordinates.shape[1] == 2:
+            polygon_path = matplot_path(outline)
+        else:
+            raise ValueError("Mask edges must be a set of n points with two coordinates")
+
+        # create positive mask to delineate valid region
+
+        x = self.origin[0] + np.arange(self.dims[0]) * self.spacing[0]
+        y = self.origin[1] + np.arange(self.dims[1]) * self.spacing[1]
+        x_grid, y_grid = np.meshgrid(x, y, indexing='ij')
+        grid_coordinates = np.array([x_grid.flatten(), y_grid.flatten()]).T
+        positive_mask = polygon_path.contains_points(grid_coordinates)
+
+        mask_x = np.linspace(x.min(), x.max(), resolution[0])
+        mask_y = np.linspace(y.min(), y.max(), resolution[1])
+        x_grid, y_grid = np.meshgrid(mask_x, mask_y, indexing='ij')  # shape: (Ny, Nx)
+        mask_xy = np.logical_not(polygon_path.contains_points(grid_coordinates))
+
+        mask_xy = mask_xy.reshape(x_grid.shape)
+        mask_img = np.ones((*mask_xy.shape, 4))  # RGBA image
+
+        # set color
+        mask_color = to_rgb(color)
+        mask_img[..., :3] = mask_color
+        mask_img[..., 3] = mask_xy.astype(float) * 1.0  # alpha channel (0 or 1)
+        # hide the area outside the unmasked region with a semi-transparent image.
+
+        ax.imshow(mask_img,
+                  extent=(x.min(), x.max(), y.min(), y.max()),
+                  origin='lower',
+                  interpolation='none')
+
+        return positive_mask
 
 
 def angles(travel_time_grid):
