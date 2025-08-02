@@ -2844,26 +2844,46 @@ class PhaseVelocity(Grid):
         super().write(filename, format=format, field_name=field_name, **kwargs)
 
     def plot(
-        self,
-        receivers: Optional[Union[np.ndarray, SeedEnsemble]] = None,
-        fig_size: Tuple[float, float] = (10, 8),
-        vmin: Optional[float] = None,
-        vmax: Optional[float] = None,
-        mask: Optional[dict] = None,
-        **imshow_kwargs,
+            self,
+            receivers: Optional[Union[np.ndarray, SeedEnsemble]] = None,
+            fig_size: Tuple[float, float] = (10, 8),
+            vmin: Optional[float] = None,
+            vmax: Optional[float] = None,
+            mask: Optional[dict] = None,
+            **imshow_kwargs,
     ) -> Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]:
         """
-        Plot the grid data with optional receiver overlay.
+        Plot the Phase velocity with optional overlay of receiver positions.
 
-        Parameters:
-            receivers: Optional overlay of receiver positions (np.ndarray or SeedEnsemble).
-            fig_size: Matplotlib figure size in inches. Defaults to (10, 8).
-            vmin: Minimum velocity for color scale. If None, uses 1st percentile.
-            vmax: Maximum velocity for color scale. If None, uses 99th percentile.
-            **imshow_kwargs: Additional keyword arguments passed to ax.imshow().
+        Parameters
+        ----------
+        receivers : np.ndarray or SeedEnsemble, optional
+            Receiver positions to overlay on the plot. Can be a 2D NumPy array of shape
+            (N, 2) containing (x, y) coordinates or a SeedEnsemble object.
 
-        Returns:
-            fig, ax: Matplotlib figure and axes with the plotted grid.
+        fig_size : tuple of float, default=(10, 8)
+            Size of the matplotlib figure in inches (width, height).
+
+        vmin : float, optional
+            Minimum value for the colormap. If None, the 1st percentile of the data is used.
+
+        vmax : float, optional
+            Maximum value for the colormap. If None, the 99th percentile of the data is used.
+
+        mask : dict, optional
+            Dictionary specifying regions to mask out from the plot. Keys and structure
+            depend on implementation, e.g., {'polygon': [(x1, y1), ..., (xn, yn)]}.
+
+        **imshow_kwargs
+            Additional keyword arguments passed directly to `matplotlib.axes.Axes.imshow.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object containing the plot.
+
+        ax : matplotlib.axes.Axes
+            The matplotlib axes object where the grid and overlays are plotted.
         """
         if mask is not None:
             mask_outline = mask['mask_outline']
