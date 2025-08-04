@@ -717,6 +717,43 @@ class Grid(object):
     def masked_region_xy(self, outline: Union[List, np.ndarray], ax: Axes,
                          resolution: Tuple[int, int] = (1000, 1000),
                          color: str = 'w',):
+        """
+        Generate and display a polygon mask overlay on a 2D grid, and return
+         a boolean mask of the region inside the polygon.
+
+        Parameters
+        ----------
+        outline : Union[List, np.ndarray]
+            An array-like object of shape (N, 2) containing the (x, y) coordinates that
+            define the polygon mask boundary.
+        ax : matplotlib.axes.Axes
+            The matplotlib axis on which the visual mask should be overlaid.
+        resolution : Tuple[int, int], optional
+            The resolution of the visual overlay (number of points in x and y directions).
+            Defaults to (1000, 1000).
+        color : str, optional
+            The color used to shade the masked (outside) region, specified in any
+            matplotlib-compatible format. Default is white ('w').
+
+        Returns
+        -------
+        np.ndarray
+            A 2D boolean array of shape `(self.dims[0], self.dims[1])` representing the
+            **positive mask** (i.e., `True` for points inside the polygon).
+
+        Raises
+        ------
+        ValueError
+            If `outline` does not have shape (N, 2), indicating invalid mask coordinates.
+
+        Notes
+        -----
+        - The mask returned corresponds to the logical inclusion of each grid point in
+         the defined polygon.
+        - The overlay is drawn as an RGBA image, with full transparency inside the
+         polygon and full opacity (with the given color) outside.
+        """
+
         # check the mask validity
         mask_coordinates = np.asarray(outline)
         if mask_coordinates.ndim == 2 and mask_coordinates.shape[1] == 2:
@@ -735,9 +772,10 @@ class Grid(object):
         mask_x = np.linspace(x.min(), x.max(), resolution[0])
         mask_y = np.linspace(y.min(), y.max(), resolution[1])
         x_grid, y_grid = np.meshgrid(mask_x, mask_y, indexing='ij')  # shape: (Ny, Nx)
-        mask_xy = np.logical_not(polygon_path.contains_points(grid_coordinates))
+        mask_coordinates = np.array([x_grid.flatten(), y_grid.flatten()]).T
+        mask_xy = np.logical_not(polygon_path.contains_points(mask_coordinates))
 
-        mask_xy = mask_xy.reshape(x_grid.shape)
+        mask_xy = mask_xy.reshape(x_grid.shape).T
         mask_img = np.ones((*mask_xy.shape, 4))  # RGBA image
 
         # set color
@@ -751,7 +789,7 @@ class Grid(object):
                   origin='lower',
                   interpolation='none')
 
-        return positive_mask
+        return positive_mask.reshape((self.dims[0], self.dims[1]))
 
 
 def angles(travel_time_grid):
