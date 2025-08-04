@@ -2886,34 +2886,30 @@ class PhaseVelocity(Grid):
             The matplotlib axes object where the grid and overlays are plotted.
         """
         fig, ax = plt.subplots(figsize=fig_size)
-        if mask is not None:
-            mask_outline = mask['mask_outline']
-            res = (mask['x_resolution'], mask['y_resolution'])
-            positive_mask = super().masked_region_xy(outline=mask_outline,
-                                                     ax=ax,
-                                                     resolution=res,
-                                                     color=mask['color'])[0]
-            grid_data = self.data[positive_mask].T
-        else:
-            grid_data = self.data.T
-            positive_mask = np.ones_like(grid_data, dtype=bool)
+        if 'cmap' not in imshow_kwargs:
+            imshow_kwargs.setdefault('cmap', 'seismic')
 
-        if vmin is None:
-            vmin = np.percentile(grid_data[positive_mask], 1)
-        if vmax is None:
-            vmax = np.percentile(grid_data[positive_mask], 99)
-
-        imshow_kwargs.setdefault('cmap', 'seismic')
-            
         cax = ax.imshow(
-            grid_data,
+            self.data.T,
             origin="lower",
             extent=(self.origin[0], self.corner[0], self.origin[1], self.corner[1]),
-            vmin=vmin,
-            vmax=vmax,
             **imshow_kwargs,
         )
+
+        if mask is not None:
+            positive_mask = super().masked_region_xy(**mask,
+                                                     ax=ax)
+            grid_data = np.where(positive_mask, self.data, np.nan).T
+        else:
+            grid_data = self.data.T
+
+        if vmin is None:
+            vmin = np.nanpercentile(grid_data, 1)
+        if vmax is None:
+            vmax = np.nanpercentile(grid_data, 99)
+        cax.set_clim(vmin, vmax)
         cb = fig.colorbar(cax)
+        cb.update_normal(cax)
 
         if self.grid_units == GridUnits.METER:
             ax.set_xlabel("X (m)")
