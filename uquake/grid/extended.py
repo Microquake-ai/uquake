@@ -543,13 +543,27 @@ class TypedGrid(Grid):
                     raise IndexError(f'The slice plane {slice_position} falls'
                                      f' outside the grid.')
 
+                if 'cmap' not in kwargs:
+                    kwargs.setdefault('cmap', 'seismic')
+
                 im = ax.imshow(self.data[:, :, k].T, origin='lower',
                                extent=(self.origin[0],
                                        self.corner[0],
                                        self.origin[1],
                                        self.corner[1]),
-                               cmap="seismic",
                                **kwargs)
+
+                if mask is not None:
+                    positive_mask = super().masked_region_xy(**mask,
+                                                             ax=ax)
+                    grid_data = np.where(positive_mask, self.data[:, :, k], np.nan)
+                else:
+                    grid_data = self.data[:, :, k]
+
+                vmin = np.nanpercentile(grid_data, 1)
+                vmax = np.nanpercentile(grid_data, 99)
+                im.set_clim(vmin, vmax)
+
                 if self.grid_units == GridUnits.METER:
                     ax.set_xlabel("X (m)")
                     ax.set_ylabel("Y (m)")
@@ -580,6 +594,9 @@ class TypedGrid(Grid):
                     ax.set_ylabel("Z (km)")
                 ax.xaxis.set_label_position('top')
                 ax.xaxis.tick_top()
+                if mask is not None:
+                    logger.warning("Vertical slice masking functionality is "
+                                   "currently unavailable")
             case 0:
                 if not grid_space:
                     tmp = self.transform_to((slice_position, self.origin[1],
@@ -590,6 +607,11 @@ class TypedGrid(Grid):
                 if not self.in_grid([i, 0, 0], grid_space=True):
                     raise IndexError(f'The slice plane {slice_position} falls '
                                      f'outside the grid.')
+
+                if mask is not None:
+                    logger.warning("Vertical slice masking functionality is "
+                                   "currently unavailable")
+
                 im = ax.imshow(self.data[i, :, :].T, extent=(self.origin[1],
                                                              self.corner[1],
                                                              self.corner[2],
@@ -606,6 +628,7 @@ class TypedGrid(Grid):
                 ax.xaxis.tick_top()
 
         cb = fig.colorbar(im, ax=ax, orientation='vertical')
+        cb.update_normal(im)
         if field_name is None:
             cb.set_label(self.grid_type.value, rotation=270, labelpad=15)
         else:
