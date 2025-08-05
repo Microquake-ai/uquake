@@ -1303,13 +1303,14 @@ class VelocityGrid3D(TypedGrid):
         super().write(filename, format=format, field_name=field_name, **kwargs)
 
     def plot_slice(self, axis: int, slice_position: float, grid_space: bool = False,
-                   ** kwargs):
+                   mask: Optional[dict] = None, ** kwargs):
         field_name = f'{self.phase.value} wave velocity '
         if self.grid_units == GridUnits.METER:
             field_name += ' (m/s)'
         if self.grid_units == GridUnits.KILOMETER:
             field_name += ' (km/s)'
-        fig, ax = super().plot_slice(axis, slice_position, grid_space, field_name, **kwargs)
+        fig, ax = super().plot_slice(axis, slice_position, grid_space, field_name,
+                                     mask, **kwargs)
         return fig, ax
 
 
