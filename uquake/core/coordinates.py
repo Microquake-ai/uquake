@@ -461,8 +461,17 @@ class Coordinates:
             epsg_code = 32700 + zone_number  # Southern hemisphere
 
         coordinate_transformation = CoordinateTransformation(epsg_code=epsg_code)
-        return cls(northing, easting, z, coordinate_system=coordinate_system,
-                   transformation=coordinate_transformation)
+
+        northing, easting = coordinate_transformation.from_latlon(latitude, longitude)
+
+        if str(coordinate_system)[:2] == 'NE':
+            x = northing
+            y = easting
+        else:
+            x = easting
+            y = northing
+
+        return cls(x, y, z, coordinate_system=coordinate_system, transformation=coordinate_transformation)
 
     def to_lat_lon(self):
         if self.transformation.rotation is not None:
