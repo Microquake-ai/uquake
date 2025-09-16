@@ -494,6 +494,7 @@ class Coordinates:
     def elevation(self):
         return self.up
 
+
 def rotate_azimuth(
         x: float, y: float, coordinate_system: CoordinateSystem, azimuth: float
 ):
