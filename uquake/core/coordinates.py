@@ -264,13 +264,13 @@ class CoordinateTransformation:
     def to_latlon(self, northing, easting):
         transformation = pyproj.Transformer.from_crs(
             self.utm_crs, self.sph_crs, always_xy=True)
-        return transformation.transform(northing, easting)
+        lon, lat = transformation.transform(easting, northing)
+        return lat, lon
 
     def from_latlon(self, lat, lon):
         transformation = pyproj.Transformer.from_crs(
             self.sph_crs, self.utm_crs, always_xy=True)
         return transformation.transform(lon, lat)
-        pass
 
 
 class Coordinates:

@@ -31,6 +31,7 @@
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+import matplotlib
 import numpy as np
 from .base import Grid
 from pathlib import Path
@@ -51,17 +52,20 @@ from uquake.core.inventory import Inventory
 from uquake.synthetic.inventory import generate_unique_instrument_code
 from uquake.core.event import ResourceIdentifier
 from .base import __default_grid_label__
-from typing import Union, Tuple
+from typing import Set, Tuple, Union
 from ttcrpy import rgrid
 from scipy.signal import fftconvolve
 from disba import PhaseDispersion, PhaseSensitivity
-import skfmm
-import dask
 from evtk import hl
+
+
 
 __cpu_count__ = cpu_count()
 
 valid_phases = ('P', 'S')
+
+# In many cases, where Z is ignored, North-Up-Down and North-East-Up can be treated as the same
+NORTH_EAST_SYSTEMS = {CoordinateSystem.NED, CoordinateSystem.NEU}
 
 
 class Phases(Enum):
@@ -274,7 +278,7 @@ class Seed:
 
 class SeedEnsemble:
 
-    def __init__(self, seeds: List[Seed] = [], units: GridUnits = GridUnits.METER):
+    def __init__(self, seeds: List[Seed] = None, units: GridUnits = GridUnits.METER):
         """
         specifies a series of source location from an inventory object
         :param seeds: a list of locations containing at least the location,
@@ -290,9 +294,8 @@ class SeedEnsemble:
         >>> seeds = SeedEnsemble([seed])
 
         """
-
         self.units = units
-        self.seeds = seeds
+        self.seeds = seeds if seeds is not None else []
 
     def __len__(self):
         return len(self.seeds)
@@ -334,6 +337,15 @@ class SeedEnsemble:
     def add(self, seed: Seed):
         """
         Add a single location to the source list
+        :param location:
+        :type location: Seed
+        """
+
+        self.seeds.append(seed)
+
+    def append(self, seed: Seed):
+        """
+        Append a list of locations to the source list
         :param location:
         :type location: Seed
         """
@@ -517,7 +529,7 @@ class TypedGrid(Grid):
             return False
 
     def plot_slice(self, axis: int, slice_position: float, grid_space: bool = False,
-                   field_name=None):
+                   field_name=None, mask: Optional[dict] = None,**kwargs):
         fig, ax = plt.subplots()
         match axis:
             case 2:
@@ -530,12 +542,28 @@ class TypedGrid(Grid):
                 if not self.in_grid([0, 0, k], grid_space=True):
                     raise IndexError(f'The slice plane {slice_position} falls'
                                      f' outside the grid.')
+
+                if 'cmap' not in kwargs:
+                    kwargs.setdefault('cmap', 'seismic')
+
                 im = ax.imshow(self.data[:, :, k].T, origin='lower',
                                extent=(self.origin[0],
                                        self.corner[0],
                                        self.origin[1],
                                        self.corner[1]),
-                               cmap="seismic")
+                               **kwargs)
+
+                if mask is not None:
+                    positive_mask = super().masked_region_xy(**mask,
+                                                             ax=ax)
+                    grid_data = np.where(positive_mask, self.data[:, :, k], np.nan)
+                else:
+                    grid_data = self.data[:, :, k]
+
+                vmin = np.nanpercentile(grid_data, 1)
+                vmax = np.nanpercentile(grid_data, 99)
+                im.set_clim(vmin, vmax)
+
                 if self.grid_units == GridUnits.METER:
                     ax.set_xlabel("X (m)")
                     ax.set_ylabel("Y (m)")
@@ -555,8 +583,9 @@ class TypedGrid(Grid):
                 im = ax.imshow(self.data[:, j, :].T, extent=(self.origin[0],
                                                              self.corner[0],
                                                              self.corner[2],
-                                                             self.origin[2]),
-                               cmap="seismic")
+                                                             self.origin[2],),
+                               cmap="seismic",
+                               **kwargs)
                 if self.grid_units == GridUnits.METER:
                     ax.set_xlabel("X (m)")
                     ax.set_ylabel("Z (m)")
@@ -565,6 +594,9 @@ class TypedGrid(Grid):
                     ax.set_ylabel("Z (km)")
                 ax.xaxis.set_label_position('top')
                 ax.xaxis.tick_top()
+                if mask is not None:
+                    logger.warning("Vertical slice masking functionality is "
+                                   "currently unavailable")
             case 0:
                 if not grid_space:
                     tmp = self.transform_to((slice_position, self.origin[1],
@@ -575,11 +607,17 @@ class TypedGrid(Grid):
                 if not self.in_grid([i, 0, 0], grid_space=True):
                     raise IndexError(f'The slice plane {slice_position} falls '
                                      f'outside the grid.')
+
+                if mask is not None:
+                    logger.warning("Vertical slice masking functionality is "
+                                   "currently unavailable")
+
                 im = ax.imshow(self.data[i, :, :].T, extent=(self.origin[1],
                                                              self.corner[1],
                                                              self.corner[2],
                                                              self.origin[2]),
-                               cmap="seismic")
+                               cmap="seismic",
+                               **kwargs)
                 if self.grid_units == GridUnits.METER:
                     ax.set_xlabel("Y (m)")
                     ax.set_ylabel("Z (m)")
@@ -590,6 +628,7 @@ class TypedGrid(Grid):
                 ax.xaxis.tick_top()
 
         cb = fig.colorbar(im, ax=ax, orientation='vertical')
+        cb.update_normal(im)
         if field_name is None:
             cb.set_label(self.grid_type.value, rotation=270, labelpad=15)
         else:
@@ -1157,6 +1196,7 @@ class VelocityGrid3D(TypedGrid):
         phi[int(np.floor(len(x_i) / 2)), int(np.floor(len(y_i) / 2)),
         int(np.floor(len(z_i) / 2))] = 0
 
+        # TODO change with ttcrpy instead of skfmm
         tt_tmp = skfmm.travel_time(phi, vel, dx=sub_grid_spacing)
 
         tt_tmp_grid = TTGrid(self.network_code, tt_tmp, [x_i[0], y_i[0], z_i[0]],
@@ -1286,13 +1326,14 @@ class VelocityGrid3D(TypedGrid):
         super().write(filename, format=format, field_name=field_name, **kwargs)
 
     def plot_slice(self, axis: int, slice_position: float, grid_space: bool = False,
-                   ** kwargs):
-        field_name = f'Velocity {self.phase.value}_wave'
+                   mask: Optional[dict] = None, ** kwargs):
+        field_name = f'{self.phase.value} wave velocity '
         if self.grid_units == GridUnits.METER:
             field_name += ' (m/s)'
         if self.grid_units == GridUnits.KILOMETER:
             field_name += ' (km/s)'
-        fig, ax = super().plot_slice(axis, slice_position, grid_space, field_name)
+        fig, ax = super().plot_slice(axis, slice_position, grid_space, field_name,
+                                     mask, **kwargs)
         return fig, ax
 
 
@@ -2727,9 +2768,8 @@ class PhaseVelocity(Grid):
         span of the inventory and the specified padding. It then creates and
         returns a grid object with the calculated parameters.
         """
-        # Get the instrument locations
-        locations_x = [instrument.x for instrument in inventory.instruments]
-        locations_y = [instrument.y for instrument in inventory.instruments]
+       
+        locations_x, locations_y, _ = normalize_inventory_coordinates(inventory, strict=True)
 
         # Determine the span of the inventory
         min_coords = np.array([np.min(locations_x), np.min(locations_y)])
@@ -2760,7 +2800,7 @@ class PhaseVelocity(Grid):
     def to_rgrid(self, n_secondary: Union[int, Tuple[int, int]], cell_slowness=False,
                  threads: int = 1):
         """
-        Convert the current object to an rgrid object (see ttcrpy).
+        Convert the current object to a rgrid object (see ttcrpy).
 
         :param n_secondary: Number of secondary nodes for grid refinement. If an integer
                             is provided, it is used for both dimensions. If a tuple is
@@ -2827,44 +2867,93 @@ class PhaseVelocity(Grid):
 
         super().write(filename, format=format, field_name=field_name, **kwargs)
 
-    def plot(self, receivers: Union[np.ndarray, SeedEnsemble] = None):
+    def plot(
+            self,
+            receivers: Optional[Union[np.ndarray, SeedEnsemble]] = None,
+            fig_size: Tuple[float, float] = (10, 8),
+            vmin: Optional[float] = None,
+            vmax: Optional[float] = None,
+            mask: Optional[dict] = None,
+            **imshow_kwargs,
+    ):
         """
-        Plot the grid data.
+        Plot the Phase velocity with optional overlay of receiver positions.
 
-        This method plots the grid data using Matplotlib.
-        The grid data is displayed as an image with an optional overlay
-        of receiver locations.
+        Parameters
+        ----------
+        receivers : np.ndarray or SeedEnsemble, optional
+            Receiver positions to overlay on the plot. Can be a 2D NumPy array of shape
+            (N, 2) containing (x, y) coordinates or a SeedEnsemble object.
 
-        :param receivers: Receiver locations to be overlaid on the grid plot.
-                          If an `np.ndarray` is provided, it should have shape (N, 2)
-                          where N is the number of receivers  and the two columns
-                          represent the x and y coordinates, respectively. If a
-                          `SeedEnsemble` is provided, it should have a `locs` attribute
-                          with receiver coordinates.
-        :type receivers: Union[np.ndarray, SeedEnsemble], optional
-        :return: The Matplotlib figure and axes objects containing the plot.
-        :rtype: Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]
+        fig_size : tuple of float, default=(10, 8)
+            Size of the matplotlib figure in inches (width, height).
+
+        vmin : float, optional
+            Minimum value for the colormap. If None, the 1st percentile of the data is used.
+
+        vmax : float, optional
+            Maximum value for the colormap. If None, the 99th percentile of the data is used.
+
+        mask : dict, optional
+            Dictionary specifying regions to mask out from the plot. Keys and structure
+            depend on implementation, e.g., {'polygon': [(x1, y1), ..., (xn, yn)]}.
+
+        **imshow_kwargs
+            Additional keyword arguments passed directly to `matplotlib.axes.Axes.imshow.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object containing the plot.
+
+        ax : matplotlib.axes.Axes
+            The matplotlib axes object where the grid and overlays are plotted.
         """
-        fig, ax = plt.subplots()
-        cax = ax.imshow(self.data.T, origin='lower', extent=(self.origin[0], self.corner[0],
-                                                        self.origin[1], self.corner[1]),
-                   cmap="seismic")
+        fig, ax = plt.subplots(figsize=fig_size)
+        if 'cmap' not in imshow_kwargs:
+            imshow_kwargs.setdefault('cmap', 'seismic')
 
+        cax = ax.imshow(
+            self.data.T,
+            origin="lower",
+            extent=(self.origin[0], self.corner[0], self.origin[1], self.corner[1]),
+            **imshow_kwargs,
+        )
+
+        if mask is not None:
+            positive_mask = super().masked_region_xy(**mask,
+                                                     ax=ax)
+            grid_data = np.where(positive_mask, self.data, np.nan).T
+        else:
+            grid_data = self.data.T
+
+        if vmin is None:
+            vmin = np.nanpercentile(grid_data, 1)
+        if vmax is None:
+            vmax = np.nanpercentile(grid_data, 99)
+        cax.set_clim(vmin, vmax)
         cb = fig.colorbar(cax)
+        cb.update_normal(cax)
+
         if self.grid_units == GridUnits.METER:
             ax.set_xlabel("X (m)")
             ax.set_ylabel("Y (m)")
-            cb.set_label('Vel ' + self.phase.value + ' (m/s)', rotation=270, labelpad=10)
+            cb.set_label("Vel " + self.phase.value + " (m/s)", rotation=270, labelpad=10)
+
         if self.grid_units == GridUnits.KILOMETER:
-            plt.xlabel("X (km)")
-            plt.ylabel("Y (km)")
-            cb.set_label('Vel ' + self.phase.value + ' (km/s)', rotation=270, labelpad=10)
-        ax.set_title("period = {0:1.2f} s".format(self.period))
+            ax.set_xlabel("X (km)")
+            ax.set_ylabel("Y (km)")
+            cb.set_label("Velocity (km/s)", rotation=270, labelpad=10)
+
+        ax.set_title("Period = {0:1.2f} s".format(self.period))
+
         if isinstance(receivers, np.ndarray):
-            ax.plot(receivers[:, 0], receivers[:, 1], 's', color='yellow')
+            ax.plot(receivers[:, 0], receivers[:, 1], "s", color="yellow")
+
         if isinstance(receivers, SeedEnsemble):
             coordinates = receivers.locs
-            ax.plot(coordinates[:, 0], coordinates[:, 1], 's', color='yellow')
+            ax.plot(coordinates[:, 0], coordinates[:, 1], "s", color="yellow")
+
         return fig, ax
 
     def __repr__(self):
@@ -3141,3 +3230,56 @@ class PhaseVelocityEnsemble(list):
         plt.grid(which='major', linewidth=0.8)
         plt.grid(which='minor', linestyle=':', linewidth=0.5)
         plt.show()
+
+
+def normalize_inventory_coordinates(
+    inventory: Inventory,
+    strict: bool = False
+) -> Tuple[List[float], List[float], Set[CoordinateSystem]]:
+    """
+    Normalize all instrument coordinates in an inventory to a consistent XY layout.
+
+    Instruments using a North-East coordinate system (like NED or NEU) are flipped
+    so that:
+        - Easting becomes X
+        - Northing becomes Y
+
+    :param inventory: The Inventory containing instruments with coordinates.
+    :param strict: If True, raise error on unknown/missing coordinate systems.
+    :return: (locations_x, locations_y, unique_coordinate_systems)
+    """
+
+    locations_x = []
+    locations_y = []
+    coord_systems = set()
+
+    for inst in inventory.instruments:
+        coords = getattr(inst, "coordinates", None)
+        if coords is None:
+            if strict:
+                raise ValueError(f"Instrument {inst} has no `.coordinates` attribute.")
+            else:
+                print(f"Warning: Instrument {inst} has no `.coordinates` — skipping.")
+                continue
+
+        coordinate_system = getattr(coords, "coordinate_system", None)
+        if coordinate_system is None:
+            if strict:
+                raise ValueError(f"Instrument {inst} has no `coordinate_system`.")
+            else:
+                print(f"Warning: Instrument {inst} has no `coordinate_system` — skipping.")
+                continue
+
+        coord_systems.add(coordinate_system)
+
+        if coordinate_system in NORTH_EAST_SYSTEMS:
+            locations_x.append(coords.y)  # Easting
+            locations_y.append(coords.x)  # Northing
+        else:
+            locations_x.append(coords.x)
+            locations_y.append(coords.y)
+
+    if not locations_x or not locations_y:
+        raise ValueError("No valid coordinates found in inventory.")
+
+    return locations_x, locations_y, coord_systems

@@ -1,5 +1,6 @@
 from .inventory import (Channel, Station, InstrumentSensitivity, Equipment, Response,
                         ResponseStage, PolesZerosResponseStage, CoefficientsTypeResponseStage)
+
 from obspy.signal.invsim import corn_freq_2_paz
 from .coordinates import Coordinates, CoordinateSystem, rotate_azimuth
 from pydantic import BaseModel, Field
@@ -246,17 +247,24 @@ class Digitizer(BaseModel):
             A `CoefficientsTypeResponseStage` object defining the digitizer's gain
             and input/output unit mappings.
         """
-        return CoefficientsTypeResponseStage(
+        return PolesZerosResponseStage(
             stage_sequence_number=self.stage_sequence_number,
             stage_gain=self.gain,
-            stage_gain_frequency=1.0,  # Assuming gain is defined at 1 Hz
+            stage_gain_frequency=1.0,
             input_units=self.input_units,
             output_units=self.output_units,
-            cf_transfer_function_type="DIGITAL",
-            numerator=[self.gain],
-            denominator=[1.0],
+            pz_transfer_function_type="LAPLACE (RADIANS/SECOND)",
+            normalization_frequency=1.0,
+            normalization_factor=1.0,
+            zeros=[],  # No poles or zeros: flat gain response
+            poles=[],
             name=self.model,
-            description="Digitizer gain stage"
+            description="Digitizer gain stage with decimation",
+            decimation_input_sample_rate=self.sampling_rate,
+            decimation_factor=1,
+            decimation_offset=0,
+            decimation_delay=0.0,
+            decimation_correction=0.0
         )
 
 
@@ -409,6 +417,22 @@ class ComponentType(BaseModel):
     model: Optional[str] = None
 
     @property
+    def total_sensitivity(self) -> float:
+        """
+        Computes the total system sensitivity by multiplying gains
+        across all response stages.
+
+        Returns
+        -------
+        float
+            The overall sensitivity (from physical units to counts).
+        """
+        gain = 1.0
+        for stage in self.response_stages:
+            gain *= stage.stage_gain
+        return gain
+
+    @property
     def response_stages(self) -> List[ResponseStage]:
         """
         Builds and returns the list of response stages for the system.
@@ -454,9 +478,8 @@ class ComponentType(BaseModel):
         sensor_sensitivity = self.sensor.instrument_sensitivity
 
         if self.digitizer:
-            combined_sensitivity = sensor_sensitivity.value * self.digitizer.gain
             return InstrumentSensitivity(
-                value=combined_sensitivity,
+                value=self.total_sensitivity,
                 frequency=sensor_sensitivity.frequency,
                 input_units=self.sensor.output_units,
                 output_units=self.digitizer.output_units
