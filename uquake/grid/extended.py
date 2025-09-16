@@ -2795,7 +2795,8 @@ class PhaseVelocity(Grid):
 
         # Create and return the grid object
         return cls(network_code, grid_dims, spacing=spacing, origin=padded_origin,
-                   period=period, phase=phase, coordinate_system=inventory[0][0].coordinate_system, **kwargs)
+                   period=period, phase=phase,
+                   coordinate_system=inventory[0][0].coordinates.coordinate_system, **kwargs)
 
     def to_rgrid(self, n_secondary: Union[int, Tuple[int, int]], cell_slowness=False,
                  threads: int = 1):
