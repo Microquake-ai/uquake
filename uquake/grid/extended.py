@@ -1035,14 +1035,11 @@ class VelocityGrid3D(TypedGrid):
         """
 
         # Get the instrument locations - use normalize_inventory_coordinates to ensure x -> Easting, y -> Northing
-        locations_x, locations_y, coord_systems = normalize_inventory_coordinates(inventory, strict=True)
-        locations_z = [instrument.z for instrument in inventory.instruments]
+        locations_easting, locations_northing, locations_elevation, _ = extract_inventory_easting_northing(inventory, strict=True)
 
         # Determine the span of the inventory
-        min_coords = np.array(
-            [np.min(locations_x), np.min(locations_y), np.min(locations_z)])
-        max_coords = np.array(
-            [np.max(locations_x), np.max(locations_y), np.max(locations_z)])
+        min_coords = np.array([np.min(locations_easting), np.min(locations_northing), np.min(locations_elevation)])
+        max_coords = np.array([np.max(locations_easting), np.max(locations_northing), np.max(locations_elevation)])
         inventory_span = max_coords - min_coords
 
         # Calculate padding in grid units
@@ -2732,10 +2729,12 @@ class PhaseVelocity(Grid):
 
     @classmethod
     def from_inventory(cls, network_code: str, inventory: Inventory,
-                       spacing: Union[float, Tuple[float, float]], period: float,
+                       spacing: Union[float, Tuple[float, float]], 
+                       period: float,
                        padding: Union[float, Tuple[float, float]] = 0.2,
                        phase: Phases = Phases.RAYLEIGH,
-                       **kwargs):
+                       **kwargs
+                       ):
         """
         Create a grid object from a given inventory.
 
@@ -2766,11 +2765,11 @@ class PhaseVelocity(Grid):
         returns a grid object with the calculated parameters.
         """
        
-        locations_x, locations_y, _ = normalize_inventory_coordinates(inventory, strict=True)
+        locations_easting, locations_northing, _, _ = extract_inventory_easting_northing(inventory, strict=True)
 
         # Determine the span of the inventory
-        min_coords = np.array([np.min(locations_x), np.min(locations_y)])
-        max_coords = np.array([np.max(locations_x), np.max(locations_y)])
+        min_coords = np.array([np.min(locations_easting), np.min(locations_northing)])
+        max_coords = np.array([np.max(locations_easting), np.max(locations_northing)])
         inventory_span = max_coords - min_coords
 
         # Calculate padding in grid units
@@ -2787,13 +2786,10 @@ class PhaseVelocity(Grid):
         padded_corner = max_coords + total_padding / 2
 
         # Calculate grid dimensions
-        grid_dims = np.ceil((padded_corner - padded_origin) / np.array(spacing)).astype(
-            int)
+        grid_dims = np.ceil((padded_corner - padded_origin) / np.array(spacing)).astype(int)
 
         # Create and return the grid object
-        return cls(network_code, grid_dims, spacing=spacing, origin=padded_origin,
-                   period=period, phase=phase,
-                   coordinate_system=inventory[0][0].coordinates.coordinate_system, **kwargs)
+        return cls(network_code, grid_dims, spacing=spacing, origin=padded_origin, period=period, phase=phase, **kwargs)
 
     def to_rgrid(self, n_secondary: Union[int, Tuple[int, int]], cell_slowness=False,
                  threads: int = 1):
@@ -3230,10 +3226,10 @@ class PhaseVelocityEnsemble(list):
         plt.show()
 
 
-def normalize_inventory_coordinates(
+def extract_inventory_easting_northing(
     inventory: Inventory,
     strict: bool = False
-) -> Tuple[List[float], List[float], Set[CoordinateSystem]]:
+) -> Tuple[List[float], List[float], List[float], Set[CoordinateSystem]]:
     """
     Extract instrument coordinates from an inventory in a consistent fashion.
         - Easting becomes X
@@ -3241,10 +3237,11 @@ def normalize_inventory_coordinates(
 
     :param inventory: The Inventory containing instruments with coordinates.
     :param strict: If True, raise error on unknown/missing coordinate systems.
-    :return: (locations_x, locations_y, unique_coordinate_systems)
+    :return: (locations_easting, locations_northing, locations_elevation, unique_coordinate_systems)
     """
-    locations_x = []
-    locations_y = []
+    locations_easting = []
+    locations_northing = []
+    locations_elevation = []
     coord_systems = set()
 
     for inst in inventory.instruments:
@@ -3264,11 +3261,12 @@ def normalize_inventory_coordinates(
                 logger.warning("Instrument {} has no `coordinate_system` — skipping.", inst)
                 continue
 
-        locations_x.append(coords.easting)
-        locations_y.append(coords.northing)
+        locations_easting.append(coords.easting)
+        locations_northing.append(coords.northing)
+        locations_elevation.append(coords.elevation)
         coord_systems.add(coordinate_system)
 
-    if not locations_x or not locations_y:
+    if not locations_easting or not locations_northing or not locations_elevation:
         raise ValueError("No valid coordinates found in inventory.")
 
-    return locations_x, locations_y, coord_systems
+    return locations_easting, locations_northing, locations_elevation, coord_systems
