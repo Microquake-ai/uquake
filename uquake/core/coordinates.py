@@ -268,9 +268,10 @@ class CoordinateTransformation:
         return lat, lon
 
     def from_latlon(self, lat, lon):
+        easting, northing, zone, hemisphere = utm.from_latlon(lat, lon)
         transformation = pyproj.Transformer.from_crs(
             self.sph_crs, self.utm_crs, always_xy=True)
-        return transformation.transform(lon, lat)
+        return easting, northing
 
 
 class Coordinates:
@@ -462,7 +463,7 @@ class Coordinates:
 
         coordinate_transformation = CoordinateTransformation(epsg_code=epsg_code)
 
-        northing, easting = coordinate_transformation.from_latlon(latitude, longitude)
+        # northing, easting = coordinate_transformation.from_latlon(latitude, longitude)
 
         if str(coordinate_system)[:2] == 'NE':
             x = northing
