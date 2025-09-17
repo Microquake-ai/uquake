@@ -31,7 +31,6 @@
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
-import matplotlib
 import numpy as np
 from .base import Grid
 from pathlib import Path
