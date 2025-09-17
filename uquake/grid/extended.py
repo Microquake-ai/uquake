@@ -3235,7 +3235,7 @@ def normalize_inventory_coordinates(
     strict: bool = False
 ) -> Tuple[List[float], List[float], Set[CoordinateSystem]]:
     """
-    Normalize all instrument coordinates in an inventory to a consistent XY layout.
+    Extract instrument coordinates from an inventory in a consistent fashion.
         - Easting becomes X
         - Northing becomes Y
 
