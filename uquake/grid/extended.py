@@ -324,8 +324,7 @@ class SeedEnsemble:
 
         srces = []
         for instrument in inventory.instruments:
-            srce = Seed(instrument.station_code, instrument.location_code,
-                        instrument.coordinates)
+            srce = Seed(instrument.station_code, instrument.location_code, instrument.coordinates)
             srces.append(srce)
 
         return cls(srces)
@@ -1036,9 +1035,8 @@ class VelocityGrid3D(TypedGrid):
         __init__ method.
         """
 
-        # Get the instrument locations
-        locations_x = [instrument.x for instrument in inventory.instruments]
-        locations_y = [instrument.y for instrument in inventory.instruments]
+        # Get the instrument locations - use normalize_inventory_coordinates to ensure x -> Easting, y -> Northing
+        locations_x, locations_y, coord_systems = normalize_inventory_coordinates(inventory, strict=True)
         locations_z = [instrument.z for instrument in inventory.instruments]
 
         # Determine the span of the inventory
@@ -3239,9 +3237,6 @@ def normalize_inventory_coordinates(
 ) -> Tuple[List[float], List[float], Set[CoordinateSystem]]:
     """
     Normalize all instrument coordinates in an inventory to a consistent XY layout.
-
-    Instruments using a North-East coordinate system (like NED or NEU) are flipped
-    so that:
         - Easting becomes X
         - Northing becomes Y
 
@@ -3249,7 +3244,6 @@ def normalize_inventory_coordinates(
     :param strict: If True, raise error on unknown/missing coordinate systems.
     :return: (locations_x, locations_y, unique_coordinate_systems)
     """
-
     locations_x = []
     locations_y = []
     coord_systems = set()
@@ -3260,7 +3254,7 @@ def normalize_inventory_coordinates(
             if strict:
                 raise ValueError(f"Instrument {inst} has no `.coordinates` attribute.")
             else:
-                print(f"Warning: Instrument {inst} has no `.coordinates` — skipping.")
+                logger.warning("Instrument {} has no `.coordinates` — skipping.", inst)
                 continue
 
         coordinate_system = getattr(coords, "coordinate_system", None)
@@ -3268,17 +3262,12 @@ def normalize_inventory_coordinates(
             if strict:
                 raise ValueError(f"Instrument {inst} has no `coordinate_system`.")
             else:
-                print(f"Warning: Instrument {inst} has no `coordinate_system` — skipping.")
+                logger.warning("Instrument {} has no `coordinate_system` — skipping.", inst)
                 continue
 
+        locations_x.append(coords.easting)
+        locations_y.append(coords.northing)
         coord_systems.add(coordinate_system)
-
-        if coordinate_system in NORTH_EAST_SYSTEMS:
-            locations_x.append(coords.y)  # Easting
-            locations_y.append(coords.x)  # Northing
-        else:
-            locations_x.append(coords.x)
-            locations_y.append(coords.y)
 
     if not locations_x or not locations_y:
         raise ValueError("No valid coordinates found in inventory.")
