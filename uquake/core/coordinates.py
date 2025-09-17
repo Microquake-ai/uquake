@@ -269,9 +269,9 @@ class CoordinateTransformation:
 
     def from_latlon(self, lat, lon):
         easting, northing, zone, hemisphere = utm.from_latlon(lat, lon)
-        transformation = pyproj.Transformer.from_crs(
-            self.sph_crs, self.utm_crs, always_xy=True)
-        return easting, northing
+        # transformation = pyproj.Transformer.from_crs(
+        #     self.sph_crs, self.utm_crs, always_xy=True)
+        return easting, northing, zone, hemisphere
 
 
 class Coordinates:
