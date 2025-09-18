@@ -2930,16 +2930,16 @@ class PhaseVelocity(Grid):
         cb.update_normal(cax)
 
         if self.grid_units == GridUnits.METER:
-            ax.set_xlabel("X (m)")
-            ax.set_ylabel("Y (m)")
-            cb.set_label("Vel " + self.phase.value + " (m/s)", rotation=270, labelpad=10)
+            ax.set_xlabel("Easting [m]", weight="bold")
+            ax.set_ylabel("Northing [m]", weight="bold")
+            cb.set_label("Vel " + self.phase.value + " [m/s]", rotation=270, labelpad=10, weight="bold")
 
         if self.grid_units == GridUnits.KILOMETER:
-            ax.set_xlabel("X (km)")
-            ax.set_ylabel("Y (km)")
-            cb.set_label("Velocity (km/s)", rotation=270, labelpad=10)
+            ax.set_xlabel("Easting [km]", weight="bold")
+            ax.set_ylabel("Northing [km]", weight="bold")
+            cb.set_label("Velocity [km/s]", rotation=270, labelpad=10, weight="bold")
 
-        ax.set_title("Period = {0:1.2f} s".format(self.period))
+        ax.set_title("Period = {0:1.2f} s".format(self.period), weight = "bold")
 
         if isinstance(receivers, np.ndarray):
             ax.plot(receivers[:, 0], receivers[:, 1], "s", color="yellow")
