@@ -2769,7 +2769,7 @@ class PhaseVelocity(Grid):
         returns a grid object with the calculated parameters.
         """
        
-        locations_x, locations_y, _ = normalize_inventory_coordinates(inventory, strict=True)
+        locations_x, locations_y, _ = get_coordinates_from_inventory(inventory, strict=True)
 
         # Determine the span of the inventory
         min_coords = np.array([np.min(locations_x), np.min(locations_y)])
@@ -2797,6 +2797,37 @@ class PhaseVelocity(Grid):
         return cls(network_code, grid_dims, spacing=spacing, origin=padded_origin,
                    period=period, phase=phase,
                    coordinate_system=inventory[0][0].coordinates.coordinate_system, **kwargs)
+
+    def _image_and_extent_for_geographic(self):
+        """
+        Build (array, extent) ensuring x=Easting and y=Northing for imshow.
+
+        Returns
+        -------
+        img : np.ndarray
+            Array to feed to imshow.
+        extent : Tuple[float, float, float, float]
+            (xmin, xmax, ymin, ymax) matching img's axes.
+        """
+        # If the first two letters are EN, the stored axes are (E, N, ...).
+        # If the first two letters are NE, the stored axes are (N, E, ...).
+        system = self.coordinate_system.value
+
+        # Ranges per stored axes
+        x0, x1 = self.origin[0], self.corner[0]
+        y0, y1 = self.origin[1], self.corner[1]
+
+        if system.startswith("EN"):  # ENU or END: already (E, N)
+            # imshow expects columns→x, rows→y; using .T keeps your current style.
+            img = self.data.T
+            extent = (x0, x1, y0, y1)
+        else:  # NEU or NED: stored (N, E). Swap so columns→E and rows→N.
+            # No transpose so columns map to stored axis-1 (E) and rows to axis-0 (N).
+            img = self.data
+            # x extent must come from stored E range (axis-1), y from stored N (axis-0)
+            extent = (y0, y1, x0, x1)
+
+        return img, extent
 
     def to_rgrid(self, n_secondary: Union[int, Tuple[int, int]], cell_slowness=False,
                  threads: int = 1):
@@ -2869,91 +2900,102 @@ class PhaseVelocity(Grid):
         super().write(filename, format=format, field_name=field_name, **kwargs)
 
     def plot(
-            self,
-            receivers: Optional[Union[np.ndarray, SeedEnsemble]] = None,
-            fig_size: Tuple[float, float] = (10, 8),
-            vmin: Optional[float] = None,
-            vmax: Optional[float] = None,
-            mask: Optional[dict] = None,
-            **imshow_kwargs,
+        self,
+        receivers: Optional[Union[np.ndarray, SeedEnsemble]] = None,
+        fig_size: Tuple[float, float] = (10, 8),
+        vmin: Optional[float] = None,
+        vmax: Optional[float] = None,
+        mask: Optional[dict] = None,
+        geographic: bool = True,
+        **imshow_kwargs,
     ):
         """
         Plot the Phase velocity with optional overlay of receiver positions.
 
-        Parameters
-        ----------
-        receivers : np.ndarray or SeedEnsemble, optional
-            Receiver positions to overlay on the plot. Can be a 2D NumPy array of shape
-            (N, 2) containing (x, y) coordinates or a SeedEnsemble object.
-
-        fig_size : tuple of float, default=(10, 8)
-            Size of the matplotlib figure in inches (width, height).
-
-        vmin : float, optional
-            Minimum value for the colormap. If None, the 1st percentile of the data is used.
-
-        vmax : float, optional
-            Maximum value for the colormap. If None, the 99th percentile of the data is used.
-
-        mask : dict, optional
-            Dictionary specifying regions to mask out from the plot. Keys and structure
-            depend on implementation, e.g., {'polygon': [(x1, y1), ..., (xn, yn)]}.
-
-        **imshow_kwargs
-            Additional keyword arguments passed directly to `matplotlib.axes.Axes.imshow.
-
-        Returns
-        -------
-        fig : matplotlib.figure.Figure
-            The matplotlib figure object containing the plot.
-
-        ax : matplotlib.axes.Axes
-            The matplotlib axes object where the grid and overlays are plotted.
+        When geographic=True, the display guarantees x=Easting and y=Northing
+        for all supported CoordinateSystem values (NED, END, NEU, ENU).
         """
         fig, ax = plt.subplots(figsize=fig_size)
-        if 'cmap' not in imshow_kwargs:
-            imshow_kwargs.setdefault('cmap', 'seismic')
 
-        cax = ax.imshow(
-            self.data.T,
-            origin="lower",
-            extent=(self.origin[0], self.corner[0], self.origin[1], self.corner[1]),
-            **imshow_kwargs,
-        )
+        if "cmap" not in imshow_kwargs:
+            imshow_kwargs.setdefault("cmap", "seismic")
+
+        if geographic:
+            img, extent = self._image_and_extent_for_geographic()
+        else:
+            # Projected: keep existing behavior (x→stored axis-0, y→stored axis-1)
+            img = self.data.T
+            extent = (self.origin[0], self.corner[0],
+                      self.origin[1], self.corner[1])
 
         if mask is not None:
-            positive_mask = super().masked_region_xy(**mask,
-                                                     ax=ax)
-            grid_data = np.where(positive_mask, self.data, np.nan).T
+            positive_mask = super().masked_region_xy(ax=ax, **mask)
+            # Align masking with the image orientation we chose above
+            if img is self.data:  # NE*
+                masked = np.where(positive_mask, self.data, np.nan)
+            else:  # EN*
+                masked = np.where(positive_mask, self.data, np.nan).T
+            grid_data = masked
         else:
-            grid_data = self.data.T
+            grid_data = img
+
+        cax = ax.imshow(grid_data, origin="lower", extent=extent, **imshow_kwargs)
 
         if vmin is None:
             vmin = np.nanpercentile(grid_data, 1)
         if vmax is None:
             vmax = np.nanpercentile(grid_data, 99)
         cax.set_clim(vmin, vmax)
+
         cb = fig.colorbar(cax)
         cb.update_normal(cax)
 
-        if self.grid_units == GridUnits.METER:
-            ax.set_xlabel("X (m)")
-            ax.set_ylabel("Y (m)")
-            cb.set_label("Vel " + self.phase.value + " (m/s)", rotation=270, labelpad=10)
+        # Axis labels: geographic → Easting/Northing; else keep generic X/Y.
+        if geographic:
+            if self.grid_units == GridUnits.METER:
+                ax.set_xlabel("Easting (m)")
+                ax.set_ylabel("Northing (m)")
+                cb.set_label(
+                    f"Vel {self.phase.value} (m/s)", rotation=270, labelpad=10
+                )
+            elif self.grid_units == GridUnits.KILOMETER:
+                ax.set_xlabel("Easting (km)")
+                ax.set_ylabel("Northing (km)")
+                cb.set_label(
+                    "Velocity (km/s)", rotation=270, labelpad=10
+                )
+        else:
+            if self.grid_units == GridUnits.METER:
+                ax.set_xlabel("X (m)")
+                ax.set_ylabel("Y (m)")
+                cb.set_label(
+                    f"Vel {self.phase.value} (m/s)", rotation=270, labelpad=10
+                )
+            elif self.grid_units == GridUnits.KILOMETER:
+                ax.set_xlabel("X (km)")
+                ax.set_ylabel("Y (km)")
+                cb.set_label(
+                    "Velocity (km/s)", rotation=270, labelpad=10
+                )
 
-        if self.grid_units == GridUnits.KILOMETER:
-            ax.set_xlabel("X (km)")
-            ax.set_ylabel("Y (km)")
-            cb.set_label("Velocity (km/s)", rotation=270, labelpad=10)
+        ax.set_title(f"Period = {self.period:1.2f} s")
 
-        ax.set_title("Period = {0:1.2f} s".format(self.period))
-
+        # Receivers: reorder to (E, N) when geographic=True and stored as (N, E).
         if isinstance(receivers, np.ndarray):
-            ax.plot(receivers[:, 0], receivers[:, 1], "s", color="yellow")
+            rxy = receivers
+            if geographic and self.coordinate_system.value.startswith("NE"):
+                # Receivers may be Nx2 or Nx3; swap first two columns only.
+                rxy = receivers.copy()
+                rxy[:, [0, 1]] = rxy[:, [1, 0]]
+            ax.plot(rxy[:, 0], rxy[:, 1], "s", color="yellow")
 
         if isinstance(receivers, SeedEnsemble):
             coordinates = receivers.locs
-            ax.plot(coordinates[:, 0], coordinates[:, 1], "s", color="yellow")
+            rxy = coordinates
+            if geographic and self.coordinate_system.value.startswith("NE"):
+                rxy = coordinates.copy()
+                rxy[:, [0, 1]] = rxy[:, [1, 0]]
+            ax.plot(rxy[:, 0], rxy[:, 1], "s", color="yellow")
 
         return fig, ax
 
@@ -3233,26 +3275,19 @@ class PhaseVelocityEnsemble(list):
         plt.show()
 
 
-def normalize_inventory_coordinates(
+def get_coordinates_from_inventory(
     inventory: Inventory,
     strict: bool = False
-) -> Tuple[List[float], List[float], Set[CoordinateSystem]]:
+) -> List[Tuple[float, float]]:
     """
-    Normalize all instrument coordinates in an inventory to a consistent XY layout.
-
-    Instruments using a North-East coordinate system (like NED or NEU) are flipped
-    so that:
-        - Easting becomes X
-        - Northing becomes Y
+    Extract instrument coordinates from an inventory.
 
     :param inventory: The Inventory containing instruments with coordinates.
     :param strict: If True, raise error on unknown/missing coordinate systems.
-    :return: (locations_x, locations_y, unique_coordinate_systems)
+    :return: List of (x, y) tuples representing instrument coordinates.
     """
 
-    locations_x = []
-    locations_y = []
-    coord_systems = set()
+    locations = []
 
     for inst in inventory.instruments:
         coords = getattr(inst, "coordinates", None)
@@ -3271,16 +3306,61 @@ def normalize_inventory_coordinates(
                 print(f"Warning: Instrument {inst} has no `coordinate_system` — skipping.")
                 continue
 
-        coord_systems.add(coordinate_system)
+        locations.append((coords.x, coords.y))
 
-        if coordinate_system in NORTH_EAST_SYSTEMS:
-            locations_x.append(coords.y)  # Easting
-            locations_y.append(coords.x)  # Northing
-        else:
-            locations_x.append(coords.x)
-            locations_y.append(coords.y)
-
-    if not locations_x or not locations_y:
+    if not locations:
         raise ValueError("No valid coordinates found in inventory.")
 
-    return locations_x, locations_y, coord_systems
+    return locations
+
+# def normalize_inventory_coordinates(
+#     inventory: Inventory,
+#     strict: bool = False
+# ) -> Tuple[List[float], List[float], Set[CoordinateSystem]]:
+#     """
+#     Normalize all instrument coordinates in an inventory to a consistent XY layout.
+#
+#     Instruments using a North-East coordinate system (like NED or NEU) are flipped
+#     so that:
+#         - Easting becomes X
+#         - Northing becomes Y
+#
+#     :param inventory: The Inventory containing instruments with coordinates.
+#     :param strict: If True, raise error on unknown/missing coordinate systems.
+#     :return: (locations_x, locations_y, unique_coordinate_systems)
+#     """
+#
+#     locations_x = []
+#     locations_y = []
+#     coord_systems = set()
+#
+#     for inst in inventory.instruments:
+#         coords = getattr(inst, "coordinates", None)
+#         if coords is None:
+#             if strict:
+#                 raise ValueError(f"Instrument {inst} has no `.coordinates` attribute.")
+#             else:
+#                 print(f"Warning: Instrument {inst} has no `.coordinates` — skipping.")
+#                 continue
+#
+#         coordinate_system = getattr(coords, "coordinate_system", None)
+#         if coordinate_system is None:
+#             if strict:
+#                 raise ValueError(f"Instrument {inst} has no `coordinate_system`.")
+#             else:
+#                 print(f"Warning: Instrument {inst} has no `coordinate_system` — skipping.")
+#                 continue
+#
+#         coord_systems.add(coordinate_system)
+#
+#         if coordinate_system in NORTH_EAST_SYSTEMS:
+#             locations_x.append(coords.y)  # Easting
+#             locations_y.append(coords.x)  # Northing
+#         else:
+#             locations_x.append(coords.x)
+#             locations_y.append(coords.y)
+#
+#     if not locations_x or not locations_y:
+#         raise ValueError("No valid coordinates found in inventory.")
+#
+#     return locations_x, locations_y, coord_systems
