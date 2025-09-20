@@ -39,6 +39,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import to_rgba
 from loguru import logger
 from multiprocessing import Pool, cpu_count
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import Optional
 from .base import ray_tracer
@@ -469,6 +470,11 @@ class TypedGrid(Grid):
 
     @property
     def grid_id(self):
+        """Unique identifier attached to this grid instance.
+
+        :returns: The resource identifier propagated from the base grid.
+        :rtype: ResourceIdentifier
+        """
         return self.resource_id
 
     def mv(self, base_name, origin, destination):
@@ -2183,15 +2189,16 @@ class TTGrid(SeededGrid):
         return self.seed.location_code
 
     def write(self, filename, format='VTK', **kwargs):
-        """Write the grid data to a file.
+        """Write the grid data to disk.
 
-        This method writes the grid data to a file in the specified format.
-
-        :param filename: The name of the file to write the data to.
+        :param filename: Path where the grid should be serialised.
         :type filename: str
-        :param format: The format of the file (default: 'VTK').
+        :param format: Output format understood by :meth:`Grid.write`.
         :type format: str
-        :param **kwargs: Additional keyword arguments specific to the file format.
+        :param kwargs: Additional keyword arguments forwarded to the parent writer.
+        :type kwargs: dict
+        :returns: None
+        :rtype: None
         """
         field_name = None
         if format == 'VTK':
@@ -2635,34 +2642,39 @@ class PhaseVelocity(Grid):
                  value: float = 0, coordinate_system: CoordinateSystem = CoordinateSystem.NED,
                  label: str = __default_grid_label__,
                  float_type: FloatTypes = FloatTypes.FLOAT):
-        """Initialize a PhaseVelocity instance.
+        """Initialise a phase-velocity grid for a single period.
 
-            :param network_code: The network code associated with the data.
-            :type network_code: str
-            :param data_or_dims: The data or dimensions of the grid.
-            :type data_or_dims: Union[np.ndarray, List, Tuple]
-            :param period: the wave period used to calculate the phase velocity.
-            :type period: float
-            :param phase: The seismic phase type (default: Phases.RAYLEIGH).
-            :type phase: Phases
-            :param grid_type: The type of grid (default: GridTypes.VELOCITY_METERS).
-            :type grid_type: GridTypes
-            :param grid_units: The units of the grid (default: GridUnits.METER).
-            :type grid_units: GridUnits
-            :param spacing: The spacing of the grid (default: None).
-            :type spacing: Union[np.ndarray, List, Tuple], optional
-            :param origin: The origin of the grid (default: None).
-            :type origin: Union[np.ndarray, List, Tuple], optional
-            :param resource_id: The resource identifier for the data (default: ResourceIdentifier()).
-            :type resource_id: ResourceIdentifier
-            :param value: The value associated with the data (default: 0).
-            :type value: float
-            :param coordinate_system: The coordinate system of the data (default: CoordinateSystem.NED).
-            :type coordinate_system: CoordinateSystem
-            :param label: The label of the grid (default: __default_grid_label__).
-            :type label: str
-            :param float_type: The float precision (default: FloatTypes.FLOAT).
-            :type float_type: FloatTypes
+        :param network_code: Network code associated with the phase-velocity model.
+        :type network_code: str
+        :param data_or_dims: The grid values or the grid dimensions used to build the
+                             underlying :class:`~uquake.grid.base.Grid`.
+        :type data_or_dims: Union[np.ndarray, List, Tuple]
+        :param period: Wave period used to compute the phase velocities, in seconds.
+        :type period: float
+        :param phase: Seismic phase for which the velocities are defined.
+        :type phase: Phases
+        :param grid_type: Storage type of the grid values.
+        :type grid_type: GridTypes
+        :param grid_units: Physical units of the grid's spatial axes.
+        :type grid_units: GridUnits
+        :param spacing: Grid spacing for each axis. If omitted, inferred from
+                        ``data_or_dims`` when possible.
+        :type spacing: Union[np.ndarray, List, Tuple], optional
+        :param origin: Grid origin expressed in the selected coordinate system.
+        :type origin: Union[np.ndarray, List, Tuple], optional
+        :param resource_id: Resource identifier attached to the grid metadata.
+        :type resource_id: ResourceIdentifier
+        :param value: Default fill value used when constructing an empty grid.
+        :type value: float
+        :param coordinate_system: Coordinate system in which the grid axes are
+                                  expressed.
+        :type coordinate_system: CoordinateSystem
+        :param label: Human-readable label attached to the grid.
+        :type label: str
+        :param float_type: Floating-point precision used to store grid values.
+        :type float_type: FloatTypes
+        :returns: None
+        :rtype: None
         """
 
         self.network_code = network_code
@@ -2684,21 +2696,25 @@ class PhaseVelocity(Grid):
                                             z_axis_log:bool = False,
                                             npts_log_scale: int = 30,
                                             disba_param: DisbaParam = DisbaParam()):
-        """Create a 2D Phase Velocity model.
+        """Build a phase-velocity grid from a seismic property ensemble.
 
-        This method constructs a PhaseVelocity instance from a SeismicPropertyGridEnsemble,
-        associating it with the specified period, phase, and DisbaParam.
-
-        :param seismic_param: The SeismicPropertyGridEnsemble used to create the \
-         PhaseVelocity instance.
+        :param seismic_param: Collection of seismic property grids used to derive
+                              phase velocities.
         :type seismic_param: SeismicPropertyGridEnsemble
-        :param period: the wave period used to calculate the phase velocity.
+        :param period: Wave period, in seconds, at which the dispersion relation is
+                       sampled.
         :type period: float
-        :param phase: The seismic phase.
+        :param phase: Seismic phase whose phase velocities will be extracted.
         :type phase: Phases
-        :param disba_param: Parameters of Disba to be used(default: DisbaParam()).
+        :param z_axis_log: If ``True``, resample the vertical axis on a logarithmic
+                           scale before computing dispersion curves.
+        :type z_axis_log: bool, optional
+        :param npts_log_scale: Number of samples to use when ``z_axis_log`` is turned on.
+        :type npts_log_scale: int, optional
+        :param disba_param: Numerical parameters forwarded to
+                            :class:`disba.PhaseDispersion`.
         :type disba_param: DisbaParam, optional
-        :return: A PhaseVelocity instance created from the SeismicPropertyGridEnsemble.
+        :returns: A phase-velocity grid for the requested period and phase.
         :rtype: PhaseVelocity
         """
         if z_axis_log:
@@ -2758,18 +2774,17 @@ class PhaseVelocity(Grid):
         :type padding: Union[float, Tuple[float, float]], optional
         :param phase: The phase type, default is Phases.RAYLEIGH.
         :type phase: Phases, optional
-        :param kwargs: Additional keyword arguments.
+        :param kwargs: Additional keyword arguments forwarded to the constructor.
         :type kwargs: dict
-        :return: An instance of the Grid class created from the inventory.
-        :rtype: Grid
+        :return: A phase-velocity grid sized to the instrument coverage.
+        :rtype: PhaseVelocity
 
         :raises ValueError: If the padding or spacing values are invalid.
 
-        This method calculates the grid dimensions and origin by considering the
-        span of the inventory and the specified padding. It then creates and
-        returns a grid object with the calculated parameters.
+        This method calculates grid dimensions and origin from the inventory span
+        and requested padding before instantiating a :class:`PhaseVelocity` model.
         """
-       
+
         locations_x, locations_y, _ = get_coordinates_inventory(inventory, strict=True)
 
         # Determine the span of the inventory
@@ -2850,18 +2865,24 @@ class PhaseVelocity(Grid):
 
     @property
     def grid_id(self):
+        """Unique identifier attached to this grid instance.
+
+        :returns: The resource identifier propagated from the base grid.
+        :rtype: ResourceIdentifier
+        """
         return self.resource_id
 
     def write(self, filename, format='VTK', **kwargs):
-        """Write the grid data to a file.
+        """Write the grid data to disk.
 
-        This method writes the grid data to a file in the specified format.
-
-        :param filename: The name of the file to write the data to.
+        :param filename: Path where the grid should be serialised.
         :type filename: str
-        :param format: The format of the file (default: 'VTK').
+        :param format: Output format understood by :meth:`Grid.write`.
         :type format: str
-        :param **kwargs: Additional keyword arguments specific to the file format.
+        :param kwargs: Additional keyword arguments forwarded to the parent writer.
+        :type kwargs: dict
+        :returns: None
+        :rtype: None
         """
         field_name = None
         if format == 'VTK':
@@ -2879,42 +2900,31 @@ class PhaseVelocity(Grid):
             geographic: bool = False,
             **imshow_kwargs,
     ):
-        """
-        Plot the Phase velocity with optional overlay of receiver positions.
+        """Plot the phase-velocity grid with optional receiver overlays.
 
-        Parameters
-        ----------
-        receivers : np.ndarray or SeedEnsemble, optional
-            Receiver positions to overlay on the plot. Can be a 2D NumPy array of shape
-            (N, 2) containing (x, y) coordinates or a SeedEnsemble object.
-
-        fig_size : tuple of float, default=(10, 8)
-            Size of the matplotlib figure in inches (width, height).
-
-        vmin : float, optional
-            Minimum value for the colormap. If None, the 1st percentile of the data is used.
-
-        vmax : float, optional
-            Maximum value for the colormap. If None, the 99th percentile of the data is used.
-
-        mask : dict, optional
-            Dictionary specifying regions to mask out from the plot. Keys and structure
-            depend on implementation, e.g., {'polygon': [(x1, y1), ..., (xn, yn)]}.
-
-        geographic : bool, default=False
-            If True, orient the plot so that the x-axis represents easting and the
-            y-axis represents northing based on the grid's coordinate system.
-
-        **imshow_kwargs
-            Additional keyword arguments passed directly to `matplotlib.axes.Axes.imshow.
-
-        Returns
-        -------
-        fig : matplotlib.figure.Figure
-            The matplotlib figure object containing the plot.
-
-        ax : matplotlib.axes.Axes
-            The matplotlib axes object where the grid and overlays are plotted.
+        :param receivers: Receiver positions to superimpose on the map. Provide either
+                          a ``(N, 2)`` array of ``(x, y)`` coordinates or a
+                          :class:`SeedEnsemble`.
+        :type receivers: Optional[Union[np.ndarray, SeedEnsemble]]
+        :param fig_size: Size of the matplotlib figure in inches ``(width, height)``.
+        :type fig_size: Tuple[float, float]
+        :param vmin: Lower bound for the colour scale. Defaults to the 1st percentile
+                     when omitted.
+        :type vmin: Optional[float]
+        :param vmax: Upper bound for the colour scale. Defaults to the 99th percentile
+                     when omitted.
+        :type vmax: Optional[float]
+        :param mask: Definition of regions to hide, following
+                     :meth:`~uquake.grid.base.Grid.masked_region_xy` conventions.
+        :type mask: Optional[dict]
+        :param geographic: If ``True``, align axes with easting/northing instead of
+                           grid indices.
+        :type geographic: bool
+        :param imshow_kwargs: Extra keyword arguments forwarded to
+                              :func:`matplotlib.axes.Axes.imshow`.
+        :type imshow_kwargs: dict
+        :returns: Tuple ``(fig, ax)`` with the generated matplotlib figure and axes.
+        :rtype: Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]
         """
         if self.data.ndim != 2:
             raise ValueError("PhaseVelocity.plot currently supports only 2D data.")
@@ -3009,6 +3019,7 @@ class PhaseVelocity(Grid):
         return fig, ax
 
     def __repr__(self):
+        """Return a concise text summary of key grid attributes."""
         repr_str = """
                 period :  %0.2f
                 spacing: %s
@@ -3018,6 +3029,7 @@ class PhaseVelocity(Grid):
         return repr_str
 
     def __str__(self):
+        """Alias to :meth:`__repr__` for readable printing."""
         return self.__repr__()
 
     def compute_frechet(self, sources: Union[SeedEnsemble, np.ndarray],
@@ -3027,33 +3039,28 @@ class PhaseVelocity(Grid):
                         threads: int = 1):
 
 
-        """
-        Calculate the Frechet derivative and travel times.
+        """Calculate Frechet derivatives between sources and receivers.
 
-        :param sources: The source ensemble containing locations.
+        :param sources: Source locations provided either as a :class:`SeedEnsemble`
+                        or as an array of ``(x, y)`` coordinates.
         :type sources: Union[SeedEnsemble, np.ndarray]
-        :param receivers: The receiver ensemble containing locations.
+        :param receivers: Receiver locations provided either as a
+                          :class:`SeedEnsemble` or an array of ``(x, y)`` coordinates.
         :type receivers: Union[SeedEnsemble, np.ndarray]
-        :param ns: Number of secondary nodes for grid refinement.
-                   If an integer is provided, it is used for all dimensions.
-                   If a tuple is provided, it specifies the number of nodes in the x, y,
-                   and z dimensions respectively.
+        :param ns: Number of secondary nodes used to refine the travel-time grid. When
+                   a tuple is supplied it is interpreted as ``(nx, ny, nz)``.
         :type ns: Union[int, Tuple[int, int, int]], optional
-        :param tt_cal: If True, the travel times will also be returned. Default is True.
+        :param tt_cal: If ``True`` also return the matrix of travel times.
         :type tt_cal: bool, optional
-        :param cell_slowness: If True, the grid will be created with cell slowness.
-                              If False, the grid will be created without cell slowness.
-                              Default is True.
+        :param cell_slowness: Request cell slowness discretisation when building the
+                              auxiliary grid.
         :type cell_slowness: bool, optional
-        :param threads: The number of threads to use for computation. Default is 1.
+        :param threads: Number of worker threads used during ray-tracing.
         :type threads: int, optional
-        :return: Frechet derivative and optionally travel times.
-        :rtype: Tuple[np.ndarray, np.ndarray] if tt_cal is True, otherwise np.ndarray
+        :returns: When ``tt_cal`` is ``True`` returns ``(frechet, travel_times)``.
+                  Otherwise only the Frechet derivatives are returned.
+        :rtype: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]
         """
-
-        # Create the grid with specified parameters
-        grid = self.to_rgrid(n_secondary=ns, cell_slowness=cell_slowness,
-                             threads=threads)
 
         # Extract source locations
 
@@ -3061,22 +3068,67 @@ class PhaseVelocity(Grid):
             srcs = sources.locs[:, :2]
         else:
             srcs = sources
+        srcs = np.atleast_2d(srcs)
+
+        n_sources = srcs.shape[0]
 
         # Extract receiver locations
         if isinstance(receivers, SeedEnsemble):
             rxs = receivers.locs[:, :2]
         else:
             rxs = receivers
+        rxs = np.atleast_2d(rxs)
 
-        # Perform ray tracing
-        tt, _, frechet = grid.raytrace(source=srcs, rcv=rxs, compute_L=True,
-                                       return_rays=True)
+        n_receivers = rxs.shape[0]
+        worker_count = threads if isinstance(threads, int) else 1
+        worker_count = max(1, worker_count)
+        max_workers = min(worker_count, n_sources) or 1
+
+        def _trace_with_grid(local_grid, src):
+            single_src = np.asarray(src, dtype=float).reshape(1, -1)
+            tt_single, _, frechet_single = local_grid.raytrace(
+                source=single_src,
+                rcv=rxs,
+                compute_L=True,
+                return_rays=True,
+            )
+            tt_processed = np.asarray(tt_single).reshape(n_receivers)
+            frechet_processed = np.asarray(frechet_single).reshape(n_receivers, -1)
+            return tt_processed, frechet_processed
+
+        if max_workers == 1:
+            grid = self.to_rgrid(n_secondary=ns, cell_slowness=cell_slowness,
+                                 threads=worker_count)
+            results = [_trace_with_grid(grid, src) for src in srcs]
+        else:
+            def _worker(src):
+                local_grid = self.to_rgrid(n_secondary=ns,
+                                           cell_slowness=cell_slowness,
+                                           threads=1)
+                return _trace_with_grid(local_grid, src)
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                results = list(executor.map(_worker, srcs))
+
+        tt = np.stack([res[0] for res in results], axis=0)
+        frechet = np.stack([res[1] for res in results], axis=0)
         if tt_cal:
             return frechet, tt
         else:
             return frechet
 
     def to_time(self, seed: Seed, ns: Union[int, Tuple[int, int, int]] = 5):
+        """Generate a travel-time grid for a single source location.
+
+        :param seed: Source definition used as the emitter in the travel-time
+                     computation.
+        :type seed: Seed
+        :param ns: Number of secondary nodes used when constructing the auxiliary
+                   ray-tracing grid.
+        :type ns: Union[int, Tuple[int, int, int]], optional
+        :returns: Travel-time grid derived from the current phase-velocity model.
+        :rtype: TTGrid
+        """
         grid = self.to_rgrid(n_secondary=ns, cell_slowness=False)
         if self.grid_type == GridTypes.VELOCITY_KILOMETERS:
             grid.set_velocity(1.e3 * self.data)
@@ -3096,6 +3148,16 @@ class PhaseVelocity(Grid):
 
     def to_time_multi_threaded(self, seeds: SeedEnsemble,
                                ns: Union[int, Tuple[int, int, int]] = 5):
+        """Generate travel-time grids for multiple sources using thread-level parallelism.
+
+        :param seeds: Collection of source definitions to evaluate.
+        :type seeds: SeedEnsemble
+        :param ns: Number of secondary nodes used when constructing the auxiliary
+                   ray-tracing grid.
+        :type ns: Union[int, Tuple[int, int, int]], optional
+        :returns: Travel-time grids indexed by the order of the provided seeds.
+        :rtype: TravelTimeEnsemble
+        """
         grid = self.to_rgrid(n_secondary=ns, threads=len(seeds), cell_slowness=False)
         grid.set_velocity(self.data)
         src = np.zeros(shape=(len(seeds), 2))
@@ -3122,6 +3184,16 @@ class PhaseVelocity(Grid):
         return TravelTimeEnsemble(tt_ensemble)
 
     def __save_rays_vtk__(self, rays, filename):
+        """Export traced rays as polylines in VTK format.
+
+        :param rays: Iterable of arrays describing individual ray paths as ``(x, y)``
+                     sample coordinates.
+        :type rays: Sequence[np.ndarray]
+        :param filename: Destination filename passed to :mod:`evtk` (extension optional).
+        :type filename: str
+        :returns: None
+        :rtype: None
+        """
         n_rays = len(rays)
         points_per_line = np.zeros(n_rays)
         x = []
@@ -3138,6 +3210,24 @@ class PhaseVelocity(Grid):
 
     def raytracing(self, receivers, method="SPM", save_rays: bool = False,
                    save_tt_grid: list=[], folder=None):
+        """Trace inter-receiver rays across the phase-velocity grid.
+
+        :param receivers: Receiver locations as a ``(N, 2)`` or ``(N, 3)`` array; the
+                           third coordinate is ignored if provided.
+        :type receivers: np.ndarray
+        :param method: Ray-tracing method name understood by :mod:`ttcrpy`.
+        :type method: str
+        :param save_rays: If ``True``, export the traced rays using
+                          :meth:`__save_rays_vtk__`.
+        :type save_rays: bool
+        :param save_tt_grid: Optional arguments controlling the saving of the travel-time
+                              grid. The content is passed directly to :mod:`ttcrpy`.
+        :type save_tt_grid: list
+        :param folder: Output folder used when persisting rays or travel times.
+        :type folder: Optional[str]
+        :returns: None
+        :rtype: None
+        """
 
         if folder is None:
             folder = "."
