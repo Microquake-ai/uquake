@@ -92,6 +92,28 @@ def _require_skfmm(context: str) -> None:
         )
 
 
+def _deduplicate_points(coords: np.ndarray, decimals: int = 8):
+    """Deduplicate coordinate rows while preserving their first occurrence order."""
+
+    coords = np.asarray(coords, dtype=float)
+    n_points = coords.shape[0]
+    inverse = np.empty(n_points, dtype=int)
+    unique_points = []
+    representative_indices = []
+    mapping = {}
+
+    for idx, row in enumerate(coords):
+        key = tuple(np.round(row, decimals=decimals))
+        if key not in mapping:
+            mapping[key] = len(unique_points)
+            unique_points.append(row)
+            representative_indices.append(idx)
+        inverse[idx] = mapping[key]
+
+    unique_points = np.array(unique_points, dtype=float)
+    return unique_points, inverse, representative_indices
+
+
 class Phases(Enum):
     P = 'P'
     S = 'S'
@@ -3112,20 +3134,69 @@ class PhaseVelocity(Grid):
             method = "fmm" if _SKFMM_AVAILABLE else "ttcrpy"
         method = method.lower()
 
-        n_sources = len(sources.seeds) if isinstance(sources, SeedEnsemble) else np.atleast_2d(sources).shape[0]
-        n_receivers = len(receivers.seeds) if isinstance(receivers, SeedEnsemble) else np.atleast_2d(receivers).shape[0]
+        dims = 2  # PhaseVelocity grids are defined in (x, y)
+
+        def _extract_coords(entity):
+            if isinstance(entity, SeedEnsemble):
+                return entity.locs[:, :dims]
+            return np.atleast_2d(entity)[:, :dims]
+
+        src_coords = _extract_coords(sources)
+        rcv_coords = _extract_coords(receivers)
+
+        unique_src_coords, src_inverse, src_rep = _deduplicate_points(src_coords)
+        unique_rcv_coords, rcv_inverse, rcv_rep = _deduplicate_points(rcv_coords)
+
+        if isinstance(sources, SeedEnsemble):
+            unique_src_seeds = [sources.seeds[idx] for idx in src_rep]
+            unique_sources = SeedEnsemble(unique_src_seeds, units=sources.units)
+        else:
+            unique_sources = unique_src_coords
+
+        if isinstance(receivers, SeedEnsemble):
+            unique_rcv_seeds = [receivers.seeds[idx] for idx in rcv_rep]
+            unique_receivers = SeedEnsemble(unique_rcv_seeds, units=receivers.units)
+        else:
+            unique_receivers = unique_rcv_coords
+
+        n_sources_orig = src_coords.shape[0]
+        n_receivers_orig = rcv_coords.shape[0]
+        n_unique_sources = unique_src_coords.shape[0]
+        n_unique_receivers = unique_rcv_coords.shape[0]
+
+        if n_unique_sources != n_sources_orig:
+            logger.info(
+                f"Collapsed {n_sources_orig} sources to {n_unique_sources} unique locations."
+            )
+        if n_unique_receivers != n_receivers_orig:
+            logger.info(
+                f"Collapsed {n_receivers_orig} receivers to {n_unique_receivers} unique locations."
+            )
+
+        swap_axes = n_unique_receivers < n_unique_sources
+
+        if swap_axes:
+            logger.info(
+                "Using reciprocity: computing Frechet derivatives with receivers as sources."
+            )
+
+        compute_sources = unique_receivers if swap_axes else unique_sources
+        compute_receivers = unique_sources if swap_axes else unique_receivers
+
+        def _entity_count(entity):
+            return len(entity.seeds) if isinstance(entity, SeedEnsemble) else np.atleast_2d(entity).shape[0]
 
         start_time = time.perf_counter()
         logger.info(
             f"Computing Frechet derivatives using '{method}' backend for "
-            f"{n_sources} sources x {n_receivers} receivers."
+            f"{_entity_count(compute_sources)} unique sources x {_entity_count(compute_receivers)} unique receivers."
         )
 
         if method == "fmm":
             _require_skfmm("compute Frechet derivatives via the fast marching solver")
             result = self._compute_frechet_fmm(
-                sources=sources,
-                receivers=receivers,
+                sources=compute_sources,
+                receivers=compute_receivers,
                 tt_cal=tt_cal,
                 cell_slowness=cell_slowness,
                 threads=threads,
@@ -3136,8 +3207,8 @@ class PhaseVelocity(Grid):
             )
         elif method == "ttcrpy":
             result = self._compute_frechet_ttcrpy(
-                sources=sources,
-                receivers=receivers,
+                sources=compute_sources,
+                receivers=compute_receivers,
                 ns=ns,
                 tt_cal=tt_cal,
                 cell_slowness=cell_slowness,
@@ -3147,12 +3218,30 @@ class PhaseVelocity(Grid):
         else:
             raise ValueError("method must be either 'fmm' or 'ttcrpy'.")
 
+        if tt_cal:
+            frechet_unique, tt_unique = result
+        else:
+            frechet_unique = result
+            tt_unique = None
+
+        if swap_axes:
+            frechet_unique = np.transpose(frechet_unique, (1, 0, 2))
+            if tt_unique is not None:
+                tt_unique = tt_unique.T
+
+        frechet_full = frechet_unique[src_inverse][:, rcv_inverse, :]
+        if tt_unique is not None:
+            tt_full = tt_unique[src_inverse][:, rcv_inverse]
+
         elapsed = time.perf_counter() - start_time
         logger.info(
             f"Frechet computation ('{method}' backend) completed in {elapsed:.2f}s "
-            f"for {n_sources} sources." )
+            f"(original grid: {n_sources_orig} sources x {n_receivers_orig} receivers)."
+        )
 
-        return result
+        if tt_cal:
+            return frechet_full, tt_full
+        return frechet_full
 
     def _compute_frechet_ttcrpy(self,
                                 sources: Union[SeedEnsemble, np.ndarray],

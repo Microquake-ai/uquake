@@ -57,11 +57,14 @@ from uquake.grid.extended import (
     PhaseVelocity,
     Seed,
     SeedEnsemble,
+    _deduplicate_points,
 )
 
 
 VELOCITY_M_PER_S = 3000.0
 TOLERANCE = 1e-2
+NUM_SOURCES = 40
+NUM_RECEIVERS = 40
 
 
 def build_phase_velocity_model() -> PhaseVelocity:
@@ -145,22 +148,19 @@ def validate_velocity_derivatives(model: PhaseVelocity,
 def main() -> None:
     model = build_phase_velocity_model()
 
-    source_coords = np.array(
-        [
-            [5.0, 5.0],
-            [10.0, 15.0],
-            [20.0, 10.0],
-            [35.0, 25.0],
-        ]
-    )
-    receiver_coords = np.array(
-        [
-            [15.0, 15.0],
-            [40.0, 20.0],
-            [5.0, 30.0],
-            [10.0, 5.0],
-        ]
-    )
+    rng = np.random.default_rng(2025)
+
+    base_source_count = max(1, NUM_SOURCES // 2)
+    base_receiver_count = max(1, NUM_RECEIVERS // 2)
+
+    base_sources = rng.uniform(low=5.0, high=45.0, size=(base_source_count, 2))
+    base_receivers = rng.uniform(low=5.0, high=45.0, size=(base_receiver_count, 2))
+
+    source_duplicates = base_sources[: NUM_SOURCES - base_source_count]
+    receiver_duplicates = base_receivers[: NUM_RECEIVERS - base_receiver_count]
+
+    source_coords = np.vstack([base_sources, source_duplicates])
+    receiver_coords = np.vstack([base_receivers, receiver_duplicates])
 
     sources = build_sources(source_coords)
 
@@ -169,6 +169,14 @@ def main() -> None:
         start = time.perf_counter()
         validate_slowness_derivatives(model, sources, receiver_coords)
         validate_velocity_derivatives(model, sources, receiver_coords)
+        _ = model.compute_frechet(
+            sources=sources,
+            receivers=receiver_coords,
+            method="fmm",
+            cell_slowness=True,
+            tt_cal=False,
+            progress=True,
+        )
         fmm_elapsed = time.perf_counter() - start
         logger.info(f"FMM backend validation completed in {fmm_elapsed:.2f}s.")
     else:
@@ -188,6 +196,24 @@ def main() -> None:
     assert frechet_ttcrpy.shape[0] == len(source_coords)
     assert frechet_ttcrpy.shape[1] == len(receiver_coords)
     assert np.all(np.isfinite(frechet_ttcrpy))
+
+    # Order consistency check using a single raytrace over the unique sets
+    unique_src_coords, src_inverse, _ = _deduplicate_points(source_coords)
+    unique_rcv_coords, rcv_inverse, _ = _deduplicate_points(receiver_coords)
+
+    unique_src_seeds = build_sources(unique_src_coords)
+    frechet_unique = model.compute_frechet(
+        sources=unique_src_seeds,
+        receivers=unique_rcv_coords,
+        method="ttcrpy",
+        cell_slowness=True,
+        tt_cal=False,
+        progress=False,
+    )
+
+    recomposed = frechet_unique[src_inverse][:, rcv_inverse, :]
+    if not np.allclose(frechet_ttcrpy, recomposed):
+        raise AssertionError("Frechet matrix reordering check failed.")
 
     logger.info(f"ttcrpy backend validation completed in {ttcrpy_elapsed:.2f}s.")
 
