@@ -60,6 +60,17 @@ from ttcrpy import rgrid
 from scipy.signal import fftconvolve
 from disba import PhaseDispersion, PhaseSensitivity
 from evtk import hl
+import time
+
+from tqdm import tqdm
+
+try:  # optional fast marching solver
+    import skfmm  # type: ignore
+
+    _SKFMM_AVAILABLE = True
+except ImportError:  # pragma: no cover - availability depends on environment
+    skfmm = None  # type: ignore
+    _SKFMM_AVAILABLE = False
 
 
 
@@ -69,6 +80,16 @@ valid_phases = ('P', 'S')
 
 # In many cases, where Z is ignored, North-Up-Down and North-East-Up can be treated as the same
 NORTH_EAST_SYSTEMS = {CoordinateSystem.NED, CoordinateSystem.NEU}
+
+
+def _require_skfmm(context: str) -> None:
+    """Raise an informative error when scikit-fmm is required but unavailable."""
+
+    if not _SKFMM_AVAILABLE:
+        raise ImportError(
+            f"scikit-fmm is required to {context}. Install it with 'pip install scikit-fmm' "
+            "or rerun using method='ttcrpy'."
+        )
 
 
 class Phases(Enum):
@@ -1163,6 +1184,8 @@ class VelocityGrid3D(TypedGrid):
 
         :rtype: TTGrid
         """
+
+        _require_skfmm("compute travel times with the fast marching solver")
 
         if isinstance(seed, list):
             seed = np.array(seed)
@@ -3037,7 +3060,11 @@ class PhaseVelocity(Grid):
                         receivers: Union[SeedEnsemble, np.ndarray],
                         ns: Union[int, Tuple[int, int, int]] = 5,
                         tt_cal: bool = True, cell_slowness: bool = True,
-                        threads: int = 1):
+                        threads: int = 1, *, method: Optional[str] = None,
+                        sub_grid_resolution: float = 0.25,
+                        step_fraction: float = 0.5,
+                        ray_max_iter: int = 5000,
+                        progress: bool = False):
 
 
         """Calculate Frechet derivatives between sources and receivers.
@@ -3048,22 +3075,93 @@ class PhaseVelocity(Grid):
         :param receivers: Receiver locations provided either as a
                           :class:`SeedEnsemble` or an array of ``(x, y)`` coordinates.
         :type receivers: Union[SeedEnsemble, np.ndarray]
-        :param ns: Number of secondary nodes used to refine the travel-time grid. When
-                   a tuple is supplied it is interpreted as ``(nx, ny, nz)``.
+        :param ns: Number of secondary nodes when using the ``ttcrpy`` backend.
         :type ns: Union[int, Tuple[int, int, int]], optional
         :param tt_cal: If ``True`` also return the matrix of travel times.
         :type tt_cal: bool, optional
-        :param cell_slowness: Request cell slowness discretisation when building the
-                              auxiliary grid.
+        :param cell_slowness: When ``True`` return derivatives with respect to
+                              slowness; otherwise derivatives are with respect to
+                              velocity.
         :type cell_slowness: bool, optional
-        :param threads: Number of worker threads used during ray-tracing.
+        :param threads: Number of worker threads.
         :type threads: int, optional
+        :param method: Backend used for the Frechet computation. ``"fmm"`` uses the
+                       internal fast-marching solver and gradient-based ray tracing,
+                       while ``"ttcrpy"`` falls back to the legacy implementation.
+                       When ``None`` the solver defaults to ``"fmm"`` if
+                       :mod:`scikit-fmm` is available, otherwise ``"ttcrpy"``.
+        :type method: Optional[str], optional
+        :param sub_grid_resolution: Fraction of the grid spacing used for the
+                                    high-resolution patch surrounding each source
+                                    when ``method="fmm"``.
+        :type sub_grid_resolution: float, optional
+        :param step_fraction: Maximum fraction of the smallest cell size employed
+                               when discretising rays for path-length accumulation.
+        :type step_fraction: float, optional
+        :param ray_max_iter: Maximum number of iterations allowed in the
+                             gradient-descent ray tracer.
+        :type ray_max_iter: int, optional
+        :param progress: Display a progress bar while iterating over sources.
+        :type progress: bool, optional
         :returns: When ``tt_cal`` is ``True`` returns ``(frechet, travel_times)``.
                   Otherwise only the Frechet derivatives are returned.
         :rtype: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]
         """
 
-        # Extract source locations
+        if method is None:
+            method = "fmm" if _SKFMM_AVAILABLE else "ttcrpy"
+        method = method.lower()
+
+        n_sources = len(sources.seeds) if isinstance(sources, SeedEnsemble) else np.atleast_2d(sources).shape[0]
+        n_receivers = len(receivers.seeds) if isinstance(receivers, SeedEnsemble) else np.atleast_2d(receivers).shape[0]
+
+        start_time = time.perf_counter()
+        logger.info(
+            f"Computing Frechet derivatives using '{method}' backend for "
+            f"{n_sources} sources x {n_receivers} receivers."
+        )
+
+        if method == "fmm":
+            _require_skfmm("compute Frechet derivatives via the fast marching solver")
+            result = self._compute_frechet_fmm(
+                sources=sources,
+                receivers=receivers,
+                tt_cal=tt_cal,
+                cell_slowness=cell_slowness,
+                threads=threads,
+                sub_grid_resolution=sub_grid_resolution,
+                step_fraction=step_fraction,
+                ray_max_iter=ray_max_iter,
+                progress=progress,
+            )
+        elif method == "ttcrpy":
+            result = self._compute_frechet_ttcrpy(
+                sources=sources,
+                receivers=receivers,
+                ns=ns,
+                tt_cal=tt_cal,
+                cell_slowness=cell_slowness,
+                threads=threads,
+                progress=progress,
+            )
+        else:
+            raise ValueError("method must be either 'fmm' or 'ttcrpy'.")
+
+        elapsed = time.perf_counter() - start_time
+        logger.info(
+            f"Frechet computation ('{method}' backend) completed in {elapsed:.2f}s "
+            f"for {n_sources} sources." )
+
+        return result
+
+    def _compute_frechet_ttcrpy(self,
+                                sources: Union[SeedEnsemble, np.ndarray],
+                                receivers: Union[SeedEnsemble, np.ndarray],
+                                ns: Union[int, Tuple[int, int, int]],
+                                tt_cal: bool,
+                                cell_slowness: bool,
+                                threads: int,
+                                progress: bool):
 
         if isinstance(sources, SeedEnsemble):
             srcs = sources.locs[:, :2]
@@ -3071,77 +3169,299 @@ class PhaseVelocity(Grid):
             srcs = sources
         srcs = np.atleast_2d(srcs)
 
-        n_sources = srcs.shape[0]
-
-        # Extract receiver locations
         if isinstance(receivers, SeedEnsemble):
             rxs = receivers.locs[:, :2]
         else:
             rxs = receivers
         rxs = np.atleast_2d(rxs)
 
+        n_sources = srcs.shape[0]
         n_receivers = rxs.shape[0]
-        worker_count = threads if isinstance(threads, int) else 1
-        worker_count = max(1, worker_count)
-        max_workers = min(worker_count, n_sources) or 1
 
-        def _trace_with_grid(local_grid, src):
-            single_src = np.asarray(src, dtype=float).reshape(1, -1)
-            tt_single, _, frechet_single = local_grid.raytrace(
-                source=single_src,
-                rcv=rxs,
-                compute_L=True,
-                return_rays=True,
-            )
-            tt_processed = np.asarray(tt_single).reshape(n_receivers)
+        worker_threads = threads if isinstance(threads, int) and threads > 0 else 1
+        grid = self.to_rgrid(n_secondary=ns, cell_slowness=cell_slowness,
+                             threads=worker_threads)
+        if hasattr(grid, "set_use_thread_pool"):
+            grid.set_use_thread_pool(worker_threads > 1)
 
-            if sparse.issparse(frechet_single):
-                frechet_processed = frechet_single.toarray()
-            else:
-                frechet_processed = np.asarray(frechet_single)
+        tt_rows = []
+        frechet_rows = []
 
-            if frechet_processed.size == 0:
-                frechet_processed = frechet_processed.reshape(n_receivers, 0)
-            else:
-                frechet_flat = np.asarray(frechet_processed).ravel()
-                if frechet_flat.size == 1 and n_receivers > 1:
-                    raise ValueError(
-                        "Frechet derivative returned a single value; ensure the "
-                        "raytracing grid is configured with cell_slowness=True "
-                        "and supports per-receiver Frechet sensitivities."
-                    )
-                if frechet_processed.ndim == 1 or frechet_processed.shape[0] != n_receivers:
-                    total_elements = frechet_flat.size
-                    if total_elements % n_receivers != 0:
-                        raise ValueError(
-                            f"Inconsistent Frechet derivative shape {frechet_processed.shape} "
-                            f"for {n_receivers} receivers."
-                        )
-                    frechet_processed = frechet_flat.reshape(n_receivers, total_elements // n_receivers)
+        pbar = tqdm(total=n_sources, desc="Frechet (ttcrpy)", unit="src",
+                    disable=not progress)
+        try:
+            for src in srcs:
+                single_src = np.asarray(src, dtype=float).reshape(1, -1)
+                tt_single, _, frechet_single = grid.raytrace(
+                    source=single_src,
+                    rcv=rxs,
+                    compute_L=True,
+                    return_rays=True,
+                )
+
+                tt_processed = np.asarray(tt_single).reshape(n_receivers)
+
+                if sparse.issparse(frechet_single):
+                    frechet_processed = frechet_single.toarray()
                 else:
-                    frechet_processed = np.asarray(frechet_processed)
-            return tt_processed, frechet_processed
+                    frechet_processed = np.asarray(frechet_single)
 
-        if max_workers == 1:
-            grid = self.to_rgrid(n_secondary=ns, cell_slowness=cell_slowness,
-                                 threads=worker_count)
-            results = [_trace_with_grid(grid, src) for src in srcs]
-        else:
-            def _worker(src):
-                local_grid = self.to_rgrid(n_secondary=ns,
-                                           cell_slowness=cell_slowness,
-                                           threads=1)
-                return _trace_with_grid(local_grid, src)
+                if frechet_processed.size == 0:
+                    frechet_processed = frechet_processed.reshape(n_receivers, 0)
+                else:
+                    frechet_flat = np.asarray(frechet_processed).ravel()
+                    if frechet_flat.size == 1 and n_receivers > 1:
+                        raise ValueError(
+                            "Frechet derivative returned a single value; ensure the "
+                            "raytracing grid is configured with cell_slowness=True "
+                            "and supports per-receiver Frechet sensitivities."
+                        )
+                    if frechet_processed.ndim == 1 or frechet_processed.shape[0] != n_receivers:
+                        total_elements = frechet_flat.size
+                        if total_elements % n_receivers != 0:
+                            raise ValueError(
+                                f"Inconsistent Frechet derivative shape {frechet_processed.shape} "
+                                f"for {n_receivers} receivers."
+                            )
+                        frechet_processed = frechet_flat.reshape(n_receivers, total_elements // n_receivers)
+                    else:
+                        frechet_processed = np.asarray(frechet_processed)
 
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                results = list(executor.map(_worker, srcs))
+                tt_rows.append(tt_processed)
+                frechet_rows.append(frechet_processed)
 
-        tt = np.stack([res[0] for res in results], axis=0)
-        frechet = np.stack([res[1] for res in results], axis=0)
+                pbar.update()
+        finally:
+            pbar.close()
+
+        tt = np.stack(tt_rows, axis=0)
+        frechet = np.stack(frechet_rows, axis=0)
         if tt_cal:
             return frechet, tt
+        return frechet
+
+    def _compute_frechet_fmm(self,
+                              sources: Union[SeedEnsemble, np.ndarray],
+                              receivers: Union[SeedEnsemble, np.ndarray],
+                              tt_cal: bool,
+                              cell_slowness: bool,
+                              threads: int,
+                              sub_grid_resolution: float,
+                              step_fraction: float,
+                              ray_max_iter: int,
+                              progress: bool):
+
+        if isinstance(sources, SeedEnsemble):
+            seeds = sources.seeds
         else:
-            return frechet
+            seeds = self._build_seeds_from_array(np.atleast_2d(sources))
+
+        if isinstance(receivers, SeedEnsemble):
+            receiver_coords = receivers.locs
+        else:
+            receiver_coords = np.atleast_2d(receivers)
+
+        if len(seeds) == 0 or receiver_coords.size == 0:
+            raise ValueError("Both sources and receivers must be provided to compute Frechet derivatives.")
+
+        n_sources = len(seeds)
+        n_receivers = receiver_coords.shape[0]
+        n_cells = int(self.data.size)
+
+        dtype = np.dtype(self.float_type.value)
+        tt = np.zeros((n_sources, n_receivers), dtype=np.float64)
+        frechet = np.zeros((n_sources, n_receivers, n_cells), dtype=np.float64)
+
+        velocity_flat = self.data.ravel(order='C').astype(np.float64)
+        dims = self.ndim
+
+        def _process_source(args):
+            idx, seed = args
+            tt_grid = self._build_travel_time_grid_fmm(
+                seed,
+                sub_grid_resolution=sub_grid_resolution,
+            )
+
+            source_tt = np.zeros(n_receivers, dtype=np.float64)
+            source_frechet = np.zeros((n_receivers, n_cells), dtype=np.float64)
+            seed_loc = np.asarray(seed.loc)
+
+            for j, rec in enumerate(receiver_coords):
+                receiver_point = self._prepare_receiver_point(rec, seed_loc, dims)
+                if not self.in_grid(receiver_point[:dims], grid_space=False):
+                    raise ValueError(f"Receiver {receiver_point[:dims]} is outside the grid bounds.")
+
+                ray = tt_grid.ray_tracer(receiver_point, grid_space=False, max_iter=ray_max_iter)
+                if ray is None or getattr(ray, 'nodes', None) is None or len(ray.nodes) < 2:
+                    raise RuntimeError("Ray tracing failed to converge for receiver {0}.".format(receiver_point))
+
+                path_nodes = np.asarray(ray.nodes)
+                frechet_row = self.path_lengths_from_nodes(path_nodes, step_fraction=step_fraction)
+
+                if not cell_slowness:
+                    with np.errstate(divide='ignore', invalid='ignore'):
+                        frechet_row = -frechet_row / np.square(velocity_flat)
+                        frechet_row[~np.isfinite(frechet_row)] = 0.0
+
+                source_frechet[j, :] = frechet_row
+
+                if hasattr(ray, 'travel_time') and ray.travel_time is not None:
+                    source_tt[j] = ray.travel_time
+                else:
+                    source_tt[j] = tt_grid.interpolate(receiver_point, grid_space=False, order=1)[0]
+
+            return idx, source_frechet, source_tt
+
+        tasks = list(enumerate(seeds))
+        max_workers = max(1, int(threads))
+
+        pbar = tqdm(total=n_sources, desc="Frechet (fmm)", unit="src",
+                    disable=not progress)
+        try:
+            if max_workers > 1:
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    results = []
+                    for res in executor.map(_process_source, tasks):
+                        results.append(res)
+                        pbar.update()
+            else:
+                results = []
+                for task in tasks:
+                    results.append(_process_source(task))
+                    pbar.update()
+        finally:
+            pbar.close()
+
+        for idx, source_frechet, source_tt in results:
+            frechet[idx, :, :] = source_frechet
+            tt[idx, :] = source_tt
+
+        frechet = frechet.astype(dtype, copy=False)
+        if tt_cal:
+            return frechet, tt.astype(dtype, copy=False)
+        return frechet
+
+    def _prepare_receiver_point(self, receiver: np.ndarray, seed_loc: np.ndarray,
+                                 dims: int) -> np.ndarray:
+        receiver = np.asarray(receiver, dtype=float)
+        if receiver.size < dims:
+            receiver = np.pad(receiver, (0, dims - receiver.size), constant_values=0.0)
+        point = seed_loc.copy()
+        point[:dims] = receiver[:dims]
+        return point
+
+    def _build_seeds_from_array(self, srcs: np.ndarray) -> List[Seed]:
+        seeds = []
+        dims = self.ndim
+        for idx, src in enumerate(np.asarray(srcs, dtype=float)):
+            if src.size < dims:
+                src = np.pad(src, (0, dims - src.size), constant_values=0.0)
+            coords = np.zeros(3, dtype=float)
+            coords[:dims] = src[:dims]
+            coordinates = Coordinates(coords[0], coords[1], coords[2],
+                                      coordinate_system=self.coordinate_system)
+            seeds.append(Seed(f'S{idx:04d}', f'L{idx:04d}', coordinates))
+        return seeds
+
+    def _build_travel_time_grid_fmm(self, seed: Seed,
+                                    sub_grid_resolution: float = 0.25) -> TTGrid:
+        _require_skfmm("build auxiliary travel-time grids using the fast marching solver")
+
+        if not self.in_grid(seed.loc[:self.ndim], grid_space=False):
+            raise ValueError(f'Source {seed.label} lies outside the grid bounds.')
+
+        origin = np.asarray(self.origin, dtype=float)
+        spacing = np.asarray(self.spacing, dtype=float)
+        shape = np.asarray(self.shape, dtype=int)
+        dims = self.ndim
+
+        sub_spacing = spacing * float(sub_grid_resolution)
+        n_pts_inner = np.maximum(4, (4 * spacing / sub_spacing * 1.2).astype(int))
+        for dim in range(dims):
+            if n_pts_inner[dim] % 2:
+                n_pts_inner[dim] += 1
+
+        seed_coords = np.asarray(seed.loc)[:dims]
+
+        local_axes = []
+        for dim in range(dims):
+            axis = np.arange(n_pts_inner[dim], dtype=float) * sub_spacing[dim]
+            axis = axis - np.mean(axis) + seed_coords[dim]
+            local_axes.append(axis)
+
+        local_mesh = np.meshgrid(*local_axes, indexing='ij')
+        local_coords = np.stack([m.ravel() for m in local_mesh], axis=1)
+        local_vel = self.interpolate(local_coords, grid_space=False).reshape(
+            [len(axis) for axis in local_axes]
+        )
+
+        phi_local = np.ones_like(local_mesh[0])
+        centre_idx = tuple(int(np.floor(len(axis) / 2)) for axis in local_axes)
+        phi_local[centre_idx] = 0.0
+
+        tt_local = skfmm.travel_time(phi_local, local_vel, dx=tuple(sub_spacing))
+
+        local_origin = [axis[0] for axis in local_axes]
+        tt_local_grid = TTGrid(
+            self.network_code,
+            tt_local,
+            local_origin,
+            sub_spacing,
+            seed,
+            phase=self.phase,
+            float_type=self.float_type,
+            grid_units=self.grid_units,
+            velocity_model_id=self.grid_id,
+            label=self.label,
+        )
+
+        global_axes = [origin[dim] + np.arange(shape[dim], dtype=float) * spacing[dim]
+                       for dim in range(dims)]
+        global_mesh = np.meshgrid(*global_axes, indexing='ij')
+        global_coords = np.stack([m.ravel() for m in global_mesh], axis=1)
+
+        corner_min = np.array([np.min(axis) for axis in local_axes])
+        corner_max = np.array([np.max(axis) for axis in local_axes])
+
+        mask = np.ones(global_coords.shape[0], dtype=bool)
+        for dim in range(dims):
+            mask &= (global_coords[:, dim] >= corner_min[dim]) & (global_coords[:, dim] <= corner_max[dim])
+
+        tt_interp = tt_local_grid.interpolate(global_coords[mask], grid_space=False, order=3)[0]
+        bias = float(np.max(tt_interp)) if tt_interp.size else 0.0
+
+        phi_global = np.ones(np.prod(shape), dtype=float)
+        phi_global[mask] = tt_interp - bias
+        phi_global = phi_global.reshape(tuple(shape))
+
+        tt_full = skfmm.travel_time(phi_global, self.data, dx=tuple(spacing))
+        tt_flat = tt_full.ravel() + bias
+        tt_flat[mask] = tt_interp
+        tt_full = tt_flat.reshape(tuple(shape))
+
+        if dims == 2:
+            tt_full = tt_full[:, :, np.newaxis]
+            origin_tt = np.concatenate([origin, [0.0]])
+            spacing_tt = np.concatenate([spacing, [np.mean(spacing)]])
+        else:
+            origin_tt = origin
+            spacing_tt = spacing
+
+        tt_grid = TTGrid(
+            self.network_code,
+            tt_full.astype(self.float_type.value),
+            origin_tt,
+            spacing_tt,
+            seed,
+            phase=self.phase,
+            float_type=self.float_type,
+            grid_units=self.grid_units,
+            velocity_model_id=self.grid_id,
+            label=self.label,
+        )
+
+        tt_grid.data -= tt_grid.interpolate(seed.T, grid_space=False, order=3)[0]
+        return tt_grid
 
     def to_time(self, seed: Seed, ns: Union[int, Tuple[int, int, int]] = 5):
         """Generate a travel-time grid for a single source location.
