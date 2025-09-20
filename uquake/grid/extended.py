@@ -45,6 +45,7 @@ from typing import Optional
 from .base import ray_tracer
 import shutil
 from uquake.grid import read_grid
+from scipy import sparse
 from scipy.interpolate import interp1d
 from enum import Enum
 from typing import List
@@ -3093,7 +3094,32 @@ class PhaseVelocity(Grid):
                 return_rays=True,
             )
             tt_processed = np.asarray(tt_single).reshape(n_receivers)
-            frechet_processed = np.asarray(frechet_single).reshape(n_receivers, -1)
+
+            if sparse.issparse(frechet_single):
+                frechet_processed = frechet_single.toarray()
+            else:
+                frechet_processed = np.asarray(frechet_single)
+
+            if frechet_processed.size == 0:
+                frechet_processed = frechet_processed.reshape(n_receivers, 0)
+            else:
+                frechet_flat = np.asarray(frechet_processed).ravel()
+                if frechet_flat.size == 1 and n_receivers > 1:
+                    raise ValueError(
+                        "Frechet derivative returned a single value; ensure the "
+                        "raytracing grid is configured with cell_slowness=True "
+                        "and supports per-receiver Frechet sensitivities."
+                    )
+                if frechet_processed.ndim == 1 or frechet_processed.shape[0] != n_receivers:
+                    total_elements = frechet_flat.size
+                    if total_elements % n_receivers != 0:
+                        raise ValueError(
+                            f"Inconsistent Frechet derivative shape {frechet_processed.shape} "
+                            f"for {n_receivers} receivers."
+                        )
+                    frechet_processed = frechet_flat.reshape(n_receivers, total_elements // n_receivers)
+                else:
+                    frechet_processed = np.asarray(frechet_processed)
             return tt_processed, frechet_processed
 
         if max_workers == 1:
