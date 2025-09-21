@@ -3086,7 +3086,8 @@ class PhaseVelocity(Grid):
                         sub_grid_resolution: float = 0.25,
                         step_fraction: float = 0.5,
                         ray_max_iter: int = 5000,
-                        progress: bool = False):
+                        progress: bool = False,
+                        pairwise: bool = False):
 
 
         """Calculate Frechet derivatives between sources and receivers.
@@ -3125,6 +3126,10 @@ class PhaseVelocity(Grid):
         :type ray_max_iter: int, optional
         :param progress: Display a progress bar while iterating over sources.
         :type progress: bool, optional
+        :param pairwise: When ``True`` treat the input as ordered source/receiver
+            pairs and return a ``(N_pairs, ...)`` sensitivity array. When
+            ``False`` return the full ``(N_sources, N_receivers, ...)`` matrix.
+        :type pairwise: bool, optional
         :returns: When ``tt_cal`` is ``True`` returns ``(frechet, travel_times)``.
                   Otherwise only the Frechet derivatives are returned.
         :rtype: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]
@@ -3146,6 +3151,9 @@ class PhaseVelocity(Grid):
 
         unique_src_coords, src_inverse, src_rep = _deduplicate_points(src_coords)
         unique_rcv_coords, rcv_inverse, rcv_rep = _deduplicate_points(rcv_coords)
+
+        if pairwise and src_coords.shape[0] != rcv_coords.shape[0]:
+            raise ValueError("pairwise=True requires the same number of sources and receivers.")
 
         if isinstance(sources, SeedEnsemble):
             unique_src_seeds = [sources.seeds[idx] for idx in src_rep]
@@ -3173,7 +3181,9 @@ class PhaseVelocity(Grid):
                 f"Collapsed {n_receivers_orig} receivers to {n_unique_receivers} unique locations."
             )
 
-        swap_axes = n_unique_receivers < n_unique_sources
+        n_pairs = src_coords.shape[0]
+
+        swap_axes = (not pairwise) and (n_unique_receivers < n_unique_sources)
 
         if swap_axes:
             logger.info(
@@ -3229,14 +3239,32 @@ class PhaseVelocity(Grid):
             if tt_unique is not None:
                 tt_unique = tt_unique.T
 
+        if pairwise:
+            frechet_pairs = frechet_unique[src_inverse, rcv_inverse, :]
+            tt_pairs = tt_unique[src_inverse, rcv_inverse] if tt_unique is not None else None
+
+            elapsed = time.perf_counter() - start_time
+            logger.info(
+                f"Frechet computation ('{method}' backend) completed in {elapsed:.2f}s "
+                f"for {n_pairs} source/receiver pairs."
+            )
+
+            if tt_cal:
+                return frechet_pairs, tt_pairs
+            return frechet_pairs
+
         frechet_full = frechet_unique[src_inverse][:, rcv_inverse, :]
-        if tt_unique is not None:
-            tt_full = tt_unique[src_inverse][:, rcv_inverse]
+        tt_full = tt_unique[src_inverse][:, rcv_inverse] if tt_unique is not None else None
 
         elapsed = time.perf_counter() - start_time
         logger.info(
             f"Frechet computation ('{method}' backend) completed in {elapsed:.2f}s "
             f"(original grid: {n_sources_orig} sources x {n_receivers_orig} receivers)."
+        )
+
+        logger.info(
+            "Restored Frechet matrix to original ordering with shape "
+            f"{frechet_full.shape[0]} sources x {frechet_full.shape[1]} receivers."
         )
 
         if tt_cal:

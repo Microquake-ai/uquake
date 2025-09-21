@@ -96,23 +96,26 @@ def build_sources(coords: np.ndarray) -> SeedEnsemble:
 def validate_slowness_derivatives(model: PhaseVelocity,
                                    sources: SeedEnsemble,
                                    receivers: np.ndarray) -> None:
-    frechet, _ = model.compute_frechet(
+    frechet, tt = model.compute_frechet(
         sources=sources,
         receivers=receivers,
         method="fmm",
         cell_slowness=True,
         tt_cal=True,
         threads=1,
+        pairwise=True,
     )
 
-    for idx, (src, rcv) in enumerate(zip(sources.locs[:, :2], receivers)):
+    for idx, (src, rcv, row, tt_val) in enumerate(zip(sources.locs[:, :2], receivers, frechet, tt)):
         expected_distance = math.dist(src, rcv)
-        path_length = frechet[idx, idx, :].sum()
+        path_length = row.sum()
         if not math.isclose(path_length, expected_distance, rel_tol=TOLERANCE, abs_tol=TOLERANCE):
             raise AssertionError(
                 f"Path length mismatch for pair {idx}: expected {expected_distance:.4f} m, "
                 f"got {path_length:.4f} m"
             )
+        if not math.isclose(tt_val, expected_distance / VELOCITY_M_PER_S, rel_tol=TOLERANCE, abs_tol=TOLERANCE):
+            raise AssertionError("Travel-time sanity check failed.")
 
 
 def validate_velocity_derivatives(model: PhaseVelocity,
@@ -125,13 +128,14 @@ def validate_velocity_derivatives(model: PhaseVelocity,
         cell_slowness=False,
         tt_cal=False,
         threads=1,
+        pairwise=True,
     )
 
     inv_velocity_sq = 1.0 / (VELOCITY_M_PER_S ** 2)
 
-    for idx, (src, rcv) in enumerate(zip(sources.locs[:, :2], receivers)):
+    for idx, (src, rcv, row) in enumerate(zip(sources.locs[:, :2], receivers, frechet)):
         expected_distance = math.dist(src, rcv)
-        derivative_sum = frechet[idx, idx, :].sum()
+        derivative_sum = row.sum()
         expected_derivative = -expected_distance * inv_velocity_sq
         if not math.isclose(
             derivative_sum,
@@ -176,6 +180,7 @@ def main() -> None:
             cell_slowness=True,
             tt_cal=False,
             progress=True,
+            pairwise=True,
         )
         fmm_elapsed = time.perf_counter() - start
         logger.info(f"FMM backend validation completed in {fmm_elapsed:.2f}s.")
@@ -190,6 +195,7 @@ def main() -> None:
         cell_slowness=True,
         tt_cal=False,
         progress=True,
+        pairwise=True,
     )
     ttcrpy_elapsed = time.perf_counter() - start
 
@@ -209,9 +215,10 @@ def main() -> None:
         cell_slowness=True,
         tt_cal=False,
         progress=False,
+        pairwise=False,
     )
 
-    recomposed = frechet_unique[src_inverse][:, rcv_inverse, :]
+    recomposed = frechet_unique[src_inverse, rcv_inverse, :]
     if not np.allclose(frechet_ttcrpy, recomposed):
         raise AssertionError("Frechet matrix reordering check failed.")
 
