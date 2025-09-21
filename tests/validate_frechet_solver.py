@@ -19,6 +19,7 @@ from pathlib import Path
 import time
 
 import numpy as np
+from scipy import sparse
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -204,7 +205,10 @@ def main() -> None:
 
     assert frechet_ttcrpy.shape[0] == n_pairs
     assert frechet_ttcrpy.shape[1] == n_model_cells
-    assert np.all(np.isfinite(frechet_ttcrpy))
+    if sparse.issparse(frechet_ttcrpy):
+        assert np.all(np.isfinite(frechet_ttcrpy.data))
+    else:
+        assert np.all(np.isfinite(frechet_ttcrpy))
 
     # Order consistency check using a single raytrace over the unique sets
     unique_src_coords, src_inverse, _ = _deduplicate_points(source_coords)
@@ -222,7 +226,8 @@ def main() -> None:
     )
 
     recomposed = frechet_unique[src_inverse, rcv_inverse, :]
-    if not np.allclose(frechet_ttcrpy, recomposed):
+    frechet_dense = frechet_ttcrpy.toarray() if sparse.issparse(frechet_ttcrpy) else frechet_ttcrpy
+    if not np.allclose(frechet_dense, recomposed):
         raise AssertionError("Frechet matrix reordering check failed.")
 
     logger.info(f"ttcrpy backend validation completed in {ttcrpy_elapsed:.2f}s.")

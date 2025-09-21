@@ -3127,8 +3127,9 @@ class PhaseVelocity(Grid):
         :param progress: Display a progress bar while iterating over sources.
         :type progress: bool, optional
         :param pairwise: When ``True`` treat the input as ordered source/receiver
-            pairs and return a ``(N_pairs, ...)`` sensitivity array. When
-            ``False`` return the full ``(N_sources, N_receivers, ...)`` matrix.
+            pairs and return a sparse ``(N_pairs, N_cells)`` sensitivity matrix
+            (plus optional travel times). When ``False`` return the full
+            ``(N_sources, N_receivers, N_cells)`` dense array.
         :type pairwise: bool, optional
         :returns: When ``tt_cal`` is ``True`` returns ``(frechet, travel_times)``.
                   Otherwise only the Frechet derivatives are returned.
@@ -3215,8 +3216,13 @@ class PhaseVelocity(Grid):
                 ray_max_iter=ray_max_iter,
                 progress=progress,
             )
+            if tt_cal:
+                frechet_unique, tt_unique = result
+            else:
+                frechet_unique = result
+                tt_unique = None
         elif method == "ttcrpy":
-            result = self._compute_frechet_ttcrpy(
+            frechet_rows, tt_rows = self._compute_frechet_ttcrpy(
                 sources=compute_sources,
                 receivers=compute_receivers,
                 ns=ns,
@@ -3225,14 +3231,34 @@ class PhaseVelocity(Grid):
                 threads=threads,
                 progress=progress,
             )
+            if pairwise:
+                row_blocks = []
+                tt_pairs = np.empty(n_pairs, dtype=float) if tt_cal else None
+                for pair_idx, (src_idx, rcv_idx) in enumerate(zip(src_inverse, rcv_inverse)):
+                    row_blocks.append(frechet_rows[src_idx].getrow(rcv_idx))
+                    if tt_cal:
+                        tt_pairs[pair_idx] = tt_rows[src_idx][rcv_idx]
+
+                if row_blocks:
+                    frechet_pairs = sparse.vstack(row_blocks, format="csr")
+                else:
+                    n_cells = frechet_rows[0].shape[1] if frechet_rows else 0
+                    frechet_pairs = sparse.csr_matrix((0, n_cells))
+
+                elapsed = time.perf_counter() - start_time
+                logger.info(
+                    f"Frechet computation ('{method}' backend) completed in {elapsed:.2f}s "
+                    f"for {n_pairs} source/receiver pairs."
+                )
+
+                if tt_cal:
+                    return frechet_pairs, np.asarray(tt_pairs, dtype=float)
+                return frechet_pairs
+
+            frechet_unique = np.stack([mat.toarray() for mat in frechet_rows], axis=0)
+            tt_unique = np.stack(tt_rows, axis=0) if tt_cal else None
         else:
             raise ValueError("method must be either 'fmm' or 'ttcrpy'.")
-
-        if tt_cal:
-            frechet_unique, tt_unique = result
-        else:
-            frechet_unique = result
-            tt_unique = None
 
         if swap_axes:
             frechet_unique = np.transpose(frechet_unique, (1, 0, 2))
@@ -3241,7 +3267,13 @@ class PhaseVelocity(Grid):
 
         if pairwise:
             frechet_pairs = frechet_unique[src_inverse, rcv_inverse, :]
+            if not sparse.issparse(frechet_pairs):
+                frechet_pairs = sparse.csr_matrix(frechet_pairs)
+            else:
+                frechet_pairs = frechet_pairs.tocsr()
             tt_pairs = tt_unique[src_inverse, rcv_inverse] if tt_unique is not None else None
+            if tt_pairs is not None:
+                tt_pairs = np.asarray(tt_pairs, dtype=float)
 
             elapsed = time.perf_counter() - start_time
             logger.info(
@@ -3319,30 +3351,24 @@ class PhaseVelocity(Grid):
                 tt_processed = np.asarray(tt_single).reshape(n_receivers)
 
                 if sparse.issparse(frechet_single):
-                    frechet_processed = frechet_single.toarray()
+                    frechet_processed = frechet_single.tocsr()
                 else:
-                    frechet_processed = np.asarray(frechet_single)
-
-                if frechet_processed.size == 0:
-                    frechet_processed = frechet_processed.reshape(n_receivers, 0)
-                else:
-                    frechet_flat = np.asarray(frechet_processed).ravel()
-                    if frechet_flat.size == 1 and n_receivers > 1:
-                        raise ValueError(
-                            "Frechet derivative returned a single value; ensure the "
-                            "raytracing grid is configured with cell_slowness=True "
-                            "and supports per-receiver Frechet sensitivities."
-                        )
-                    if frechet_processed.ndim == 1 or frechet_processed.shape[0] != n_receivers:
-                        total_elements = frechet_flat.size
-                        if total_elements % n_receivers != 0:
+                    frechet_array = np.asarray(frechet_single)
+                    if frechet_array.size == 0:
+                        frechet_processed = sparse.csr_matrix((n_receivers, 0))
+                    else:
+                        if frechet_array.ndim == 1:
+                            if n_receivers != 1:
+                                raise ValueError(
+                                    "Unexpected Frechet shape for multiple receivers."
+                                )
+                            frechet_array = frechet_array.reshape(1, -1)
+                        if frechet_array.shape[0] != n_receivers:
                             raise ValueError(
-                                f"Inconsistent Frechet derivative shape {frechet_processed.shape} "
+                                f"Inconsistent Frechet derivative shape {frechet_array.shape} "
                                 f"for {n_receivers} receivers."
                             )
-                        frechet_processed = frechet_flat.reshape(n_receivers, total_elements // n_receivers)
-                    else:
-                        frechet_processed = np.asarray(frechet_processed)
+                        frechet_processed = sparse.csr_matrix(frechet_array)
 
                 tt_rows.append(tt_processed)
                 frechet_rows.append(frechet_processed)
@@ -3351,11 +3377,9 @@ class PhaseVelocity(Grid):
         finally:
             pbar.close()
 
-        tt = np.stack(tt_rows, axis=0)
-        frechet = np.stack(frechet_rows, axis=0)
         if tt_cal:
-            return frechet, tt
-        return frechet
+            return frechet_rows, tt_rows
+        return frechet_rows, tt_rows
 
     def _compute_frechet_fmm(self,
                               sources: Union[SeedEnsemble, np.ndarray],
