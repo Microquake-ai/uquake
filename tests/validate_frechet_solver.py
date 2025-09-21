@@ -199,8 +199,11 @@ def main() -> None:
     )
     ttcrpy_elapsed = time.perf_counter() - start
 
-    assert frechet_ttcrpy.shape[0] == len(source_coords)
-    assert frechet_ttcrpy.shape[1] == len(receiver_coords)
+    n_pairs = len(source_coords)
+    n_model_cells = model.data.size
+
+    assert frechet_ttcrpy.shape[0] == n_pairs
+    assert frechet_ttcrpy.shape[1] == n_model_cells
     assert np.all(np.isfinite(frechet_ttcrpy))
 
     # Order consistency check using a single raytrace over the unique sets
