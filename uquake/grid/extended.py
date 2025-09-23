@@ -61,6 +61,7 @@ from scipy.signal import fftconvolve
 from disba import PhaseDispersion, PhaseSensitivity
 from evtk import hl
 import time
+import warnings
 
 from tqdm import tqdm
 
@@ -71,6 +72,13 @@ try:  # optional fast marching solver
 except ImportError:  # pragma: no cover - availability depends on environment
     skfmm = None  # type: ignore
     _SKFMM_AVAILABLE = False
+
+try:  # optional Estuary fast-marching bindings
+    from eikonal.data import EKImageData  # type: ignore
+    from eikonal.frechet import compute_frechet as _eikonal_compute_frechet  # type: ignore
+except (ImportError, SyntaxError):  # pragma: no cover - optional dependency
+    EKImageData = None  # type: ignore
+    _eikonal_compute_frechet = None
 
 
 
@@ -3087,7 +3095,9 @@ class PhaseVelocity(Grid):
                         step_fraction: float = 0.5,
                         ray_max_iter: int = 5000,
                         progress: bool = False,
-                        pairwise: bool = False):
+                        pairwise: bool = False,
+                        return_dense: bool = False,
+                        batch_size: Optional[int] = None):
 
 
         """Calculate Frechet derivatives between sources and receivers.
@@ -3131,9 +3141,16 @@ class PhaseVelocity(Grid):
             (plus optional travel times). When ``False`` return the full
             ``(N_sources, N_receivers, N_cells)`` dense array.
         :type pairwise: bool, optional
+        :param batch_size: Optional number of source/receiver pairs to process per
+            batch when ``pairwise=True``. Each batch is computed independently and
+            the resulting matrices are stacked. Defaults to processing all pairs at
+            once.
         :returns: When ``tt_cal`` is ``True`` returns ``(frechet, travel_times)``.
-                  Otherwise only the Frechet derivatives are returned.
-        :rtype: Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]
+                  Otherwise only the Frechet derivatives are returned. ``frechet``
+                  is a CSR matrix by default unless ``return_dense`` is ``True``.
+        :rtype: Union[sparse.csr_matrix, np.ndarray,
+                      Tuple[sparse.csr_matrix, np.ndarray],
+                      Tuple[np.ndarray, np.ndarray]]
         """
 
         if method is None:
@@ -3147,8 +3164,62 @@ class PhaseVelocity(Grid):
                 return entity.locs[:, :dims]
             return np.atleast_2d(entity)[:, :dims]
 
+        if batch_size is not None:
+            if batch_size <= 0:
+                raise ValueError("batch_size must be a positive integer")
         src_coords = _extract_coords(sources)
         rcv_coords = _extract_coords(receivers)
+
+        if batch_size is not None and pairwise and batch_size < src_coords.shape[0]:
+            matrices = []
+            travel_blocks = [] if tt_cal else None
+            for start in range(0, src_coords.shape[0], batch_size):
+                end = min(start + batch_size, src_coords.shape[0])
+                sub_sources = src_coords[start:end]
+                sub_receivers = rcv_coords[start:end]
+                result = self.compute_frechet(
+                    sub_sources,
+                    sub_receivers,
+                    ns=ns,
+                    tt_cal=tt_cal,
+                    cell_slowness=cell_slowness,
+                    threads=threads,
+                    method=method,
+                    sub_grid_resolution=sub_grid_resolution,
+                    step_fraction=step_fraction,
+                    ray_max_iter=ray_max_iter,
+                    progress=progress,
+                    pairwise=True,
+                    return_dense=return_dense,
+                    batch_size=None,
+                )
+                if tt_cal:
+                    sub_matrix, sub_tt = result
+                else:
+                    sub_matrix = result
+
+                if return_dense:
+                    matrices.append(np.asarray(sub_matrix))
+                else:
+                    matrices.append(sub_matrix.tocsr())
+
+                if tt_cal:
+                    travel_blocks.append(np.asarray(sub_tt))
+
+            if return_dense:
+                frechet_output = np.vstack(matrices)
+            else:
+                frechet_output = sparse.vstack(matrices, format="csr")
+
+            if tt_cal:
+                travel_output = np.concatenate(travel_blocks)
+                return frechet_output, travel_output
+            return frechet_output
+
+        if batch_size is not None and not pairwise:
+            raise NotImplementedError(
+                "batch_size is currently only supported when pairwise=True."
+            )
 
         unique_src_coords, src_inverse, src_rep = _deduplicate_points(src_coords)
         unique_rcv_coords, rcv_inverse, rcv_rep = _deduplicate_points(rcv_coords)
@@ -3251,6 +3322,12 @@ class PhaseVelocity(Grid):
                     f"for {n_pairs} source/receiver pairs."
                 )
 
+                if return_dense:
+                    frechet_dense = frechet_pairs.toarray()
+                    if tt_cal:
+                        return frechet_dense, np.asarray(tt_pairs, dtype=float)
+                    return frechet_dense
+
                 if tt_cal:
                     return frechet_pairs, np.asarray(tt_pairs, dtype=float)
                 return frechet_pairs
@@ -3267,41 +3344,216 @@ class PhaseVelocity(Grid):
 
         if pairwise:
             frechet_pairs = frechet_unique[src_inverse, rcv_inverse, :]
-            if not sparse.issparse(frechet_pairs):
-                frechet_pairs = sparse.csr_matrix(frechet_pairs)
-            else:
-                frechet_pairs = frechet_pairs.tocsr()
-            tt_pairs = tt_unique[src_inverse, rcv_inverse] if tt_unique is not None else None
-            if tt_pairs is not None:
-                tt_pairs = np.asarray(tt_pairs, dtype=float)
-
-            elapsed = time.perf_counter() - start_time
-            logger.info(
-                f"Frechet computation ('{method}' backend) completed in {elapsed:.2f}s "
-                f"for {n_pairs} source/receiver pairs."
+            if return_dense:
+                if tt_cal:
+                    return frechet_pairs, tt_unique[src_inverse, rcv_inverse]
+                return frechet_pairs
+            frechet_pairs_matrix = sparse.csr_matrix(
+                frechet_pairs.reshape(n_pairs, frechet_pairs.shape[-1])
             )
-
+            frechet_pairs_matrix.original_shape = (n_pairs,)
             if tt_cal:
-                return frechet_pairs, tt_pairs
-            return frechet_pairs
+                return frechet_pairs_matrix, tt_unique[src_inverse, rcv_inverse]
+            return frechet_pairs_matrix
 
         frechet_full = frechet_unique[src_inverse][:, rcv_inverse, :]
-        tt_full = tt_unique[src_inverse][:, rcv_inverse] if tt_unique is not None else None
+        if return_dense:
+            if tt_cal:
+                return frechet_full, tt_unique[src_inverse][:, rcv_inverse]
+            return frechet_full
 
-        elapsed = time.perf_counter() - start_time
-        logger.info(
-            f"Frechet computation ('{method}' backend) completed in {elapsed:.2f}s "
-            f"(original grid: {n_sources_orig} sources x {n_receivers_orig} receivers)."
+        frechet_matrix = sparse.csr_matrix(
+            frechet_full.reshape(n_sources_orig * n_receivers_orig, frechet_full.shape[-1])
         )
+        frechet_matrix.original_shape = (n_sources_orig, n_receivers_orig)
+        if tt_cal:
+            return frechet_matrix, tt_unique[src_inverse][:, rcv_inverse]
+        return frechet_matrix
 
-        logger.info(
-            "Restored Frechet matrix to original ordering with shape "
-            f"{frechet_full.shape[0]} sources x {frechet_full.shape[1]} receivers."
+    def compute_frechet_eikonal(
+        self,
+        sources: Union[SeedEnsemble, np.ndarray],
+        receivers: Union[SeedEnsemble, np.ndarray],
+        ns: Union[int, Tuple[int, int, int]] = 5,
+        tt_cal: bool = True,
+        cell_slowness: bool = True,
+        threads: int = 1,
+        *,
+        method: Optional[str] = None,
+        sub_grid_resolution: float = 0.25,
+        step_fraction: float = 0.5,
+        ray_max_iter: int = 5_000,
+        progress: bool = False,
+        pairwise: bool = False,
+        return_rays: bool = False,
+        return_dense: bool = False,
+        batch_size: Optional[int] = None,
+    ):
+        """Compute Frechet derivatives using the Estuary ``eikonal`` backend.
+
+        Parameters
+        ----------
+        return_dense
+            When ``True`` materialise the sensitivity matrix as a dense NumPy array;
+            otherwise a CSR matrix is returned (the default).
+        """
+
+        if _eikonal_compute_frechet is None or EKImageData is None:
+            raise ImportError(
+                "The 'eikonal-ng' extensions are not available. Build them first or "
+                "install the package before calling compute_frechet_eikonal()."
+            )
+
+        if return_rays:
+            raise NotImplementedError(
+                "return_rays=True is not supported by compute_frechet_eikonal()."
+            )
+
+        if method is not None and method.lower() not in {"eikonal", "fmm"}:
+            raise ValueError("method must be None or 'eikonal' for compute_frechet_eikonal().")
+
+        if progress:
+            logger.warning("Progress reporting is not supported by the eikonal backend; ignoring.")
+
+        dims = 2
+
+        def _extract_coords(entity):
+            if isinstance(entity, SeedEnsemble):
+                return entity.locs[:, :dims]
+            return np.atleast_2d(entity)[:, :dims]
+
+        if batch_size is not None:
+            if batch_size <= 0:
+                raise ValueError("batch_size must be a positive integer")
+        src_coords = _extract_coords(sources)
+        rcv_coords = _extract_coords(receivers)
+
+        if batch_size is not None and pairwise and batch_size < src_coords.shape[0]:
+            matrices = []
+            travel_blocks = [] if tt_cal else None
+            for start in range(0, src_coords.shape[0], batch_size):
+                end = min(start + batch_size, src_coords.shape[0])
+                sub_sources = src_coords[start:end]
+                sub_receivers = rcv_coords[start:end]
+                result = self.compute_frechet_eikonal(
+                    sub_sources,
+                    sub_receivers,
+                    ns=ns,
+                    tt_cal=tt_cal,
+                    cell_slowness=cell_slowness,
+                    threads=threads,
+                    method=method,
+                    sub_grid_resolution=sub_grid_resolution,
+                    step_fraction=step_fraction,
+                    ray_max_iter=ray_max_iter,
+                    progress=progress,
+                    pairwise=True,
+                    return_rays=False,
+                    return_dense=return_dense,
+                    batch_size=None,
+                )
+                if tt_cal:
+                    sub_matrix, sub_tt = result
+                else:
+                    sub_matrix = result
+
+                if return_dense:
+                    matrices.append(np.asarray(sub_matrix))
+                else:
+                    matrices.append(sub_matrix.tocsr())
+
+                if tt_cal:
+                    travel_blocks.append(np.asarray(sub_tt))
+
+            if return_dense:
+                frechet_output = np.vstack(matrices)
+            else:
+                frechet_output = sparse.vstack(matrices, format="csr")
+
+            if tt_cal:
+                travel_output = np.concatenate(travel_blocks)
+                return frechet_output, travel_output
+            return frechet_output
+
+        if batch_size is not None and not pairwise:
+            raise NotImplementedError(
+                "batch_size is currently only supported when pairwise=True."
+            )
+
+        if pairwise and src_coords.shape[0] != rcv_coords.shape[0]:
+            raise ValueError("pairwise=True requires the same number of sources and receivers.")
+
+        unique_src_coords, src_inverse, _ = _deduplicate_points(src_coords)
+        unique_rcv_coords, rcv_inverse, _ = _deduplicate_points(rcv_coords)
+
+        n_sources = src_coords.shape[0]
+        n_receivers = rcv_coords.shape[0]
+
+        if pairwise:
+            unique_src_coords = src_coords
+            unique_rcv_coords = rcv_coords
+            src_inverse = np.arange(n_sources, dtype=int)
+            rcv_inverse = np.arange(n_receivers, dtype=int)
+
+        _ = (ns, sub_grid_resolution, ray_max_iter)
+        if threads not in (1, None):  # pragma: no cover - advisory warning
+            warnings.warn(
+                "The 'threads' parameter is ignored by compute_frechet_eikonal().",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+        spacing_arr = np.atleast_1d(np.array(self.spacing, dtype=float))
+        if spacing_arr.size < dims:
+            spacing_arr = np.repeat(spacing_arr[0], dims)
+        spacing_arr = spacing_arr[:dims]
+        if not np.allclose(spacing_arr, spacing_arr[0]):
+            raise ValueError("compute_frechet_eikonal requires isotropic grid spacing.")
+        spacing_value = float(spacing_arr[0])
+
+        origin_arr = np.atleast_1d(np.array(self.origin, dtype=float))
+        if origin_arr.size < dims:
+            origin_arr = np.concatenate([origin_arr, np.zeros(dims - origin_arr.size)])
+        origin_vec = origin_arr[:dims]
+
+        velocity_data = np.asarray(self.data, dtype=float)
+        if np.any(velocity_data <= 0):
+            raise ValueError("Velocity grid must be strictly positive for eikonal computations.")
+
+        velocity_grid = EKImageData(velocity_data.copy(), origin=tuple(origin_vec), spacing=spacing_value)
+
+        # unique_src_grid = self.transform_to_grid(unique_src_coords)
+        # unique_rcv_grid = self.transform_to_grid(unique_rcv_coords)
+        self.transform_from_grid(unique_src_coords)
+
+        frechet_result = _eikonal_compute_frechet(
+            velocity=velocity_grid,
+            sources=unique_src_coords,
+            receivers=unique_rcv_coords,
+            spacing=spacing_value,
+            origin=origin_vec,
+            rk_step=step_fraction,
+            second_order=True,
+            cell_slowness=cell_slowness,
+            return_travel_times=tt_cal,
+            pairwise=pairwise,
+            return_rays=False,
+            dtype=float,
+            return_dense=return_dense,
         )
 
         if tt_cal:
-            return frechet_full, tt_full
-        return frechet_full
+            frechet_output, travel_output = frechet_result
+        else:
+            frechet_output = frechet_result
+            travel_output = None
+
+        if not return_dense and not sparse.isspmatrix_csr(frechet_output):
+            frechet_output = sparse.csr_matrix(frechet_output)
+
+        if travel_output is not None:
+            return frechet_output, travel_output
+        return frechet_output
 
     def _compute_frechet_ttcrpy(self,
                                 sources: Union[SeedEnsemble, np.ndarray],

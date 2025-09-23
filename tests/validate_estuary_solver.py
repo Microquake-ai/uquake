@@ -38,6 +38,8 @@ except ImportError:  # pragma: no cover - handled at runtime
     )
     raise SystemExit(0)
 
+from uquake.grid.extended import PhaseVelocity
+
 
 @dataclass(frozen=True)
 class Pair:
@@ -93,7 +95,7 @@ def _compute_arrival(
         second_order=True,
     )
 
-    return np.ascontiguousarray(arrival[[slice(2, -2)] * velocity.ndim])
+    return np.ascontiguousarray(arrival[inner_slice])
 
 
 def _pair_row(
@@ -140,8 +142,11 @@ def _pair_row(
 
 def validate_estuary():
     velocity_value = 3000.0  # m/s
-    spacing = 1.0
-    shape = (41, 41)
+    spacing = 50
+    shape = (150, 150)
+
+    phase_velocity = PhaseVelocity(origin=(0.0, 0.0), spacing=spacing, data_shape=shape)
+    phase_velocity.fill_homogeneous(velocity_value)
 
     velocity_grid = np.full(shape, velocity_value, dtype=np.float64)
 
@@ -216,5 +221,21 @@ def _deduplicate_coords(coords: np.ndarray, *, decimals: int = 8):
     return np.array(unique_list, dtype=float), inverse, rep
 
 
-if __name__ == "__main__":
-    validate_estuary()
+# if __name__ == "__main__":
+#     validate_estuary()
+
+from uquake.grid.extended import PhaseVelocity
+phase_velocity = PhaseVelocity('TT', (150, 150), 0.1, origin=(0, 0), spacing=(50, 50))
+phase_velocity.fill_random(2000, 200, (200, 200))
+txs = phase_velocity.generate_random_points_in_grid(200)
+rxs = phase_velocity.generate_random_points_in_grid(200)
+from time import time
+from loguru import logger
+t0 = time()
+frechet, tts = phase_velocity.compute_frechet_eikonal(txs, rxs, return_dense=False, pairwise=True, batch_size=20)
+logger.info(f'calculated the frechet derivative using eikonal in {time() - t0: .2f} s')
+t0 = time()
+frechet1, tts1 = phase_velocity.compute_frechet(txs, rxs, pairwise=True)
+logger.info(f'calculated the frechet derivative using ttcrpy in {time() - t0: .2f} s')
+
+np.sum(frechet, axis=1) - np.sum(frechet1, axis=1)

@@ -394,7 +394,7 @@ class Grid(object):
 
         np.random.seed(seed)
 
-        self.data = np.random.randn(self.dims[0], self.dims[1], self.dims[2])
+        self.data = np.random.randn(*self.shape)
         self.smooth(smooth_sigma)
         self.data = self.data * std / np.std(self.data) + mean
 
@@ -461,12 +461,12 @@ class Grid(object):
         (default: False)
         :type grid_space: bool
         :param seed: random seed for reproducibility
-        :return: an array of triplet
+        :return: an array of triplet or pairs of coordinates
         """
 
         np.random.seed(seed)
 
-        points = np.random.uniform(0, 1, (n_points, len(self.data.shape)))
+        points = np.random.uniform(0, 0.99, (n_points, len(self.data.shape)))
 
         for i in range(n_points):
             points[i] = points[i] * self.dimensions
