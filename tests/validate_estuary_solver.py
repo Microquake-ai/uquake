@@ -28,8 +28,8 @@ import numpy as np
 from scipy import sparse
 
 try:
-    from eikonal import raytrace as eray
-    from eikonal import solver as esolver
+    from estuaire import raytrace as eray
+    from estuaire import solver as esolver
 except ImportError:  # pragma: no cover - handled at runtime
     print(
         "Estuary eikonal extensions are not importable. Build them first with\n"
@@ -226,9 +226,9 @@ def _deduplicate_coords(coords: np.ndarray, *, decimals: int = 8):
 
 from uquake.grid.extended import PhaseVelocity
 phase_velocity = PhaseVelocity('TT', (150, 150), 0.1, origin=(0, 0), spacing=(50, 50))
-phase_velocity.fill_random(2000, 200, (200, 200))
-txs = phase_velocity.generate_random_points_in_grid(200)
-rxs = phase_velocity.generate_random_points_in_grid(200)
+phase_velocity.fill_random(2000, 200, (100, 100))
+txs = phase_velocity.generate_random_points_in_grid(25)
+rxs = phase_velocity.generate_random_points_in_grid(25)
 from time import time
 from loguru import logger
 t0 = time()

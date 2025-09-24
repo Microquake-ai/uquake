@@ -74,8 +74,8 @@ except ImportError:  # pragma: no cover - availability depends on environment
     _SKFMM_AVAILABLE = False
 
 try:  # optional Estuary fast-marching bindings
-    from eikonal.data import EKImageData  # type: ignore
-    from eikonal.frechet import compute_frechet as _eikonal_compute_frechet  # type: ignore
+    from estuaire.core.data import EKImageData  # type: ignore
+    from estuaire.core.frechet import compute_frechet as _eikonal_compute_frechet  # type: ignore
 except (ImportError, SyntaxError):  # pragma: no cover - optional dependency
     EKImageData = None  # type: ignore
     _eikonal_compute_frechet = None
