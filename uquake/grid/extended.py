@@ -1886,7 +1886,7 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
                     vel_p *= 1.0e-3
 
             # Fill planes in serial
-            for ii in range(nx):
+            for ii in tqdm(range(nx)):
                 for jj in range(ny):
                     mask = (interp_xyz[:, 0] == x[ii]) & (interp_xyz[:, 1] == y[jj])
                     pd = PhaseDispersion(
