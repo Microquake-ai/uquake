@@ -62,6 +62,7 @@ from disba import PhaseDispersion, PhaseSensitivity
 from evtk import hl
 import time
 import warnings
+import pickle
 
 from tqdm import tqdm
 
@@ -1137,9 +1138,9 @@ class VelocityGrid3D(TypedGrid):
         if self.grid_type == GridTypes.VELOCITY_METERS:
             vp = vp / 1000.0
 
-        if method == "Gardner":
+        if (method == "Gardner") or (method.lower() == "gardner"):
             rho_gcc = self._rho_gardner_gcc(vp)
-        elif method == "Brocher":
+        elif (method == "Brocher") or (method.lower() == "brocher"):
             rho_gcc = self._rho_brocher_gcc(vp)
         else:
             raise ValueError(
@@ -2045,6 +2046,19 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             plt.grid(True)
             plt.show()
             return z, kernel_nodes
+
+    def write(self, path: str = '.'):
+        with open(path, 'rb') as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def read(cls, path: str):
+        with open(path, 'rb') as f:
+            obj = pickle.load(f)
+        if not isinstance(obj, cls):
+            raise TypeError(f'The object in {path} is not a '
+                            f'SeismicPropertyGridEnsemble object')
+        return obj
 
 
 class SeededGridType(Enum):
