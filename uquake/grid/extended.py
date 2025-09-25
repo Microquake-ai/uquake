@@ -2047,12 +2047,12 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             plt.show()
             return z, kernel_nodes
 
-    def write(self, path: str = '.'):
+    def write(self, path: Union[Path, str] = '.'):
         with open(path, 'rb') as f:
             pickle.dump(self, f)
 
     @classmethod
-    def read(cls, path: str):
+    def read(cls, path: Union[Path, str]):
         with open(path, 'rb') as f:
             obj = pickle.load(f)
         if not isinstance(obj, cls):
