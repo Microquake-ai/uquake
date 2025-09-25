@@ -48,7 +48,7 @@ from uquake.grid import read_grid
 from scipy import sparse
 from scipy.interpolate import interp1d
 from enum import Enum
-from typing import List
+from typing import List, Literal
 from uquake.core.event import WaveformStreamID
 from uquake.core.coordinates import Coordinates, CoordinateSystem
 from uquake.core.inventory import Inventory
@@ -1055,6 +1055,41 @@ class VelocityGrid3D(TypedGrid):
         # Rescale the data
         smoothed_data = data * velocity_perturbation * base_velocity + base_velocity
         self.data = smoothed_data
+
+    def _rho_gardner_gcc(vp_km_s: float) -> float:
+        """Density [g/cc] from Gardner (1974)."""
+        return 1.74 * vp_km_s ** 0.25
+
+    def _rho_brocher_gcc(vp_km_s: float) -> float:
+        """Density [g/cc] from Brocher (2005) polynomial; Vp in km/s."""
+        return (
+                1.6612 * vp_km_s
+                - 0.4721 * vp_km_s ** 2
+                + 0.0671 * vp_km_s ** 3
+                - 0.0043 * vp_km_s ** 4
+                + 0.000106 * vp_km_s ** 5
+        )
+
+    def to_density(self, method: Literal['Gardner', 'Brocher'], poisson_ratio=0.25):
+        vp_vs = np.sqrt((2 * (1 - poisson_ratio)) / (1 - 2 * poisson_ratio))
+        if self.phase == Phases.S:
+            vp = self.data * vp_vs  # assuming Vp/Vs = sqrt(3)
+        else:
+            vp = self.data
+
+        if self.grid_type == GridTypes.VELOCITY_METERS:
+            vp = self.data / 1000.
+
+        if method == 'Gardner':
+            rho = self._rho_gardner_gcc(vp)
+
+        elif method == 'Brocher':
+            rho = self._rho_brocher_gcc(vp)
+
+        else:
+            raise ValueError("Unsupported method. Method must be either 'Gardner' or 'Brocher'")
+
+        return DensityGrid3D(self.network_code, rho, self.origin, self.spacing, grid_units=self.grid_units)
 
     def to_rgrid(self, n_secondary: Union[int, Tuple[int, int, int]], threads: int = 1):
 
