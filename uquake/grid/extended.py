@@ -1775,8 +1775,11 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
 
         if z is None:
             thickness = self.spacing[2] * np.ones(shape=(self.shape[2] - 1))
+
             if self.grid_units == GridUnits.METER:
                 thickness *= 1.0e-3
+
+            if self.grid_type == GridTypes.VELOCITY_METERS:
                 velocity_s = self.s.data * 1.0e-3
                 velocity_p = self.p.data * 1.0e-3
             else:
