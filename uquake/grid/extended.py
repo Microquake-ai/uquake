@@ -1839,7 +1839,7 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             layers_p = 0.5 * (vel_p[:, :, 1:] + vel_p[:, :, :-1])
             layers_rho = 0.5 * (rho[:, :, 1:] + rho[:, :, :-1])
 
-            for i in range(nx):
+            for i in tqdm(range(nx)):
                 for j in range(ny):
                     pd = PhaseDispersion(
                         thickness=thickness,
