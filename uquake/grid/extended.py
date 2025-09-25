@@ -2048,7 +2048,7 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             return z, kernel_nodes
 
     def write(self, path: Union[Path, str] = '.'):
-        with open(path, 'rb') as f:
+        with open(path, 'wb') as f:
             pickle.dump(self, f)
 
     @classmethod
