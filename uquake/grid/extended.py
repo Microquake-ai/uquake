@@ -41,7 +41,7 @@ from loguru import logger
 from multiprocessing import Pool, cpu_count
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import Optional
+from typing import Optional, Sequence, Tuple
 from .base import ray_tracer
 import shutil
 from uquake.grid import read_grid
@@ -63,7 +63,7 @@ from evtk import hl
 import time
 import warnings
 import pickle
-import dask
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from tqdm import tqdm
 
@@ -1726,18 +1726,16 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
         super().__init__(p_velocity_grid, s_velocity_grid)
 
     def __getitem__(self, item):
-        if item.upper() == 'P':
+        if item.upper() == "P":
             return self.p_velocity_grid
-
-        elif item.upper() == 'S':
+        elif item.upper() == "S":
             return self.s_velocity_grid
-
-        elif item.upper() == 'DENSITY':
+        elif item.upper() == "DENSITY":
             return self.density_grid
-
         else:
-            raise ValueError(f'{item} is not a valid key. '
-                             f'The key value must either be "P" or "S"')
+            raise ValueError(
+                f'{item} is not a valid key. Use "P", "S", or "DENSITY".'
+            )
 
     def __repr__(self):
         return (f'P Velocity: {self.p_velocity_grid}\n'
@@ -1748,19 +1746,22 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
     def density(self):
         return self['density']
 
-    def to_phase_velocities(self, period_min: float = 0.1, period_max: float = 10.,
-                            n_periods: int = 10, logspace: bool = True,
-                            phase: Union[Phases, str] = Phases.RAYLEIGH,
-                            multithreading: bool = True,
-                            z: Union[List, np.ndarray] = None,
-                            disba_param: Union[DisbaParam] = DisbaParam()):
-
+    def to_phase_velocities(
+            self,
+            period_min: float = 0.1,
+            period_max: float = 10.0,
+            n_periods: int = 10,
+            logspace: bool = True,
+            phase: "Union[Phases, str]" = Phases.RAYLEIGH,
+            multithreading: bool = True,
+            z: "Union[Sequence, np.ndarray]" = None,
+            disba_param: "Union[DisbaParam]" = DisbaParam(),
+    ):
         if not isinstance(disba_param, DisbaParam):
-            raise TypeError(f'disba_param must be type DisbaParam')
+            raise TypeError("disba_param must be type DisbaParam")
 
         if isinstance(phase, str):
             Phases(phase.upper())
-
         if isinstance(phase, Phases):
             phase = phase.value.lower()
 
@@ -1769,141 +1770,145 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
         else:
             periods = np.linspace(period_min, period_max, n_periods)
 
-        @dask.delayed
-        def phase_velocity_pnt(index_i, index_j, cells_s, cells_p, cells_density,
-                               list_periods, layers_thickness_param, algorithm_param,
-                               dc_param):
-            velocity_sij = cells_s[index_i, index_j]
-            velocity_pij = cells_p[index_i, index_j]
-            density_profile_ij = cells_density[index_i, index_j]
-            phase_disp = PhaseDispersion(thickness=layers_thickness_param,
-                                         velocity_p=velocity_pij,
-                                         velocity_s=velocity_sij,
-                                         density=density_profile_ij,
-                                         algorithm=algorithm_param,
-                                         dc=dc_param)
-            return phase_disp(list_periods, mode=0, wave=phase).velocity
-
-        @dask.delayed
-        def phase_velocity_interp(xi, yj, interpolated_points, s_wave_vel,
-                                  p_wave_vel, density_model, list_periods,
-                                  layers_thickness_param, algorithm_param,
-                                  dc_param):
-            indices = np.where(np.logical_and(interpolated_points[:, 0] == xi,
-                                              interpolated_points[:, 1] == yj
-                                              ))[0]
-            velocity_sij = s_wave_vel[indices]
-            velocity_pij = p_wave_vel[indices]
-            density_profile_ij = density_model[indices]
-            phase_disp = PhaseDispersion(thickness=layers_thickness_param,
-                                         velocity_p=velocity_pij,
-                                         velocity_s=velocity_sij,
-                                         density=density_profile_ij,
-                                         algorithm=algorithm_param,
-                                         dc=dc_param)
-            return phase_disp(list_periods, mode=0, wave=phase).velocity
         algorithm = disba_param.algorithm
         dc = disba_param.dc
 
         if z is None:
             thickness = self.spacing[2] * np.ones(shape=(self.shape[2] - 1))
             if self.grid_units == GridUnits.METER:
-                thickness *= 1.e-3
-                velocity_s = self.s.data * 1.e-3
-                velocity_p = self.p.data * 1.e-3
+                thickness *= 1.0e-3
+                velocity_s = self.s.data * 1.0e-3
+                velocity_p = self.p.data * 1.0e-3
             else:
                 velocity_s = self.s.data
                 velocity_p = self.p.data
+
             layers_s = 0.5 * (velocity_s[:, :, 1:] + velocity_s[:, :, :-1])
             layers_p = 0.5 * (velocity_p[:, :, 1:] + velocity_p[:, :, :-1])
-            layers_density = 0.5 * (self.density.data[:, :, 1:] +
-                                    self.density.data[:, :, :-1])
+            layers_density = 0.5 * (
+                    self.density.data[:, :, 1:] + self.density.data[:, :, :-1]
+            )
 
             if multithreading:
-                results = []
-                for i in range(self.shape[0]):
-                    cmod_ij = []
-                    results.append(cmod_ij)
-                    for j in range(self.shape[1]):
-                        cmod_ij.append(phase_velocity_pnt(i, j, layers_s, layers_p,
-                                                          layers_density, periods,
-                                                          thickness, algorithm, dc))
-
-                phase_velocity = dask.compute(*results)  # todo see other arguments
-                phase_velocity = np.array(phase_velocity)
-                phase_velocity = [phase_velocity[:, :, k] for k in range(n_periods)]
+                # CPU parallel over (i, j)
+                phase_velocity = [np.zeros((self.shape[0], self.shape[1]))
+                                  for _ in range(n_periods)]
+                with ProcessPoolExecutor() as ex:
+                    futures = []
+                    for i in range(self.shape[0]):
+                        for j in range(self.shape[1]):
+                            futures.append(
+                                ex.submit(
+                                    _phase_velocity_pnt_worker,
+                                    i,
+                                    j,
+                                    layers_s,
+                                    layers_p,
+                                    layers_density,
+                                    periods,
+                                    thickness,
+                                    algorithm,
+                                    dc,
+                                    phase,
+                                )
+                            )
+                    for fut in as_completed(futures):
+                        i, j, cmod = fut.result()
+                        for k in range(n_periods):
+                            phase_velocity[k][i, j] = cmod[k]
             else:
-                phase_velocity = [np.zeros(shape=(self.shape[0], self.shape[1]))
+                phase_velocity = [np.zeros((self.shape[0], self.shape[1]))
                                   for _ in range(n_periods)]
                 for i in range(self.shape[0]):
                     for j in range(self.shape[1]):
                         velocity_s_ij = layers_s[i, j]
                         velocity_p_ij = layers_p[i, j]
                         density_ij = layers_density[i, j]
-                        pd = PhaseDispersion(thickness=thickness,
-                                             velocity_p=velocity_p_ij,
-                                             velocity_s=velocity_s_ij,
-                                             density=density_ij,
-                                             algorithm=algorithm,
-                                             dc=dc)
+                        pd = PhaseDispersion(
+                            thickness=thickness,
+                            velocity_p=velocity_p_ij,
+                            velocity_s=velocity_s_ij,
+                            density=density_ij,
+                            algorithm=algorithm,
+                            dc=dc,
+                        )
                         cmod = pd(periods, mode=0, wave=phase).velocity
                         for k in range(n_periods):
                             phase_velocity[k][i, j] = cmod[k]
+
         else:
             # define layers thickness and centers
             layers_centers = 0.5 * (z[1:] + z[:-1])
             layers_thickness = z[1:] - z[:-1]
-            # interpolation
+
+            # interpolation coordinates
             x = np.arange(self.origin[0], self.corner[0], self.spacing[0])
             y = np.arange(self.origin[1], self.corner[1], self.spacing[1])
-            x_grd, y_grd, z_grd = np.meshgrid(x, y, layers_centers, indexing='ij')
-            coord_interpolation = np.column_stack((x_grd.reshape(-1), y_grd.reshape(-1),
-                                                   z_grd.reshape(-1)))
-            velocity_s = self.s.interpolate(coord_interpolation, grid_space=False)
-            velocity_p = self.p.interpolate(coord_interpolation, grid_space=False)
-            density = self.density.interpolate(coord_interpolation, grid_space=False)
+            xg, yg, zg = np.meshgrid(x, y, layers_centers, indexing="ij")
+            interp_xyz = np.column_stack((xg.reshape(-1), yg.reshape(-1), zg.reshape(-1)))
+
+            velocity_s = self.s.interpolate(interp_xyz, grid_space=False)
+            velocity_p = self.p.interpolate(interp_xyz, grid_space=False)
+            density = self.density.interpolate(interp_xyz, grid_space=False)
+
             if self.grid_units == GridUnits.METER:
-                velocity_s *= 1.e-3
-                velocity_p *= 1.e-3
-                z *= 1.e-3
+                velocity_s *= 1.0e-3
+                velocity_p *= 1.0e-3
+                z = np.asarray(z, dtype=float) * 1.0e-3
+
             if multithreading:
-                results = []
-                for x_i in x:
-                    cmod_ij = []
-                    results.append(cmod_ij)
-                    for y_j in y:
-                        cmod_ij.append(phase_velocity_interp(x_i, y_j,
-                                                             coord_interpolation,
-                                                             velocity_s, velocity_p,
-                                                             density, periods,
-                                                             layers_thickness, algorithm,
-                                                             dc))
-
-                phase_velocity = dask.compute(*results)  # todo see other arguments
-                phase_velocity = np.array(phase_velocity)
-                phase_velocity = [phase_velocity[:, :, k] for k in range(n_periods)]
-
+                phase_velocity = [np.zeros((self.shape[0], self.shape[1]))
+                                  for _ in range(n_periods)]
+                with ProcessPoolExecutor() as ex:
+                    futures = []
+                    for xi in x:
+                        for yj in y:
+                            futures.append(
+                                ex.submit(
+                                    _phase_velocity_interp_worker,
+                                    xi,
+                                    yj,
+                                    interp_xyz,
+                                    velocity_s,
+                                    velocity_p,
+                                    density,
+                                    periods,
+                                    layers_thickness,
+                                    algorithm,
+                                    dc,
+                                    phase,
+                                )
+                            )
+                    for fut in as_completed(futures):
+                        xi, yj, cmod = fut.result()
+                        i = int((xi - self.origin[0]) / self.spacing[0])
+                        j = int((yj - self.origin[1]) / self.spacing[1])
+                        for k in range(n_periods):
+                            phase_velocity[k][i, j] = cmod[k]
             else:
-                # run code in one thread
-                phase_velocity = [np.zeros(shape=(self.shape[0], self.shape[1]))
+                phase_velocity = [np.zeros((self.shape[0], self.shape[1]))
                                   for _ in range(n_periods)]
                 for i in range(self.shape[0]):
                     for j in range(self.shape[1]):
-                        ind = np.where(np.logical_and(coord_interpolation[:, 0] == x[i],
-                                                      coord_interpolation[:, 1] == y[j]
-                                                      ))[0]
-                        velocity_s_ij = velocity_s[ind]
-                        velocity_p_ij = velocity_p[ind]
-                        density_ij = density[ind]
-                        pd = PhaseDispersion(thickness=layers_thickness,
-                                             velocity_p=velocity_p_ij,
-                                             velocity_s=velocity_s_ij,
-                                             density=density_ij,
-                                             algorithm=algorithm,
-                                             dc=dc)
+                        idx = np.where(
+                            np.logical_and(interp_xyz[:, 0] == x[i],
+                                           interp_xyz[:, 1] == y[j])
+                        )[0]
+                        velocity_s_ij = velocity_s[idx]
+                        velocity_p_ij = velocity_p[idx]
+                        density_ij = density[idx]
+                        pd = PhaseDispersion(
+                            thickness=layers_thickness,
+                            velocity_p=velocity_p_ij,
+                            velocity_s=velocity_s_ij,
+                            density=density_ij,
+                            algorithm=algorithm,
+                            dc=dc,
+                        )
                         cmod = pd(periods, mode=0, wave=phase).velocity
                         for k in range(n_periods):
                             phase_velocity[k][i, j] = cmod[k]
+
         return periods, phase_velocity
 
     def transform_to(self, values):
@@ -4312,3 +4317,64 @@ def get_coordinates_inventory(
         raise ValueError("No valid coordinates found in inventory.")
 
     return locations_x, locations_y, coord_systems
+
+
+def _phase_velocity_pnt_worker(
+    i: int,
+    j: int,
+    layers_s: "np.ndarray",
+    layers_p: "np.ndarray",
+    layers_density: "np.ndarray",
+    periods: "np.ndarray",
+    thickness: "np.ndarray",
+    algorithm: str,
+    dc: float,
+    phase: str,
+) -> Tuple[int, int, "np.ndarray"]:
+    """Compute phase velocities for one grid cell (i, j) over all periods."""
+    velocity_sij = layers_s[i, j]
+    velocity_pij = layers_p[i, j]
+    density_ij = layers_density[i, j]
+    pd = PhaseDispersion(
+        thickness=thickness,
+        velocity_p=velocity_pij,
+        velocity_s=velocity_sij,
+        density=density_ij,
+        algorithm=algorithm,
+        dc=dc,
+    )
+    cmod = pd(periods, mode=0, wave=phase).velocity
+    return i, j, cmod
+
+
+def _phase_velocity_interp_worker(
+    xi: float,
+    yj: float,
+    interp_xyz: "np.ndarray",
+    s_vel: "np.ndarray",
+    p_vel: "np.ndarray",
+    density: "np.ndarray",
+    periods: "np.ndarray",
+    layer_thick: "np.ndarray",
+    algorithm: str,
+    dc: float,
+    phase: str,
+) -> Tuple[float, float, "np.ndarray"]:
+    """Compute phase velocities for one (x, y) profile over all periods."""
+    idx = np.where(
+        np.logical_and(interp_xyz[:, 0] == xi, interp_xyz[:, 1] == yj)
+    )[0]
+    velocity_sij = s_vel[idx]
+    velocity_pij = p_vel[idx]
+    density_ij = density[idx]
+    pd = PhaseDispersion(
+        thickness=layer_thick,
+        velocity_p=velocity_pij,
+        velocity_s=velocity_sij,
+        density=density_ij,
+        algorithm=algorithm,
+        dc=dc,
+    )
+    cmod = pd(periods, mode=0, wave=phase).velocity
+    return xi, yj, cmod
+
