@@ -1753,10 +1753,48 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             n_periods: int = 10,
             logspace: bool = True,
             phase: "Union[Phases, str]" = Phases.RAYLEIGH,
-            multithreading: bool = True,
+            multithreading: bool = True,  # kept for API; ignored (runs serial)
             z: "Union[Sequence, np.ndarray]" = None,
             disba_param: "Union[DisbaParam]" = DisbaParam(),
-    ):
+    ) -> "PhaseVelocityEnsemble":
+        """Compute phase-velocity planes and return a PhaseVelocityEnsemble.
+
+        Notes
+        -----
+        - Computation is performed serially (no multithreading).
+        - Disba expects km and km/s. If this grid's ``grid_units`` are meters,
+          thickness is converted m→km and velocities m/s→km/s for computation.
+        - Returned PhaseVelocity grids' data units match this ensemble's
+          ``grid_type``:
+            * if ``grid_type == GridTypes.VELOCITY_METERS`` → data in m/s
+            * otherwise → data in km/s
+        - Spatial units of the returned grids (``grid_units``) are copied from
+          this ensemble (meters, kilometers, or feet).
+
+        Parameters
+        ----------
+        period_min, period_max : float
+            Period range in seconds.
+        n_periods : int
+            Number of periods.
+        logspace : bool
+            If True, log-uniform spacing; else linear.
+        phase : Phases or str
+            Seismic phase ('rayleigh' or 'love').
+        multithreading : bool
+            Ignored. Present for backward compatibility.
+        z : array-like or None
+            Custom vertical coordinates. If None, uses layer centers. When
+            ``grid_units == GridUnits.METER``, values are interpreted in meters;
+            otherwise in kilometers.
+        disba_param : DisbaParam
+            Parameters passed to Disba.
+
+        Returns
+        -------
+        PhaseVelocityEnsemble
+            An ensemble with one PhaseVelocity grid per requested period.
+        """
         if not isinstance(disba_param, DisbaParam):
             raise TypeError("disba_param must be type DisbaParam")
 
@@ -1766,153 +1804,132 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             phase = phase.value.lower()
 
         if logspace:
-            periods = np.logspace(np.log10(period_min), np.log10(period_max), n_periods)
+            periods = np.logspace(np.log10(period_min), np.log10(period_max),
+                                  n_periods)
         else:
             periods = np.linspace(period_min, period_max, n_periods)
 
         algorithm = disba_param.algorithm
         dc = disba_param.dc
 
-        if z is None:
-            thickness = self.spacing[2] * np.ones(shape=(self.shape[2] - 1))
+        # Prepare output containers (filled in serial loops)
+        nx, ny, nz = self.shape
+        planes_kms = [np.zeros((nx, ny), dtype=np.float64) for _ in range(n_periods)]
 
+        if z is None:
+            # Native layers: build thickness and layer-centered properties
+            thickness = self.spacing[2] * np.ones(shape=(nz - 1), dtype=np.float64)
+
+            # Convert to km for Disba if spatial grid is meters
             if self.grid_units == GridUnits.METER:
                 thickness *= 1.0e-3
 
+            # Convert velocity data to km/s if stored in m/s
             if self.grid_type == GridTypes.VELOCITY_METERS:
-                velocity_s = self.s.data * 1.0e-3
-                velocity_p = self.p.data * 1.0e-3
+                vel_s = self.s.data.astype(np.float64) * 1.0e-3
+                vel_p = self.p.data.astype(np.float64) * 1.0e-3
             else:
-                velocity_s = self.s.data
-                velocity_p = self.p.data
+                vel_s = self.s.data.astype(np.float64)
+                vel_p = self.p.data.astype(np.float64)
 
-            layers_s = 0.5 * (velocity_s[:, :, 1:] + velocity_s[:, :, :-1])
-            layers_p = 0.5 * (velocity_p[:, :, 1:] + velocity_p[:, :, :-1])
-            layers_density = 0.5 * (
-                    self.density.data[:, :, 1:] + self.density.data[:, :, :-1]
-            )
+            rho = self.density.data.astype(np.float64)
 
-            if multithreading:
-                # CPU parallel over (i, j)
-                phase_velocity = [np.zeros((self.shape[0], self.shape[1]))
-                                  for _ in range(n_periods)]
-                with ProcessPoolExecutor() as ex:
-                    futures = []
-                    for i in range(self.shape[0]):
-                        for j in range(self.shape[1]):
-                            futures.append(
-                                ex.submit(
-                                    _phase_velocity_pnt_worker,
-                                    i,
-                                    j,
-                                    layers_s,
-                                    layers_p,
-                                    layers_density,
-                                    periods,
-                                    thickness,
-                                    algorithm,
-                                    dc,
-                                    phase,
-                                )
-                            )
-                    for fut in as_completed(futures):
-                        i, j, cmod = fut.result()
-                        for k in range(n_periods):
-                            phase_velocity[k][i, j] = cmod[k]
-            else:
-                phase_velocity = [np.zeros((self.shape[0], self.shape[1]))
-                                  for _ in range(n_periods)]
-                for i in tqdm(range(self.shape[0])):
-                    for j in range(self.shape[1]):
-                        velocity_s_ij = layers_s[i, j]
-                        velocity_p_ij = layers_p[i, j]
-                        density_ij = layers_density[i, j]
-                        pd = PhaseDispersion(
-                            thickness=thickness,
-                            velocity_p=velocity_p_ij,
-                            velocity_s=velocity_s_ij,
-                            density=density_ij,
-                            algorithm=algorithm,
-                            dc=dc,
-                        )
-                        cmod = pd(periods, mode=0, wave=phase).velocity
-                        for k in range(n_periods):
-                            phase_velocity[k][i, j] = cmod[k]
+            # Layer-center averages
+            layers_s = 0.5 * (vel_s[:, :, 1:] + vel_s[:, :, :-1])
+            layers_p = 0.5 * (vel_p[:, :, 1:] + vel_p[:, :, :-1])
+            layers_rho = 0.5 * (rho[:, :, 1:] + rho[:, :, :-1])
+
+            for i in range(nx):
+                for j in range(ny):
+                    pd = PhaseDispersion(
+                        thickness=thickness,
+                        velocity_p=layers_p[i, j],
+                        velocity_s=layers_s[i, j],
+                        density=layers_rho[i, j],
+                        algorithm=algorithm,
+                        dc=dc,
+                    )
+                    cmod = pd(periods, mode=0, wave=phase).velocity  # km/s
+                    for k in range(n_periods):
+                        planes_kms[k][i, j] = cmod[k]
 
         else:
-            # define layers thickness and centers
+            # User-provided vertical coordinates → build layer centers/thickness
+            z = np.asarray(z, dtype=np.float64)
             layers_centers = 0.5 * (z[1:] + z[:-1])
             layers_thickness = z[1:] - z[:-1]
 
-            # interpolation coordinates
+            # Interpolate properties at layer centers for each (x, y)
             x = np.arange(self.origin[0], self.corner[0], self.spacing[0])
             y = np.arange(self.origin[1], self.corner[1], self.spacing[1])
             xg, yg, zg = np.meshgrid(x, y, layers_centers, indexing="ij")
-            interp_xyz = np.column_stack((xg.reshape(-1), yg.reshape(-1), zg.reshape(-1)))
+            interp_xyz = np.column_stack(
+                (xg.reshape(-1), yg.reshape(-1), zg.reshape(-1))
+            )
 
-            velocity_s = self.s.interpolate(interp_xyz, grid_space=False)
-            velocity_p = self.p.interpolate(interp_xyz, grid_space=False)
-            density = self.density.interpolate(interp_xyz, grid_space=False)
+            vel_s = self.s.interpolate(interp_xyz, grid_space=False).astype(np.float64)
+            vel_p = self.p.interpolate(interp_xyz, grid_space=False).astype(np.float64)
+            rho = self.density.interpolate(interp_xyz, grid_space=False).astype(
+                np.float64
+            )
 
+            # Convert to Disba units when needed
             if self.grid_units == GridUnits.METER:
-                velocity_s *= 1.0e-3
-                velocity_p *= 1.0e-3
-                z = np.asarray(z, dtype=float) * 1.0e-3
-
-            if multithreading:
-                phase_velocity = [np.zeros((self.shape[0], self.shape[1]))
-                                  for _ in range(n_periods)]
-                with ProcessPoolExecutor() as ex:
-                    futures = []
-                    for xi in x:
-                        for yj in y:
-                            futures.append(
-                                ex.submit(
-                                    _phase_velocity_interp_worker,
-                                    xi,
-                                    yj,
-                                    interp_xyz,
-                                    velocity_s,
-                                    velocity_p,
-                                    density,
-                                    periods,
-                                    layers_thickness,
-                                    algorithm,
-                                    dc,
-                                    phase,
-                                )
-                            )
-                    for fut in as_completed(futures):
-                        xi, yj, cmod = fut.result()
-                        i = int((xi - self.origin[0]) / self.spacing[0])
-                        j = int((yj - self.origin[1]) / self.spacing[1])
-                        for k in range(n_periods):
-                            phase_velocity[k][i, j] = cmod[k]
+                layers_thickness = layers_thickness.astype(np.float64) * 1.0e-3
+                if self.grid_type == GridTypes.VELOCITY_METERS:
+                    vel_s *= 1.0e-3
+                    vel_p *= 1.0e-3
             else:
-                phase_velocity = [np.zeros((self.shape[0], self.shape[1]))
-                                  for _ in range(n_periods)]
-                for i in range(self.shape[0]):
-                    for j in range(self.shape[1]):
-                        idx = np.where(
-                            np.logical_and(interp_xyz[:, 0] == x[i],
-                                           interp_xyz[:, 1] == y[j])
-                        )[0]
-                        velocity_s_ij = velocity_s[idx]
-                        velocity_p_ij = velocity_p[idx]
-                        density_ij = density[idx]
-                        pd = PhaseDispersion(
-                            thickness=layers_thickness,
-                            velocity_p=velocity_p_ij,
-                            velocity_s=velocity_s_ij,
-                            density=density_ij,
-                            algorithm=algorithm,
-                            dc=dc,
-                        )
-                        cmod = pd(periods, mode=0, wave=phase).velocity
-                        for k in range(n_periods):
-                            phase_velocity[k][i, j] = cmod[k]
+                if self.grid_type == GridTypes.VELOCITY_METERS:
+                    # Spatial grid is km/ft, but data are m/s → convert to km/s
+                    vel_s *= 1.0e-3
+                    vel_p *= 1.0e-3
 
-        return periods, phase_velocity
+            # Fill planes in serial
+            for ii in range(nx):
+                for jj in range(ny):
+                    mask = (interp_xyz[:, 0] == x[ii]) & (interp_xyz[:, 1] == y[jj])
+                    pd = PhaseDispersion(
+                        thickness=layers_thickness,
+                        velocity_p=vel_p[mask],
+                        velocity_s=vel_s[mask],
+                        density=rho[mask],
+                        algorithm=algorithm,
+                        dc=dc,
+                    )
+                    cmod = pd(periods, mode=0, wave=phase).velocity  # km/s
+                    for k in range(n_periods):
+                        planes_kms[k][ii, jj] = cmod[k]
+
+        # Convert planes back to the desired data unit and wrap as PhaseVelocity
+        ensemble = PhaseVelocityEnsemble()
+        for k, per in enumerate(periods):
+            if self.grid_type == GridTypes.VELOCITY_METERS:
+                data = planes_kms[k] * 1.0e3  # km/s → m/s
+                out_grid_type = GridTypes.VELOCITY_METERS
+            else:
+                data = planes_kms[k]
+                out_grid_type = self.grid_type
+
+            pv = PhaseVelocity(
+                network_code=self.network_code,
+                data_or_dims=data,
+                period=float(per),
+                phase=Phases(phase.upper()),
+                grid_type=out_grid_type,
+                grid_units=self.grid_units,
+                spacing=self.spacing,
+                origin=self.origin,
+                resource_id=ResourceIdentifier(),
+                value=0.0,
+                coordinate_system=self.coordinate_system,
+                label=self.label,
+                float_type=self.float_type if hasattr(self, "float_type")
+                else FloatTypes.FLOAT,
+            )
+            ensemble.append(pv)
+
+        return ensemble
 
     def transform_to(self, values):
         return self.s.transform_to_grid(values)
