@@ -1056,12 +1056,36 @@ class VelocityGrid3D(TypedGrid):
         smoothed_data = data * velocity_perturbation * base_velocity + base_velocity
         self.data = smoothed_data
 
-    def _rho_gardner_gcc(vp_km_s: float) -> float:
-        """Density [g/cc] from Gardner (1974)."""
+    @staticmethod
+    def _rho_gardner_gcc(vp_km_s: float):
+        """Compute density in g/cc from Vp (km/s) using Gardner (1974).
+
+        Parameters
+        ----------
+        vp_km_s : float or ndarray
+            P-wave velocity in km/s.
+
+        Returns
+        -------
+        float or ndarray
+            Density in g/cc.
+        """
         return 1.74 * vp_km_s ** 0.25
 
-    def _rho_brocher_gcc(vp_km_s: float) -> float:
-        """Density [g/cc] from Brocher (2005) polynomial; Vp in km/s."""
+    @staticmethod
+    def _rho_brocher_gcc(vp_km_s: float):
+        """Compute density in g/cc from Vp (km/s) using Brocher (2005).
+
+        Parameters
+        ----------
+        vp_km_s : float or ndarray
+            P-wave velocity in km/s.
+
+        Returns
+        -------
+        float or ndarray
+            Density in g/cc.
+        """
         return (
                 1.6612 * vp_km_s
                 - 0.4721 * vp_km_s ** 2
@@ -1070,26 +1094,109 @@ class VelocityGrid3D(TypedGrid):
                 + 0.000106 * vp_km_s ** 5
         )
 
-    def to_density(self, method: Literal['Gardner', 'Brocher'], poisson_ratio=0.25):
-        vp_vs = np.sqrt((2 * (1 - poisson_ratio)) / (1 - 2 * poisson_ratio))
+    def to_density(
+            self,
+            method: Literal["Gardner", "Brocher"],
+            poisson_ratio: float = 0.25,
+    ):
+        """Convert this velocity grid to a density grid (g/cc).
+
+        If the grid phase is S, Vp is estimated from Vs using the Poisson-ratio
+        relation:
+            Vp / Vs = sqrt(2 * (1 - ν) / (1 - 2ν)).
+        The chosen empirical relation (Gardner or Brocher) then maps Vp (km/s)
+        to density (g/cc).
+
+        Parameters
+        ----------
+        method : {"Gardner", "Brocher"}
+            Empirical Vp-to-density relation. Gardner (1974) is broadly used
+            for clastics; Brocher (2005) often fits crystalline crust better.
+        poisson_ratio : float, optional
+            Poisson's ratio ν used only when phase == Phases.S to estimate Vp
+            from Vs. Default is 0.25 (Poisson solid).
+
+        Returns
+        -------
+        DensityGrid3D
+            New density grid with density in g/cc.
+
+        Raises
+        ------
+        ValueError
+            If an unsupported method is requested.
+        """
+        vp_vs = np.sqrt((2.0 * (1.0 - poisson_ratio)) / (1.0 - 2.0 * poisson_ratio))
+
         if self.phase == Phases.S:
-            vp = self.data * vp_vs  # assuming Vp/Vs = sqrt(3)
+            vp = self.data * vp_vs
         else:
             vp = self.data
 
+        # Ensure Vp is in km/s for the empirical relations
         if self.grid_type == GridTypes.VELOCITY_METERS:
-            vp = self.data / 1000.
+            vp = vp / 1000.0
 
-        if method == 'Gardner':
-            rho = self._rho_gardner_gcc(vp)
-
-        elif method == 'Brocher':
-            rho = self._rho_brocher_gcc(vp)
-
+        if method == "Gardner":
+            rho_gcc = self._rho_gardner_gcc(vp)
+        elif method == "Brocher":
+            rho_gcc = self._rho_brocher_gcc(vp)
         else:
-            raise ValueError("Unsupported method. Method must be either 'Gardner' or 'Brocher'")
+            raise ValueError(
+                "Unsupported method. Use 'Gardner' or 'Brocher'."
+            )
 
-        return DensityGrid3D(self.network_code, rho, self.origin, self.spacing, grid_units=self.grid_units)
+        # If your DensityGrid3D supports explicit unit tags, set g/cc here.
+        return DensityGrid3D(
+            self.network_code,
+            rho_gcc,
+            self.origin,
+            self.spacing,
+            grid_units=self.grid_units,  # consider a GridUnits.G_PER_CC enum
+        )
+
+    def convert_to_vp(
+            self,
+            poisson_ratio: float = 0.25,
+            new_grid: bool = True,
+    ) -> Optional["VelocityGrid3D"]:
+        """Return or update the grid converted to P-wave velocity (Vp).
+
+        If this grid represents S-wave velocity (Vs), convert to Vp using
+        the Poisson-ratio relation:
+            Vp / Vs = sqrt(2 * (1 - ν) / (1 - 2ν)).
+        If the grid already represents Vp, do nothing.
+
+        Parameters
+        ----------
+        poisson_ratio : float, optional
+            Poisson's ratio ν used to compute Vp from Vs. Default is 0.25.
+        new_grid : bool, optional
+            If True, return a copy with data converted to Vp and phase set to P.
+            If False, convert in place and return None.
+
+        Returns
+        -------
+        VelocityGrid3D or None
+            Converted grid if `new_grid` is True; otherwise None.
+        """
+        if self.phase == Phases.P:
+            logger.info("Already P-wave velocity; no conversion performed.")
+            return self.copy() if new_grid else None
+
+        if self.phase == Phases.S:
+            vp_vs = np.sqrt((2.0 * (1.0 - poisson_ratio)) / (1.0 - 2.0 * poisson_ratio))
+            vp = self.data * vp_vs
+
+            if new_grid:
+                out_grid = self.copy()
+                out_grid.data = vp
+                out_grid.phase = Phases.P
+                return out_grid
+
+            self.data = vp
+            self.phase = Phases.P
+            return None
 
     def to_rgrid(self, n_secondary: Union[int, Tuple[int, int, int]], threads: int = 1):
 
