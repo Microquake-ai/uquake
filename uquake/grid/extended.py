@@ -1819,8 +1819,8 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             else:
                 phase_velocity = [np.zeros((self.shape[0], self.shape[1]))
                                   for _ in range(n_periods)]
-                for i in range(self.shape[0]):
-                    for j in range(self.shape[1]):
+                for i in tqdm(range(self.shape[0])):
+                    for j in tqdm(range(self.shape[1])):
                         velocity_s_ij = layers_s[i, j]
                         velocity_p_ij = layers_p[i, j]
                         density_ij = layers_density[i, j]
