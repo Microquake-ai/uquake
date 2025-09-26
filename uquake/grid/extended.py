@@ -3703,15 +3703,15 @@ class PhaseVelocity(Grid):
             raise ValueError("Velocity grid must be strictly positive for eikonal computations.")
 
         if self.grid_type == GridTypes.VELOCITY_KILOMETERS and self.grid_units == GridUnits.METER:
-            velocity = velocity_data * 1e3  # convert to m/s
+            velocity = velocity_data.copy() * 1e3  # convert to m/s
 
         elif self.grid_type == GridTypes.VELOCITY_METERS and self.grid_units == GridUnits.KILOMETER:
-            velocity = velocity_data * 1e-3  # convert to km/s
+            velocity = velocity_data.copy() * 1e-3  # convert to km/s
 
         else:
             raise ValueError("Grid type not supported")
 
-        velocity_grid = EKImageData(velocity_data.copy(), origin=tuple(origin_vec), spacing=spacing_value)
+        velocity_grid = EKImageData(velocity, origin=tuple(origin_vec), spacing=spacing_value)
 
         # unique_src_grid = self.transform_to_grid(unique_src_coords)
         # unique_rcv_grid = self.transform_to_grid(unique_rcv_coords)
