@@ -1014,14 +1014,13 @@ files = [
 
 [[package]]
 name = "estuaire"
-version = "1.0.2"
+version = "1.0.3"
 description = "Fast marching estuaire solver with ray tracing"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "estuaire-1.0.2-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:8c02d40028221d72cfe198c300459eb1b692d33d53dc9f637459eeeeff715021"},
-    {file = "estuaire-1.0.2-cp313-cp313-macosx_15_0_arm64.whl", hash = "sha256:44962772117157a5d7f968ffecbc0961d5ec0b41bd0bf69980b417e0d51b397d"},
+    {file = "estuaire-1.0.3-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:bc32e918e74595a320d03006f1313e18f8f9efd83476a5788cb26ae518edbe77"},
 ]
 
 [package.dependencies]
@@ -5689,4 +5688,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "229489871d98d8a305e13e9b2f18c88c4ae25736730817afce00f6db5b885588"
+content-hash = "24b336e8ac1d72a88cb559dfdc261180bca143b738ee2b4abfc8e1c0ded933df"
