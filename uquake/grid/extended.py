@@ -4295,9 +4295,9 @@ class PhaseVelocityEnsemble(list):
         periods = self.periods
         plt.semilogx(periods, cmod, "-ob")
         plt.xlabel("Period (s)")
-        if self[0].grid_units == GridUnits.METER:
+        if self[0].grid_types == GridTypes.VELOCITY_METERS:
             plt.ylabel("Phase velocity (m/s)")
-        if self[0].grid_units == GridUnits.KILOMETER:
+        if self[0].grid_types == GridTypes.VELOCITY_KILOMETERS:
             plt.ylabel("Phase velocity (km/s)")
         plt.grid(which='major', linewidth=0.8)
         plt.grid(which='minor', linestyle=':', linewidth=0.5)
