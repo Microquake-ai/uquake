@@ -1014,13 +1014,15 @@ files = [
 
 [[package]]
 name = "estuaire"
-version = "1.0.0"
+version = "1.0.2"
 description = "Fast marching estuaire solver with ray tracing"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "estuaire-1.0.2-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:8c02d40028221d72cfe198c300459eb1b692d33d53dc9f637459eeeeff715021"},
+    {file = "estuaire-1.0.2-cp313-cp313-macosx_15_0_arm64.whl", hash = "sha256:44962772117157a5d7f968ffecbc0961d5ec0b41bd0bf69980b417e0d51b397d"},
+]
 
 [package.dependencies]
 numpy = ">=1.26"
@@ -1030,12 +1032,6 @@ tqdm = ">=4.65"
 [package.extras]
 dev = ["mypy", "pytest (>=7)", "pytest-cov", "ruff"]
 vis = ["matplotlib (>=3.7)"]
-
-[package.source]
-type = "git"
-url = "https://github.com/CAUR-Technologies/estuaire.git"
-reference = "master"
-resolved_reference = "65647da589803a7bd9cfee459ac213a8a084f501"
 
 [[package]]
 name = "et-xmlfile"
@@ -5693,4 +5689,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "98cdbf2d2ae4e2d1abcb170a656f2dd23213516e8afe4e4ba567759383234bc7"
+content-hash = "229489871d98d8a305e13e9b2f18c88c4ae25736730817afce00f6db5b885588"

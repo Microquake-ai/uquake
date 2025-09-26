@@ -40,7 +40,7 @@ obspy = "1.4.0"
 # obspy = {git = "https://github.com/CAUR-Technologies/obspy.git", rev = "master"}
 #eikonal-ng = {path = "libraries/estuary/src/eikonal-ng/dist/eikonal_ng-0.1.0-cp312-cp312-macosx_15_0_arm64.whl"}
 #agstd = {path = "libraries/estuary/src/agstd", develop = true}
-estuaire = { git = "https://github.com/CAUR-Technologies/estuaire.git", rev = "master" }
+estuaire = "^1.0.2"
 
 
 
