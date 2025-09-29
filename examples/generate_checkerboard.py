@@ -4,7 +4,8 @@ import numpy as np
 
 from uquake.grid.extended import (VelocityGrid3D, Phases,DensityGrid3D, PhaseVelocity,
                                   SeismicPropertyGridEnsemble, GridUnits, GridTypes,
-                                  PhaseVelocityEnsemble, DisbaParam)
+                                  PhaseVelocityEnsemble, DisbaParam,
+                                  SurfaceWaveVelocity,VelocityType)
 
 dst_unit = "m"
 label = 'test'
@@ -60,12 +61,15 @@ z = np.array(z) * alpha + 0. * alpha
 z = (np.logspace(0, np.log10(10 + 1), 30) - 1) * 1450 / 10
 
 
-#z = np.arange(0, 1600., 50.) * alpha
-spge.plot_sensitivity_kernel(period=4, x=2300, y=1500, phase=Phases.RAYLEIGH,
-                             disba_param=disba_param, grid_space=False, z=z)
-spge.plot_sensitivity_kernel(period=4, x=2300, y=1500, phase=Phases.RAYLEIGH,
-                             disba_param=disba_param, grid_space=False, z=None)
 
+surface = SurfaceWaveVelocity.from_seismic_property_grid_ensemble(
+    seismic_param=spge,
+    period=0.1,
+    z_axis_log=False,
+    disba_param=DisbaParam(),
+    velocity_type=VelocityType.GROUP,
+    phase=Phases.RAYLEIGH
+)
 #     PhaseVelocityEnsemble
 # start_time = time.time()
 # Phe = PhaseVelocityEnsemble.from_seismic_property_grid_ensemble(
