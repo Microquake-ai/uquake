@@ -4388,6 +4388,7 @@ class PhaseVelocity(SurfaceWaveVelocity):
             z_axis_log=z_axis_log,
             npts_log_scale=npts_log_scale,
             disba_param=disba_param,
+            phase=phase,
             velocity_type=VelocityType.PHASE
         )
 
