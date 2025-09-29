@@ -4530,61 +4530,81 @@ class GroupVelocity(SurfaceWaveVelocity):
         )
 
 
-class PhaseVelocityEnsemble(list):
-    """Represents an ensemble of PhaseVelocity instances.
+class SurfaceVelocityEnsemble(list):
+    """Represents an ensemble of Phase or Group Velocity instances.
 
      This class extends the built-in list class to represent an ensemble \
       of PhaseVelocity instances.
 
      """
-
-    def __init__(self, *args):
+    def __init__(self, velocity_type: VelocityType = VelocityType.GROUP, *args):
+        self.velocity_type = velocity_type
         super().__init__(*args)
 
-    def append(self, phase_velocity):
-        if isinstance(phase_velocity, SurfaceWaveVelocity): # todo
-            super().append(phase_velocity)
+    def append(self, surface_velocity):
+        if isinstance(surface_velocity, SurfaceWaveVelocity):
+            super().append(surface_velocity)
         else:
-            print("Only instances of the PhaseVelocity class can be added to the list.")
+            print("Only instances of the SurfaceVelocity class can be added to the "
+                  "list.")
 
-    def add_phase_velocity(self, phase_velocity):
-        self.append(phase_velocity)
+    def add_surface_velocity(self, surface_velocity):
+        self.append(surface_velocity)
 
     @classmethod
     def from_seismic_property_grid_ensemble(
             cls, seismic_properties: SeismicPropertyGridEnsemble,
             periods: list, phase: Phases = Phases.RAYLEIGH, z_axis_log:bool = False,
-            npts_log_scale: int = 30, disba_param: DisbaParam = DisbaParam()
+            npts_log_scale: int = 30, disba_param: DisbaParam = DisbaParam(),
+            type_velocity: VelocityType = VelocityType.GROUP
     ):
         """
-        Create a PhaseVelocityEnsemble from a SeismicPropertyGridEnsemble.
+        Construct a SurfaceVelocityEnsemble from a SeismicPropertyGridEnsemble.
 
-        This method constructs a PhaseVelocityEnsemble instance from a \
-        SeismicPropertyGridEnsemble, associating it with the specified periods and phase.
+        This class method generates a :class:`SurfaceVelocityEnsemble` instance from
+        a provided :class:`SeismicPropertyGridEnsemble`. It computes dispersion curves
+        for the specified seismic phase and associates them with the given periods.
+        The method supports both linear and logarithmic sampling of the depth axis.
 
-        :param seismic_properties: The SeismicPropertyGridEnsemble considered to create \
-        the PhaseVelocityEnsemble instance.
-        :type seismic_properties: SeismicPropertyGridEnsemble
-        :param periods: The list of periods.
-        :type periods: list
-        :param phase: The seismic phase (default: Phases.RAYLEIGH).
-        :type phase: Phases
-        :param disba_param: Disba parameters (default: DisbaParam()).
-        :type disba_param: DisbaParam, optional
-        :return: A PhaseVelocityEnsemble instance created from the SeismicPropertyGridEnsemble.
-        :rtype: PhaseVelocityEnsemble
+        Parameters
+        ----------
+        seismic_properties : SeismicPropertyGridEnsemble
+            The seismic property ensemble (Vs, Vp, density profiles) used as the
+            input model for computing surface velocities.
+        periods : list of float
+            A list of periods (in seconds) at which the velocity is evaluated.
+        phase : Phases, optional
+            The seismic wave phase to consider (default: ``Phases.RAYLEIGH``).
+        z_axis_log : bool, optional
+            If ``True``, the depth axis is sampled logarithmically (default: ``False``).
+        npts_log_scale : int, optional
+            Number of points to use when applying logarithmic depth scaling
+            (default: ``30``). Only relevant if ``z_axis_log=True``.
+        disba_param : DisbaParam, optional
+            Parameters controlling the numerical solver (default: ``DisbaParam()``).
+        type_velocity : VelocityType, optional
+            The type of velocity to compute, either ``VelocityType.GROUP`` or
+            ``VelocityType.PHASE`` (default: ``VelocityType.GROUP``).
+
+        Returns
+        -------
+        SurfaceVelocityEnsemble
+            An ensemble of surface velocities associated with the given seismic
+            property grid ensemble and computation settings.
+
         """
         cls_obj = cls()
         for p in periods:
-            cls_obj.append(PhaseVelocity.from_seismic_property_grid_ensemble(
-                seismic_properties, p, phase, z_axis_log, npts_log_scale, disba_param))
+            cls_obj.append(SurfaceWaveVelocity.from_seismic_property_grid_ensemble(
+                seismic_properties, p, phase, z_axis_log, npts_log_scale, disba_param,
+                type_velocity))
         return cls_obj
 
     @property
     def periods(self):
         periods = []
-        for phase_velocity in self:
-            periods.append(phase_velocity.period)
+        for surface_velocity in self:
+            periods.append(surface_velocity.period)
 
         return periods
 
@@ -4595,7 +4615,7 @@ class PhaseVelocityEnsemble(list):
         return self[0].transform_to_grid(values)
 
     def transform_from(self, values):
-        return self[0].transform_from
+        return self[0].transform_from(values)
 
     def transform_from_grid(self, values):
         return self.transform_from(values)
@@ -4630,12 +4650,36 @@ class PhaseVelocityEnsemble(list):
         plt.semilogx(periods, cmod, "-ob")
         plt.xlabel("Period (s)")
         if self[0].grid_types == GridTypes.VELOCITY_METERS:
-            plt.ylabel("Phase velocity (m/s)")
+            plt.ylabel(f"{self.velocity_type} velocity (m/s)")
         if self[0].grid_types == GridTypes.VELOCITY_KILOMETERS:
-            plt.ylabel("Phase velocity (km/s)")
+            plt.ylabel(f"{self.velocity_type} velocity (km/s)")
         plt.grid(which='major', linewidth=0.8)
         plt.grid(which='minor', linestyle=':', linewidth=0.5)
         plt.show()
+
+
+class PhaseVelocityEnsemble(SurfaceVelocityEnsemble):
+    """Represents an ensemble of PhaseVelocity instances.
+
+     This class extends the built-in list class to represent an ensemble \
+      of PhaseVelocity instances.
+
+     """
+
+    def __init__(self, *args):
+        super().__init__(velocity_type=VelocityType.PHASE, *args)
+
+
+class GroupVelocityEnsemble(SurfaceVelocityEnsemble):
+    """Represents an ensemble of PhaseVelocity instances.
+
+     This class extends the built-in list class to represent an ensemble \
+      of GroupVelocity instances.
+
+     """
+
+    def __init__(self, *args):
+        super().__init__(velocity_type=VelocityType.GROUP, *args)
 
 
 def get_coordinates_inventory(
