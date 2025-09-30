@@ -3030,14 +3030,14 @@ class SurfaceWaveVelocity(Grid):
 
     @classmethod
     def _from_seismic_property_grid_ensemble(cls,
-                                            seismic_param: SeismicPropertyGridEnsemble,
-                                            period: float, phase: Phases,
-                                            z_axis_log: bool = False,
-                                            npts_log_scale: int = 30,
-                                            disba_param: DisbaParam = DisbaParam(),
-                                            velocity_type:
-                                            VelocityType = VelocityType.GROUP,
-                                            ):
+                                             seismic_param: SeismicPropertyGridEnsemble,
+                                             period: float, phase: Phases,
+                                             z_axis_log: bool = False,
+                                             npts_log_scale: int = 30,
+                                             disba_param: DisbaParam = DisbaParam(),
+                                             velocity_type:
+                                             VelocityType = VelocityType.GROUP,
+                                             **kwargs):
         """Build a phase-velocity grid from a seismic property ensemble.
 
         :param seismic_param: Collection of seismic property grids used to derive
@@ -3070,7 +3070,7 @@ class SurfaceWaveVelocity(Grid):
         else:
             z = None
 
-        phase_velocity = seismic_param.to_surface_velocities(
+        surface_velocity = seismic_param.to_surface_velocities(
             period_min=period,
             period_max=period,
             n_periods=1,
@@ -3080,13 +3080,13 @@ class SurfaceWaveVelocity(Grid):
             disba_param=disba_param,
             velocity_type=velocity_type
     )
-        phase_velocity = phase_velocity[0]
+        surface_velocity = surface_velocity[0]
         if seismic_param.grid_type == GridTypes.VELOCITY_METERS:
-            phase_velocity.data *= 1.e3
+            surface_velocity.data *= 1.e3
 
         return cls(
             network_code=seismic_param.network_code,
-            data_or_dims=phase_velocity.data,
+            data_or_dims=surface_velocity.data,
             period=period,
             phase=phase,
             grid_type=seismic_param.grid_type,
@@ -4262,7 +4262,7 @@ class PhaseVelocity(SurfaceWaveVelocity):
                  resource_id: ResourceIdentifier = ResourceIdentifier(),
                  value: float = 0, coordinate_system: CoordinateSystem = CoordinateSystem.NED,
                  label: str = __default_grid_label__,
-                 float_type: FloatTypes = FloatTypes.FLOAT):
+                 float_type: FloatTypes = FloatTypes.FLOAT, **kwargs):
         """Initialise a phase-velocity grid for a single period.
 
         :param network_code: Network code associated with the phase-velocity model.
@@ -4402,7 +4402,7 @@ class GroupVelocity(SurfaceWaveVelocity):
                  resource_id: ResourceIdentifier = ResourceIdentifier(),
                  value: float = 0, coordinate_system: CoordinateSystem = CoordinateSystem.NED,
                  label: str = __default_grid_label__,
-                 float_type: FloatTypes = FloatTypes.FLOAT):
+                 float_type: FloatTypes = FloatTypes.FLOAT, **kwargs):
         """Initialise a group-velocity grid for a single period.
 
         :param network_code: Network code associated with the group-velocity model.
@@ -4498,7 +4498,7 @@ class GroupVelocity(SurfaceWaveVelocity):
                                             z_axis_log: bool = False,
                                             npts_log_scale: int = 30,
                                             disba_param: DisbaParam = DisbaParam(),
-                                            ):
+                                            **kwargs):
         """Build a group-velocity grid from a seismic property ensemble.
 
         :param seismic_param: Collection of seismic property grids used to derive velocities.
@@ -4592,9 +4592,15 @@ class SurfaceVelocityEnsemble(list):
         """
         cls_obj = cls()
         for p in periods:
-            cls_obj.append(SurfaceWaveVelocity.from_seismic_property_grid_ensemble(
-                seismic_properties, p, phase, z_axis_log, npts_log_scale, disba_param,
-                type_velocity))
+            if type_velocity == VelocityType.PHASE:
+                cl_obj = PhaseVelocity.from_seismic_property_grid_ensemble(
+                        seismic_properties, p, phase, z_axis_log, npts_log_scale,
+                        disba_param)
+            elif type_velocity == VelocityType.GROUP:
+                cl_obj = GroupVelocity.from_seismic_property_grid_ensemble(
+                        seismic_properties, p, phase, z_axis_log, npts_log_scale,
+                        disba_param)
+            cls_obj.append(cl_obj)
         return cls_obj
 
     @property
@@ -4693,7 +4699,7 @@ class GroupVelocityEnsemble(SurfaceVelocityEnsemble):
     @classmethod
     def from_seismic_property_grid_ensemble(
             cls, seismic_properties: SeismicPropertyGridEnsemble,
-            periods: list, phase: Phases = Phases.RAYLEIGH, z_axis_log:bool = False,
+            periods: list, phase: Phases = Phases.RAYLEIGH, z_axis_log: bool = False,
             npts_log_scale: int = 30, disba_param: DisbaParam = DisbaParam(),
     ):
         return super()._from_seismic_property_grid_ensemble(
