@@ -58,7 +58,7 @@ from .base import __default_grid_label__
 from typing import Set, Tuple, Union
 from ttcrpy import rgrid
 from scipy.signal import fftconvolve
-from disba import PhaseDispersion, PhaseSensitivity
+from disba import PhaseDispersion, PhaseSensitivity, GroupDispersion, GroupSensitivity
 from evtk import hl
 import time
 import warnings
@@ -150,6 +150,14 @@ class GridTypes(Enum):
     AZIMUTH = 'AZIMUTH'
     TAKEOFF = 'TAKEOFF'
     DENSITY = 'DENSITY_KG_METERS3'
+
+    def __str__(self):
+        return self.value
+
+
+class VelocityType(Enum):
+    GROUP = 'GROUP'
+    PHASE = 'PHASE'
 
     def __str__(self):
         return self.value
@@ -1746,7 +1754,7 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
     def density(self):
         return self['density']
 
-    def to_phase_velocities(
+    def to_surface_velocities(
             self,
             period_min: float = 0.1,
             period_max: float = 10.0,
@@ -1756,6 +1764,7 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             multithreading: bool = True,  # kept for API; ignored (runs serial)
             z: "Union[Sequence, np.ndarray]" = None,
             disba_param: "Union[DisbaParam]" = DisbaParam(),
+            velocity_type: VelocityType = VelocityType.GROUP
     ) -> "PhaseVelocityEnsemble":
         """Compute phase-velocity planes and return a PhaseVelocityEnsemble.
 
@@ -1789,10 +1798,12 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             otherwise in kilometers.
         disba_param : DisbaParam
             Parameters passed to Disba.
+        velocity_type: VelocityType
+            surface wave velocity to compute : group or phase velocity
 
         Returns
         -------
-        PhaseVelocityEnsemble
+        SurfaceVelocityEnsemble
             An ensemble with one PhaseVelocity grid per requested period.
         """
         if not isinstance(disba_param, DisbaParam):
@@ -1839,16 +1850,30 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             layers_p = 0.5 * (vel_p[:, :, 1:] + vel_p[:, :, :-1])
             layers_rho = 0.5 * (rho[:, :, 1:] + rho[:, :, :-1])
 
+            # make sure the surface wave type is correct
+            if velocity_type not in (VelocityType.PHASE, VelocityType.GROUP):
+                raise ValueError("Surface wave velocity must be either group or phase")
+
             for i in tqdm(range(nx)):
                 for j in range(ny):
-                    pd = PhaseDispersion(
-                        thickness=thickness,
-                        velocity_p=layers_p[i, j],
-                        velocity_s=layers_s[i, j],
-                        density=layers_rho[i, j],
-                        algorithm=algorithm,
-                        dc=dc,
-                    )
+                    if velocity_type == VelocityType.PHASE:
+                        pd = PhaseDispersion(
+                            thickness=thickness,
+                            velocity_p=layers_p[i, j],
+                            velocity_s=layers_s[i, j],
+                            density=layers_rho[i, j],
+                            algorithm=algorithm,
+                            dc=dc,
+                        )
+                    elif velocity_type == VelocityType.GROUP:
+                        pd = GroupDispersion(
+                            thickness=thickness,
+                            velocity_p=layers_p[i, j],
+                            velocity_s=layers_s[i, j],
+                            density=layers_rho[i, j],
+                            algorithm=algorithm,
+                            dc=dc,
+                        )
                     cmod = pd(periods, mode=0, wave=phase).velocity  # km/s
                     for k in range(n_periods):
                         planes_kms[k][i, j] = cmod[k]
@@ -1889,14 +1914,24 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             for ii in tqdm(range(nx)):
                 for jj in range(ny):
                     mask = (interp_xyz[:, 0] == x[ii]) & (interp_xyz[:, 1] == y[jj])
-                    pd = PhaseDispersion(
-                        thickness=layers_thickness,
-                        velocity_p=vel_p[mask],
-                        velocity_s=vel_s[mask],
-                        density=rho[mask],
-                        algorithm=algorithm,
-                        dc=dc,
-                    )
+                    if velocity_type == VelocityType.PHASE:
+                        pd = PhaseDispersion(
+                            thickness=layers_thickness,
+                            velocity_p=vel_p[mask],
+                            velocity_s=vel_s[mask],
+                            density=rho[mask],
+                            algorithm=algorithm,
+                            dc=dc,
+                        )
+                    elif velocity_type == VelocityType.GROUP:
+                        pd = GroupDispersion(
+                            thickness=layers_thickness,
+                            velocity_p=vel_p[mask],
+                            velocity_s=vel_s[mask],
+                            density=rho[mask],
+                            algorithm=algorithm,
+                            dc=dc,
+                        )
                     cmod = pd(periods, mode=0, wave=phase).velocity  # km/s
                     for k in range(n_periods):
                         planes_kms[k][ii, jj] = cmod[k]
@@ -1910,8 +1945,7 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             else:
                 data = planes_kms[k]
                 out_grid_type = self.grid_type
-
-            pv = PhaseVelocity(
+            pv = SurfaceWaveVelocity(
                 network_code=self.network_code,
                 data_or_dims=data,
                 period=float(per),
@@ -1926,6 +1960,8 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
                 label=self.label,
                 float_type=self.float_type if hasattr(self, "float_type")
                 else FloatTypes.FLOAT,
+                velocity_type=velocity_type,
+
             )
             ensemble.append(pv)
 
@@ -2868,7 +2904,7 @@ class AngleGrid(SeededGrid):
         super().write_nlloc(path=path)
 
 
-class PhaseVelocity(Grid):
+class SurfaceWaveVelocity(Grid):
     def __init__(self, network_code: str, data_or_dims: Union[np.ndarray, List, Tuple],
                  period: float, phase: Phases = Phases.RAYLEIGH,
                  grid_type=GridTypes.VELOCITY_METERS, grid_units=GridUnits.METER,
@@ -2877,7 +2913,8 @@ class PhaseVelocity(Grid):
                  resource_id: ResourceIdentifier = ResourceIdentifier(),
                  value: float = 0, coordinate_system: CoordinateSystem = CoordinateSystem.NED,
                  label: str = __default_grid_label__,
-                 float_type: FloatTypes = FloatTypes.FLOAT):
+                 float_type: FloatTypes = FloatTypes.FLOAT,
+                 velocity_type: VelocityType = VelocityType.GROUP):
         """Initialise a phase-velocity grid for a single period.
 
         :param network_code: Network code associated with the phase-velocity model.
@@ -2889,6 +2926,8 @@ class PhaseVelocity(Grid):
         :type period: float
         :param phase: Seismic phase for which the velocities are defined.
         :type phase: Phases
+        :param velocity_type: can be either the group or the phase velocity
+        :type phase: VelocityType
         :param grid_type: Storage type of the grid values.
         :type grid_type: GridTypes
         :param grid_units: Physical units of the grid's spatial axes.
@@ -2909,12 +2948,10 @@ class PhaseVelocity(Grid):
         :type label: str
         :param float_type: Floating-point precision used to store grid values.
         :type float_type: FloatTypes
-        :returns: None
-        :rtype: None
         """
-
         self.network_code = network_code
         self.period = period
+        self.velocity_type = velocity_type
         self.grid_type = grid_type
         self.grid_units = grid_units
         self.phase = phase
@@ -2926,71 +2963,11 @@ class PhaseVelocity(Grid):
                          label=label)
 
     @classmethod
-    def from_seismic_property_grid_ensemble(cls,
-                                            seismic_param: SeismicPropertyGridEnsemble,
-                                            period: float, phase: Phases,
-                                            z_axis_log:bool = False,
-                                            npts_log_scale: int = 30,
-                                            disba_param: DisbaParam = DisbaParam()):
-        """Build a phase-velocity grid from a seismic property ensemble.
-
-        :param seismic_param: Collection of seismic property grids used to derive
-                              phase velocities.
-        :type seismic_param: SeismicPropertyGridEnsemble
-        :param period: Wave period, in seconds, at which the dispersion relation is
-                       sampled.
-        :type period: float
-        :param phase: Seismic phase whose phase velocities will be extracted.
-        :type phase: Phases
-        :param z_axis_log: If ``True``, resample the vertical axis on a logarithmic
-                           scale before computing dispersion curves.
-        :type z_axis_log: bool, optional
-        :param npts_log_scale: Number of samples to use when ``z_axis_log`` is turned on.
-        :type npts_log_scale: int, optional
-        :param disba_param: Numerical parameters forwarded to
-                            :class:`disba.PhaseDispersion`.
-        :type disba_param: DisbaParam, optional
-        :returns: A phase-velocity grid for the requested period and phase.
-        :rtype: PhaseVelocity
-        """
-        if z_axis_log:
-            z_max = (seismic_param.spacing[2] * seismic_param.shape[2] +
-                     seismic_param.origin[2])
-            z = (np.logspace(0, np.log10(10 + 1), npts_log_scale) - 10 ** 0 +
-                 seismic_param.origin[2]) * z_max / 10
-        else:
-            z = None
-        _, phase_velocity = seismic_param.to_phase_velocities(period_min=period,
-                                                              period_max=period,
-                                                              n_periods=1,
-                                                              logspace=False,
-                                                              z=z,
-                                                              multithreading=True,
-                                                              disba_param=disba_param)
-        phase_velocity = phase_velocity[0]
-        if seismic_param.grid_type == GridTypes.VELOCITY_METERS:
-            phase_velocity *= 1.e3
-
-        return cls(
-            network_code=seismic_param.network_code,
-            data_or_dims=phase_velocity,
-            period=period,
-            phase=phase,
-            grid_type=seismic_param.grid_type,
-            grid_units=seismic_param.grid_units,
-            spacing=(seismic_param.spacing[0], seismic_param.spacing[1]),
-            origin=(seismic_param.origin[0], seismic_param.origin[1]),
-            resource_id=seismic_param.resource_id,
-            coordinate_system=seismic_param.coordinate_system,
-            label=seismic_param.label,
-            float_type=seismic_param.float_type
-        )
-
-    @classmethod
     def from_inventory(cls, network_code: str, inventory: Inventory,
                        spacing: Union[float, Tuple[float, float]], period: float,
                        padding: Union[float, Tuple[float, float]] = 0.2,
                        phase: Phases = Phases.RAYLEIGH,
+                       velocity_type: VelocityType = VelocityType.GROUP,
                        **kwargs):
         """
         Create a grid object from a given inventory.
@@ -3010,6 +2987,9 @@ class PhaseVelocity(Grid):
         :type padding: Union[float, Tuple[float, float]], optional
         :param phase: The phase type, default is Phases.RAYLEIGH.
         :type phase: Phases, optional
+        :param velocity_type: The surface wave velocity type, default is
+            VelocityType.GROUP.
+        :type velocity_type: VelocityType, optional
         :param kwargs: Additional keyword arguments forwarded to the constructor.
         :type kwargs: dict
         :return: A phase-velocity grid sized to the instrument coverage.
@@ -3044,11 +3024,90 @@ class PhaseVelocity(Grid):
         # Calculate grid dimensions
         grid_dims = np.ceil((padded_corner - padded_origin) / np.array(spacing)).astype(
             int)
-
         # Create and return the grid object
         return cls(network_code, grid_dims, spacing=spacing, origin=padded_origin,
-                   period=period, phase=phase,
-                   coordinate_system=inventory[0][0].coordinates.coordinate_system, **kwargs)
+                   period=period, phase=phase, velocity_type=velocity_type, **kwargs)
+
+    @classmethod
+    def _from_seismic_property_grid_ensemble(cls,
+                                             seismic_param: SeismicPropertyGridEnsemble,
+                                             period: float, phase: Phases,
+                                             z_axis_log: bool = False,
+                                             npts_log_scale: int = 30,
+                                             disba_param: DisbaParam = DisbaParam(),
+                                             velocity_type:
+                                             VelocityType = VelocityType.GROUP,
+                                             **kwargs):
+        """Build a phase-velocity grid from a seismic property ensemble.
+
+        :param seismic_param: Collection of seismic property grids used to derive
+                              phase velocities.
+        :type seismic_param: SeismicPropertyGridEnsemble
+        :param period: Wave period, in seconds, at which the dispersion relation is
+                       sampled.
+        :type period: float
+        :param phase: Seismic phase whose phase velocities will be extracted.
+        :type phase: Phases
+        :param z_axis_log: If ``True``, resample the vertical axis on a logarithmic
+                           scale before computing dispersion curves.
+        :type z_axis_log: bool, optional
+        :param npts_log_scale: Number of samples to use when ``z_axis_log`` is turned on.
+        :type npts_log_scale: int, optional
+        :param disba_param: Numerical parameters forwarded to
+                            :class:`disba.PhaseDispersion`.
+        :type disba_param: DisbaParam, optional
+        :param velocity_type: The surface wave velocity type, default is
+            VelocityType.GROUP.
+        :type velocity_type: VelocityType
+        :returns: A phase-velocity grid for the requested period and phase.
+        :rtype: PhaseVelocity
+        """
+        if z_axis_log:
+            z_max = (seismic_param.spacing[2] * seismic_param.shape[2] +
+                     seismic_param.origin[2])
+            z = (np.logspace(0, np.log10(10 + 1), npts_log_scale) - 10 ** 0 +
+                 seismic_param.origin[2]) * z_max / 10
+        else:
+            z = None
+
+        surface_velocity = seismic_param.to_surface_velocities(
+            period_min=period,
+            period_max=period,
+            n_periods=1,
+            logspace=False,
+            phase=phase,
+            z=z,
+            disba_param=disba_param,
+            velocity_type=velocity_type
+    )
+        surface_velocity = surface_velocity[0]
+        if seismic_param.grid_type == GridTypes.VELOCITY_METERS:
+            surface_velocity.data *= 1.e3
+
+        return cls(
+            network_code=seismic_param.network_code,
+            data_or_dims=surface_velocity.data,
+            period=period,
+            phase=phase,
+            grid_type=seismic_param.grid_type,
+            grid_units=seismic_param.grid_units,
+            spacing=(seismic_param.spacing[0], seismic_param.spacing[1]),
+            origin=(seismic_param.origin[0], seismic_param.origin[1]),
+            resource_id=seismic_param.resource_id,
+            coordinate_system=seismic_param.coordinate_system,
+            label=seismic_param.label,
+            float_type=seismic_param.float_type,
+            velocity_type=velocity_type,
+        )
+
+    @property
+    def type_velocity(self):
+        """Return the velocity type (group or phase)."""
+        return self.velocity_type
+
+    @property
+    def grid_id(self):
+        return self.resource_id
 
     def to_rgrid(self, n_secondary: Union[int, Tuple[int, int]], cell_slowness=False,
                  threads: int = 1):
@@ -3098,31 +3157,20 @@ class PhaseVelocity(Grid):
             grid.set_velocity(self.data)
         return grid
 
-
-    @property
-    def grid_id(self):
-        """Unique identifier attached to this grid instance.
-
-        :returns: The resource identifier propagated from the base grid.
-        :rtype: ResourceIdentifier
-        """
-        return self.resource_id
-
     def write(self, filename, format='VTK', **kwargs):
-        """Write the grid data to disk.
+        """Write the grid data to a file.
 
-        :param filename: Path where the grid should be serialised.
+        This method writes the grid data to a file in the specified format.
+
+        :param filename: The name of the file to write the data to.
         :type filename: str
-        :param format: Output format understood by :meth:`Grid.write`.
+        :param format: The format of the file (default: 'VTK').
         :type format: str
-        :param kwargs: Additional keyword arguments forwarded to the parent writer.
-        :type kwargs: dict
-        :returns: None
-        :rtype: None
+        :param **kwargs: Additional keyword arguments specific to the file format.
         """
         field_name = None
         if format == 'VTK':
-            field_name = f'velocity_{self.phase.value}'
+            field_name = f'{self.velocity_type} velocity_{self.phase.value}'
 
         super().write(filename, format=format, field_name=field_name, **kwargs)
 
@@ -3163,7 +3211,7 @@ class PhaseVelocity(Grid):
         :rtype: Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]
         """
         if self.data.ndim != 2:
-            raise ValueError("PhaseVelocity.plot currently supports only 2D data.")
+            raise ValueError("SurfaceWaveVelocity.plot currently supports only 2D data.")
 
         fig, ax = plt.subplots(figsize=fig_size)
         if 'cmap' not in imshow_kwargs:
@@ -3212,7 +3260,8 @@ class PhaseVelocity(Grid):
                 mask_rgba = to_rgba(mask.get('color', 'w'))
                 overlay = np.ones((*positive_mask_plot.shape, 4))
                 overlay[..., :3] = mask_rgba[:3]
-                overlay[..., 3] = np.logical_not(positive_mask_plot).astype(float) * mask_rgba[3]
+                overlay[..., 3] = (np.logical_not(positive_mask_plot).astype(float)
+                                   * mask_rgba[3])
                 ax.imshow(overlay, extent=extent, origin='lower', interpolation='none')
         else:
             grid_data = display_data
@@ -3232,7 +3281,8 @@ class PhaseVelocity(Grid):
             else:
                 ax.set_xlabel("X (m)")
                 ax.set_ylabel("Y (m)")
-            cb.set_label("Vel " + self.phase.value + " (m/s)", rotation=270, labelpad=10)
+            cb.set_label(self.velocity_type + "Vel " + self.phase.value + " (m/s)",
+                         rotation=270, labelpad=10)
 
         if self.grid_units == GridUnits.KILOMETER:
             if geographic:
@@ -3241,7 +3291,8 @@ class PhaseVelocity(Grid):
             else:
                 ax.set_xlabel("X (km)")
                 ax.set_ylabel("Y (km)")
-            cb.set_label("Velocity (km/s)", rotation=270, labelpad=10)
+            cb.set_label(self.velocity_type + "Vel " + self.phase.value + " (km/s)",
+                         rotation=270, labelpad=10)
 
         ax.set_title("Period = {0:1.2f} s".format(self.period))
 
@@ -3339,7 +3390,7 @@ class PhaseVelocity(Grid):
             method = "fmm" if _SKFMM_AVAILABLE else "ttcrpy"
         method = method.lower()
 
-        dims = 2  # PhaseVelocity grids are defined in (x, y)
+        dims = 2  # GroupVelocity or PhaseVelocity grids are defined in (x, y)
 
         def _extract_coords(entity):
             if isinstance(entity, SeedEnsemble):
@@ -3441,14 +3492,16 @@ class PhaseVelocity(Grid):
 
         if swap_axes:
             logger.info(
-                "Using reciprocity: computing Frechet derivatives with receivers as sources."
+                "Using reciprocity: computing Frechet derivatives"
+                " with receivers as sources."
             )
 
         compute_sources = unique_receivers if swap_axes else unique_sources
         compute_receivers = unique_sources if swap_axes else unique_receivers
 
         def _entity_count(entity):
-            return len(entity.seeds) if isinstance(entity, SeedEnsemble) else np.atleast_2d(entity).shape[0]
+            return len(entity.seeds) if isinstance(entity, SeedEnsemble) else\
+                np.atleast_2d(entity).shape[0]
 
         start_time = time.perf_counter()
         logger.info(
@@ -3553,23 +3606,23 @@ class PhaseVelocity(Grid):
         return frechet_matrix
 
     def compute_frechet_eikonal(
-        self,
-        sources: Union[SeedEnsemble, np.ndarray],
-        receivers: Union[SeedEnsemble, np.ndarray],
-        ns: Union[int, Tuple[int, int, int]] = 5,
-        tt_cal: bool = True,
-        cell_slowness: bool = True,
-        threads: int = 1,
-        *,
-        method: Optional[str] = None,
-        sub_grid_resolution: float = 0.25,
-        step_fraction: float = 0.5,
-        ray_max_iter: int = 5_000,
-        progress: bool = False,
-        pairwise: bool = False,
-        return_rays: bool = False,
-        return_dense: bool = False,
-        batch_size: Optional[int] = None,
+            self,
+            sources: Union[SeedEnsemble, np.ndarray],
+            receivers: Union[SeedEnsemble, np.ndarray],
+            ns: Union[int, Tuple[int, int, int]] = 5,
+            tt_cal: bool = True,
+            cell_slowness: bool = True,
+            threads: int = 1,
+            *,
+            method: Optional[str] = None,
+            sub_grid_resolution: float = 0.25,
+            step_fraction: float = 0.5,
+            ray_max_iter: int = 5_000,
+            progress: bool = False,
+            pairwise: bool = False,
+            return_rays: bool = False,
+            return_dense: bool = False,
+            batch_size: Optional[int] = None,
     ):
         """Compute Frechet derivatives using the Estuary ``eikonal`` backend.
 
@@ -3592,10 +3645,12 @@ class PhaseVelocity(Grid):
             )
 
         if method is not None and method.lower() not in {"eikonal", "fmm"}:
-            raise ValueError("method must be None or 'eikonal' for compute_frechet_eikonal().")
+            raise ValueError(
+                "method must be None or 'eikonal' for compute_frechet_eikonal().")
 
         if progress:
-            logger.warning("Progress reporting is not supported by the eikonal backend; ignoring.")
+            logger.warning(
+                "Progress reporting is not supported by the eikonal backend; ignoring.")
 
         dims = 2
 
@@ -3663,7 +3718,8 @@ class PhaseVelocity(Grid):
             )
 
         if pairwise and src_coords.shape[0] != rcv_coords.shape[0]:
-            raise ValueError("pairwise=True requires the same number of sources and receivers.")
+            raise ValueError(
+                "pairwise=True requires the same number of sources and receivers.")
 
         unique_src_coords, src_inverse, _ = _deduplicate_points(src_coords)
         unique_rcv_coords, rcv_inverse, _ = _deduplicate_points(rcv_coords)
@@ -3700,7 +3756,8 @@ class PhaseVelocity(Grid):
 
         velocity_data = np.asarray(self.data, dtype=float)
         if np.any(velocity_data <= 0):
-            raise ValueError("Velocity grid must be strictly positive for eikonal computations.")
+            raise ValueError(
+                "Velocity grid must be strictly positive for eikonal computations.")
 
         if self.grid_type == GridTypes.VELOCITY_KILOMETERS and self.grid_units == GridUnits.METER:
             velocity = velocity_data.copy() * 1e3  # convert to m/s
@@ -3711,7 +3768,8 @@ class PhaseVelocity(Grid):
         else:
             raise ValueError("Grid type not supported")
 
-        velocity_grid = EKImageData(velocity, origin=tuple(origin_vec), spacing=spacing_value)
+        velocity_grid = EKImageData(velocity, origin=tuple(origin_vec),
+                                    spacing=spacing_value)
 
         # unique_src_grid = self.transform_to_grid(unique_src_coords)
         # unique_rcv_grid = self.transform_to_grid(unique_rcv_coords)
@@ -3732,7 +3790,6 @@ class PhaseVelocity(Grid):
             dtype=float,
             return_dense=return_dense,
         )
-
         if tt_cal:
             frechet_output, travel_output = frechet_result
         else:
@@ -4196,61 +4253,361 @@ class PhaseVelocity(Grid):
                           field_name="travel_time")
 
 
-class PhaseVelocityEnsemble(list):
-    """Represents an ensemble of PhaseVelocity instances.
+class PhaseVelocity(SurfaceWaveVelocity):
+    def __init__(self, network_code: str, data_or_dims: Union[np.ndarray, List, Tuple],
+                 period: float, phase: Phases = Phases.RAYLEIGH,
+                 grid_type=GridTypes.VELOCITY_METERS, grid_units=GridUnits.METER,
+                 spacing: Union[np.ndarray, List, Tuple] = None,
+                 origin: Union[np.ndarray, List, Tuple] = None,
+                 resource_id: ResourceIdentifier = ResourceIdentifier(),
+                 value: float = 0, coordinate_system: CoordinateSystem = CoordinateSystem.NED,
+                 label: str = __default_grid_label__,
+                 float_type: FloatTypes = FloatTypes.FLOAT, **kwargs):
+        """Initialise a phase-velocity grid for a single period.
+
+        :param network_code: Network code associated with the phase-velocity model.
+        :type network_code: str
+        :param data_or_dims: The grid values or the grid dimensions used to build the
+                             underlying :class:`~uquake.grid.base.Grid`.
+        :type data_or_dims: Union[np.ndarray, List, Tuple]
+        :param period: Wave period used to compute the phase velocities, in seconds.
+        :type period: float
+        :param phase: Seismic phase for which the velocities are defined.
+        :type phase: Phases
+        :param grid_type: Storage type of the grid values.
+        :type grid_type: GridTypes
+        :param grid_units: Physical units of the grid's spatial axes.
+        :type grid_units: GridUnits
+        :param spacing: Grid spacing for each axis. If omitted, inferred from
+                        ``data_or_dims`` when possible.
+        :type spacing: Union[np.ndarray, List, Tuple], optional
+        :param origin: Grid origin expressed in the selected coordinate system.
+        :type origin: Union[np.ndarray, List, Tuple], optional
+        :param resource_id: Resource identifier attached to the grid metadata.
+        :type resource_id: ResourceIdentifier
+        :param value: Default fill value used when constructing an empty grid.
+        :type value: float
+        :param coordinate_system: Coordinate system in which the grid axes are
+                                  expressed.
+        :type coordinate_system: CoordinateSystem
+        :param label: Human-readable label attached to the grid.
+        :type label: str
+        :param float_type: Floating-point precision used to store grid values.
+        :type float_type: FloatTypes
+        """
+        super().__init__(
+            network_code=network_code,
+            data_or_dims=data_or_dims,
+            period=period,
+            phase=phase,
+            velocity_type=VelocityType.PHASE,
+            grid_type=grid_type,
+            grid_units=grid_units,
+            spacing=spacing,
+            origin=origin,
+            resource_id=resource_id,
+            value=value,
+            coordinate_system=coordinate_system,
+            label=label,
+            float_type=float_type,
+        )
+
+    @classmethod
+    def from_inventory(cls, network_code: str, inventory: Inventory,
+                       spacing: Union[float, Tuple[float, float]], period: float,
+                       padding: Union[float, Tuple[float, float]] = 0.2,
+                       phase: Phases = Phases.RAYLEIGH,
+                       **kwargs):
+        """
+        Create a grid object from a given inventory.
+
+        :param network_code: The network code associated with the inventory.
+        :type network_code: str
+        :param inventory: The inventory containing instrument locations.
+        :type inventory: Inventory
+        :param spacing: The spacing of the grid. Can be a single float or a tuple of
+                        floats specifying spacing in the x and y directions.
+        :type spacing: Union[float, Tuple[float, float]]
+        :param period: The period associated with the grid.
+        :type period: float
+        :param padding: The padding to be added around the inventory span. Can be a
+                        single float or a tuple of floats specifying padding in the
+                         x and y directions. Default is 0.2.
+        :type padding: Union[float, Tuple[float, float]], optional
+        :param phase: The phase type, default is Phases.RAYLEIGH.
+        :type phase: Phases, optional
+        :param kwargs: Additional keyword arguments forwarded to the constructor.
+        :type kwargs: dict
+        :return: A phase-velocity grid sized to the instrument coverage.
+        :rtype: PhaseVelocity
+
+        :raises ValueError: If the padding or spacing values are invalid.
+
+        This method calculates grid dimensions and origin from the inventory span
+        and requested padding before instantiating a :class:`PhaseVelocity` model.
+        """
+        return super().from_inventory(network_code=network_code, inventory=inventory,
+                                      spacing=spacing, period=period,
+                                      padding=padding,
+                                      phase=phase,
+                                      velocity_type=VelocityType.PHASE,
+                                      **kwargs)
+
+    @classmethod
+    def from_seismic_property_grid_ensemble(cls,
+                                            seismic_param: SeismicPropertyGridEnsemble,
+                                            period: float, phase: Phases,
+                                            z_axis_log:bool = False,
+                                            npts_log_scale: int = 30,
+                                            disba_param: DisbaParam = DisbaParam(),
+                                            ):
+        """Build a phase-velocity grid from a seismic property ensemble.
+
+        :param seismic_param: Collection of seismic property grids used to derive
+                              phase velocities.
+        :type seismic_param: SeismicPropertyGridEnsemble
+        :param period: Wave period, in seconds, at which the dispersion relation is
+                       sampled.
+        :type period: float
+        :param phase: Seismic phase whose phase velocities will be extracted.
+        :type phase: Phases
+        :param z_axis_log: If ``True``, resample the vertical axis on a logarithmic
+                           scale before computing dispersion curves.
+        :type z_axis_log: bool, optional
+        :param npts_log_scale: Number of samples to use when ``z_axis_log`` is turned on.
+        :type npts_log_scale: int, optional
+        :param disba_param: Numerical parameters forwarded to
+                            :class:`disba.PhaseDispersion`.
+        :type disba_param: DisbaParam, optional
+        :returns: A phase-velocity grid for the requested period and phase.
+        :rtype: PhaseVelocity
+        """
+        return super()._from_seismic_property_grid_ensemble(
+            seismic_param=seismic_param,
+            period=period,
+            z_axis_log=z_axis_log,
+            npts_log_scale=npts_log_scale,
+            disba_param=disba_param,
+            phase=phase,
+            velocity_type=VelocityType.PHASE
+        )
+
+
+class GroupVelocity(SurfaceWaveVelocity):
+    def __init__(self, network_code: str, data_or_dims: Union[np.ndarray, List, Tuple],
+                 period: float, phase: Phases = Phases.RAYLEIGH,
+                 grid_type=GridTypes.VELOCITY_METERS, grid_units=GridUnits.METER,
+                 spacing: Union[np.ndarray, List, Tuple] = None,
+                 origin: Union[np.ndarray, List, Tuple] = None,
+                 resource_id: ResourceIdentifier = ResourceIdentifier(),
+                 value: float = 0, coordinate_system: CoordinateSystem = CoordinateSystem.NED,
+                 label: str = __default_grid_label__,
+                 float_type: FloatTypes = FloatTypes.FLOAT, **kwargs):
+        """Initialise a group-velocity grid for a single period.
+
+        :param network_code: Network code associated with the group-velocity model.
+        :type network_code: str
+        :param data_or_dims: The grid values or the grid dimensions used to build the
+                             underlying :class:`~uquake.grid.base.Grid`.
+        :type data_or_dims: Union[np.ndarray, List, Tuple]
+        :param period: Wave period used to compute the group velocities, in seconds.
+        :type period: float
+        :param phase: Seismic phase for which the velocities are defined.
+        :type phase: Phases
+        :param grid_type: Storage type of the grid values.
+        :type grid_type: GridTypes
+        :param grid_units: Physical units of the grid's spatial axes.
+        :type grid_units: GridUnits
+        :param spacing: Grid spacing for each axis. If omitted, inferred from
+                        ``data_or_dims`` when possible.
+        :type spacing: Union[np.ndarray, List, Tuple], optional
+        :param origin: Grid origin expressed in the selected coordinate system.
+        :type origin: Union[np.ndarray, List, Tuple], optional
+        :param resource_id: Resource identifier attached to the grid metadata.
+        :type resource_id: ResourceIdentifier
+        :param value: Default fill value used when constructing an empty grid.
+        :type value: float
+        :param coordinate_system: Coordinate system in which the grid axes are
+                                  expressed.
+        :type coordinate_system: CoordinateSystem
+        :param label: Human-readable label attached to the grid.
+        :type label: str
+        :param float_type: Floating-point precision used to store grid values.
+        :type float_type: FloatTypes
+        """
+        super().__init__(
+            network_code=network_code,
+            data_or_dims=data_or_dims,
+            period=period,
+            phase=phase,
+            velocity_type=VelocityType.GROUP,
+            grid_type=grid_type,
+            grid_units=grid_units,
+            spacing=spacing,
+            origin=origin,
+            resource_id=resource_id,
+            value=value,
+            coordinate_system=coordinate_system,
+            label=label,
+            float_type=float_type,
+        )
+
+    @classmethod
+    def from_inventory(cls, network_code: str, inventory: Inventory,
+                       spacing: Union[float, Tuple[float, float]], period: float,
+                       padding: Union[float, Tuple[float, float]] = 0.2,
+                       phase: Phases = Phases.RAYLEIGH,
+                       **kwargs):
+        """
+        Create a group-velocity grid object sized to the instrument coverage.
+
+        :param network_code: The network code associated with the inventory.
+        :type network_code: str
+        :param inventory: The inventory containing instrument locations.
+        :type inventory: Inventory
+        :param spacing: The spacing of the grid. Can be a single float or a tuple of
+                        floats specifying spacing in the x and y directions.
+        :type spacing: Union[float, Tuple[float, float]]
+        :param period: The period associated with the grid.
+        :type period: float
+        :param padding: The padding to be added around the inventory span. Can be a
+                        single float or a tuple specifying padding in x and y. Default 0.2.
+        :type padding: Union[float, Tuple[float, float]], optional
+        :param phase: The phase type, default is Phases.RAYLEIGH.
+        :type phase: Phases, optional
+        :param kwargs: Additional keyword arguments forwarded to the constructor.
+        :type kwargs: dict
+        :return: A group-velocity grid sized to the instrument coverage.
+        :rtype: GroupVelocity
+        """
+        return super().from_inventory(
+            network_code=network_code,
+            inventory=inventory,
+            spacing=spacing,
+            period=period,
+            padding=padding,
+            phase=phase,
+            velocity_type=VelocityType.GROUP,
+            **kwargs,
+        )
+
+    @classmethod
+    def from_seismic_property_grid_ensemble(cls,
+                                            seismic_param: SeismicPropertyGridEnsemble,
+                                            period: float, phase: Phases,
+                                            z_axis_log: bool = False,
+                                            npts_log_scale: int = 30,
+                                            disba_param: DisbaParam = DisbaParam(),
+                                            **kwargs):
+        """Build a group-velocity grid from a seismic property ensemble.
+
+        :param seismic_param: Collection of seismic property grids used to derive velocities.
+        :type seismic_param: SeismicPropertyGridEnsemble
+        :param period: Wave period (s) at which the dispersion relation is sampled.
+        :type period: float
+        :param phase: Seismic phase whose group velocities will be extracted.
+        :type phase: Phases
+        :param z_axis_log: If True, resample the vertical axis on a logarithmic scale.
+        :type z_axis_log: bool, optional
+        :param npts_log_scale: Number of samples if ``z_axis_log`` is True.
+        :type npts_log_scale: int, optional
+        :param disba_param: Numerical parameters forwarded to disba.PhaseDispersion.
+        :type disba_param: DisbaParam, optional
+        :returns: A group-velocity grid for the requested period and phase.
+        :rtype: GroupVelocity
+        """
+        return super()._from_seismic_property_grid_ensemble(
+            seismic_param=seismic_param,
+            period=period,
+            phase=phase,
+            z_axis_log=z_axis_log,
+            npts_log_scale=npts_log_scale,
+            disba_param=disba_param,
+            velocity_type=VelocityType.GROUP,
+        )
+
+
+class SurfaceVelocityEnsemble(list):
+    """Represents an ensemble of Phase or Group Velocity instances.
 
      This class extends the built-in list class to represent an ensemble \
       of PhaseVelocity instances.
 
      """
-
-    def __init__(self, *args):
+    def __init__(self, velocity_type: VelocityType = VelocityType.GROUP, *args):
+        self.velocity_type = velocity_type
         super().__init__(*args)
 
-    def append(self, phase_velocity):
-        if isinstance(phase_velocity, PhaseVelocity):
-            super().append(phase_velocity)
+    def append(self, surface_velocity):
+        if isinstance(surface_velocity, SurfaceWaveVelocity):
+            super().append(surface_velocity)
         else:
-            print("Only instances of the PhaseVelocity class can be added to the list.")
+            print("Only instances of the SurfaceVelocity class can be added to the "
+                  "list.")
 
-    def add_phase_velocity(self, phase_velocity):
-        self.append(phase_velocity)
+    def add_surface_velocity(self, surface_velocity):
+        self.append(surface_velocity)
 
     @classmethod
-    def from_seismic_property_grid_ensemble(
+    def _from_seismic_property_grid_ensemble(
             cls, seismic_properties: SeismicPropertyGridEnsemble,
             periods: list, phase: Phases = Phases.RAYLEIGH, z_axis_log:bool = False,
-            npts_log_scale: int = 30, disba_param: DisbaParam = DisbaParam()
+            npts_log_scale: int = 30, disba_param: DisbaParam = DisbaParam(),
+            type_velocity: VelocityType = VelocityType.GROUP
     ):
         """
-        Create a PhaseVelocityEnsemble from a SeismicPropertyGridEnsemble.
+        Construct a SurfaceVelocityEnsemble from a SeismicPropertyGridEnsemble.
 
-        This method constructs a PhaseVelocityEnsemble instance from a \
-        SeismicPropertyGridEnsemble, associating it with the specified periods and phase.
+        This class method generates a :class:`SurfaceVelocityEnsemble` instance from
+        a provided :class:`SeismicPropertyGridEnsemble`. It computes dispersion curves
+        for the specified seismic phase and associates them with the given periods.
+        The method supports both linear and logarithmic sampling of the depth axis.
 
-        :param seismic_properties: The SeismicPropertyGridEnsemble considered to create \
-        the PhaseVelocityEnsemble instance.
-        :type seismic_properties: SeismicPropertyGridEnsemble
-        :param periods: The list of periods.
-        :type periods: list
-        :param phase: The seismic phase (default: Phases.RAYLEIGH).
-        :type phase: Phases
-        :param disba_param: Disba parameters (default: DisbaParam()).
-        :type disba_param: DisbaParam, optional
-        :return: A PhaseVelocityEnsemble instance created from the SeismicPropertyGridEnsemble.
-        :rtype: PhaseVelocityEnsemble
+        Parameters
+        ----------
+        seismic_properties : SeismicPropertyGridEnsemble
+            The seismic property ensemble (Vs, Vp, density profiles) used as the
+            input model for computing surface velocities.
+        periods : list of float
+            A list of periods (in seconds) at which the velocity is evaluated.
+        phase : Phases, optional
+            The seismic wave phase to consider (default: ``Phases.RAYLEIGH``).
+        z_axis_log : bool, optional
+            If ``True``, the depth axis is sampled logarithmically (default: ``False``).
+        npts_log_scale : int, optional
+            Number of points to use when applying logarithmic depth scaling
+            (default: ``30``). Only relevant if ``z_axis_log=True``.
+        disba_param : DisbaParam, optional
+            Parameters controlling the numerical solver (default: ``DisbaParam()``).
+        type_velocity : VelocityType, optional
+            The type of velocity to compute, either ``VelocityType.GROUP`` or
+            ``VelocityType.PHASE`` (default: ``VelocityType.GROUP``).
+
+        Returns
+        -------
+        SurfaceVelocityEnsemble
+            An ensemble of surface velocities associated with the given seismic
+            property grid ensemble and computation settings.
+
         """
         cls_obj = cls()
         for p in periods:
-            cls_obj.append(PhaseVelocity.from_seismic_property_grid_ensemble(
-                seismic_properties, p, phase, z_axis_log, npts_log_scale, disba_param))
+            if type_velocity == VelocityType.PHASE:
+                cl_obj = PhaseVelocity.from_seismic_property_grid_ensemble(
+                        seismic_properties, p, phase, z_axis_log, npts_log_scale,
+                        disba_param)
+            elif type_velocity == VelocityType.GROUP:
+                cl_obj = GroupVelocity.from_seismic_property_grid_ensemble(
+                        seismic_properties, p, phase, z_axis_log, npts_log_scale,
+                        disba_param)
+            cls_obj.append(cl_obj)
         return cls_obj
 
     @property
     def periods(self):
         periods = []
-        for phase_velocity in self:
-            periods.append(phase_velocity.period)
+        for surface_velocity in self:
+            periods.append(surface_velocity.period)
 
         return periods
 
@@ -4261,7 +4618,7 @@ class PhaseVelocityEnsemble(list):
         return self[0].transform_to_grid(values)
 
     def transform_from(self, values):
-        return self[0].transform_from
+        return self[0].transform_from(values)
 
     def transform_from_grid(self, values):
         return self.transform_from(values)
@@ -4296,12 +4653,60 @@ class PhaseVelocityEnsemble(list):
         plt.semilogx(periods, cmod, "-ob")
         plt.xlabel("Period (s)")
         if self[0].grid_types == GridTypes.VELOCITY_METERS:
-            plt.ylabel("Phase velocity (m/s)")
+            plt.ylabel(f"{self.velocity_type} velocity (m/s)")
         if self[0].grid_types == GridTypes.VELOCITY_KILOMETERS:
-            plt.ylabel("Phase velocity (km/s)")
+            plt.ylabel(f"{self.velocity_type} velocity (km/s)")
         plt.grid(which='major', linewidth=0.8)
         plt.grid(which='minor', linestyle=':', linewidth=0.5)
         plt.show()
+
+
+class PhaseVelocityEnsemble(SurfaceVelocityEnsemble):
+    """Represents an ensemble of PhaseVelocity instances.
+
+     This class extends the built-in list class to represent an ensemble \
+      of PhaseVelocity instances.
+
+     """
+
+    def __init__(self, *args):
+        super().__init__(velocity_type=VelocityType.PHASE, *args)
+
+    @classmethod
+    def from_seismic_property_grid_ensemble(
+            cls, seismic_properties: SeismicPropertyGridEnsemble,
+            periods: list, phase: Phases = Phases.RAYLEIGH, z_axis_log:bool = False,
+            npts_log_scale: int = 30, disba_param: DisbaParam = DisbaParam(),
+    ):
+        return super()._from_seismic_property_grid_ensemble(
+            seismic_properties,
+            periods, phase, z_axis_log,
+            npts_log_scale, disba_param,
+            VelocityType.PHASE)
+
+
+class GroupVelocityEnsemble(SurfaceVelocityEnsemble):
+    """Represents an ensemble of PhaseVelocity instances.
+
+     This class extends the built-in list class to represent an ensemble \
+      of GroupVelocity instances.
+
+     """
+
+    def __init__(self, *args):
+        super().__init__(velocity_type=VelocityType.GROUP, *args)
+
+    @classmethod
+    def from_seismic_property_grid_ensemble(
+            cls, seismic_properties: SeismicPropertyGridEnsemble,
+            periods: list, phase: Phases = Phases.RAYLEIGH, z_axis_log: bool = False,
+            npts_log_scale: int = 30, disba_param: DisbaParam = DisbaParam(),
+    ):
+        return super()._from_seismic_property_grid_ensemble(
+            seismic_properties,
+            periods, phase, z_axis_log,
+            npts_log_scale, disba_param,
+            VelocityType.GROUP)
 
 
 def get_coordinates_inventory(
