@@ -3294,7 +3294,7 @@ class SurfaceWaveVelocity(Grid):
             cb.set_label(self.velocity_type + "Vel " + self.phase.value + " (km/s)",
                          rotation=270, labelpad=10)
 
-        ax.set_title("Period = {0:1.2f} s".format(self.period))
+        ax.set_title("Period = {0:1.2f} s".format(self.period), weight = "bold")
 
         if isinstance(receivers, np.ndarray):
             ax.plot(receivers[:, 0], receivers[:, 1], "s", color="yellow")
