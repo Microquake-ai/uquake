@@ -323,6 +323,59 @@ class Grid(object):
 
         return np.all((point >= corner1) & (point <= corner2))
 
+    def path_lengths_from_nodes(self, nodes: np.ndarray,
+                                step_fraction: float = 0.5) -> np.ndarray:
+        """
+        Accumulate path lengths per cell for a polyline expressed in model space.
+
+        :param nodes: Ordered points describing the path in model coordinates.
+        :type nodes: np.ndarray
+        :param step_fraction: Maximum fraction of the smallest grid spacing used
+                              to subdivide each segment when rasterising the
+                              path. Defaults to 0.5 (half cell).
+        :type step_fraction: float
+        :returns: One-dimensional array containing the total path length inside
+                  each cell using ``self.data``'s C-order flattening.
+        :rtype: np.ndarray
+        """
+
+        nodes = np.asarray(nodes, dtype=float)
+        if nodes.ndim != 2 or nodes.shape[0] < 2:
+            return np.zeros(self.data.size, dtype=float)
+
+        dims = self.ndim
+        coords = nodes[:, :dims]
+        origin = np.asarray(self.origin, dtype=float)
+        spacing = np.asarray(self.spacing, dtype=float)
+        grid_shape = tuple(self.shape)
+
+        with np.errstate(invalid='ignore'):
+            min_spacing = float(np.min(spacing))
+        if min_spacing <= 0:
+            raise ValueError("Grid spacing must be positive to rasterise paths.")
+
+        max_step = max(step_fraction * min_spacing, 1e-10)
+        contributions = np.zeros(np.prod(grid_shape), dtype=float)
+
+        for start, end in zip(coords[:-1], coords[1:]):
+            segment = end - start
+            full_length = np.linalg.norm(segment)
+            if full_length == 0:
+                continue
+            n_steps = max(int(np.ceil(full_length / max_step)), 1)
+            t_edges = np.linspace(0.0, 1.0, n_steps + 1)
+            mid_params = 0.5 * (t_edges[:-1] + t_edges[1:])
+            midpoints = start + mid_params[:, None] * segment
+            indices = np.floor((midpoints - origin) / spacing).astype(int)
+            in_bounds = np.all((indices >= 0) & (indices < np.array(grid_shape)), axis=1)
+            if not np.any(in_bounds):
+                continue
+            sub_lengths = full_length * (t_edges[1:] - t_edges[:-1])
+            valid_idx = np.ravel_multi_index(indices[in_bounds].T, grid_shape, order='C')
+            np.add.at(contributions, valid_idx, sub_lengths[in_bounds])
+
+        return contributions
+
     def fill_homogeneous(self, value):
         """
         fill the data with a constant value
@@ -341,7 +394,7 @@ class Grid(object):
 
         np.random.seed(seed)
 
-        self.data = np.random.randn(self.dims[0], self.dims[1], self.dims[2])
+        self.data = np.random.randn(*self.shape)
         self.smooth(smooth_sigma)
         self.data = self.data * std / np.std(self.data) + mean
 
@@ -408,12 +461,12 @@ class Grid(object):
         (default: False)
         :type grid_space: bool
         :param seed: random seed for reproducibility
-        :return: an array of triplet
+        :return: an array of triplet or pairs of coordinates
         """
 
         np.random.seed(seed)
 
-        points = np.random.uniform(0, 1, (n_points, len(self.data.shape)))
+        points = np.random.uniform(0, 0.99, (n_points, len(self.data.shape)))
 
         for i in range(n_points):
             points[i] = points[i] * self.dimensions

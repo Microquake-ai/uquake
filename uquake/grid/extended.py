@@ -31,20 +31,24 @@
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
+import matplotlib
 import numpy as np
 from .base import Grid
 from pathlib import Path
 import matplotlib.pyplot as plt
+from matplotlib.colors import to_rgba
 from loguru import logger
 from multiprocessing import Pool, cpu_count
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
-from typing import Optional
+from typing import Optional, Sequence, Tuple
 from .base import ray_tracer
 import shutil
 from uquake.grid import read_grid
+from scipy import sparse
 from scipy.interpolate import interp1d
 from enum import Enum
-from typing import List
+from typing import List, Literal
 from uquake.core.event import WaveformStreamID
 from uquake.core.coordinates import Coordinates, CoordinateSystem
 from uquake.core.inventory import Inventory
@@ -54,8 +58,29 @@ from .base import __default_grid_label__
 from typing import Set, Tuple, Union
 from ttcrpy import rgrid
 from scipy.signal import fftconvolve
-from disba import PhaseDispersion, PhaseSensitivity
+from disba import PhaseDispersion, PhaseSensitivity, GroupDispersion, GroupSensitivity
 from evtk import hl
+import time
+import warnings
+import pickle
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
+from tqdm import tqdm
+
+try:  # optional fast marching solver
+    import skfmm  # type: ignore
+
+    _SKFMM_AVAILABLE = True
+except ImportError:  # pragma: no cover - availability depends on environment
+    skfmm = None  # type: ignore
+    _SKFMM_AVAILABLE = False
+
+try:  # optional Estuary fast-marching bindings
+    from estuaire.core.data import EKImageData  # type: ignore
+    from estuaire.core.frechet import compute_frechet as _eikonal_compute_frechet  # type: ignore
+except (ImportError, SyntaxError):  # pragma: no cover - optional dependency
+    EKImageData = None  # type: ignore
+    _eikonal_compute_frechet = None
 
 
 
@@ -65,6 +90,38 @@ valid_phases = ('P', 'S')
 
 # In many cases, where Z is ignored, North-Up-Down and North-East-Up can be treated as the same
 NORTH_EAST_SYSTEMS = {CoordinateSystem.NED, CoordinateSystem.NEU}
+
+
+def _require_skfmm(context: str) -> None:
+    """Raise an informative error when scikit-fmm is required but unavailable."""
+
+    if not _SKFMM_AVAILABLE:
+        raise ImportError(
+            f"scikit-fmm is required to {context}. Install it with 'pip install scikit-fmm' "
+            "or rerun using method='ttcrpy'."
+        )
+
+
+def _deduplicate_points(coords: np.ndarray, decimals: int = 8):
+    """Deduplicate coordinate rows while preserving their first occurrence order."""
+
+    coords = np.asarray(coords, dtype=float)
+    n_points = coords.shape[0]
+    inverse = np.empty(n_points, dtype=int)
+    unique_points = []
+    representative_indices = []
+    mapping = {}
+
+    for idx, row in enumerate(coords):
+        key = tuple(np.round(row, decimals=decimals))
+        if key not in mapping:
+            mapping[key] = len(unique_points)
+            unique_points.append(row)
+            representative_indices.append(idx)
+        inverse[idx] = mapping[key]
+
+    unique_points = np.array(unique_points, dtype=float)
+    return unique_points, inverse, representative_indices
 
 
 class Phases(Enum):
@@ -93,6 +150,14 @@ class GridTypes(Enum):
     AZIMUTH = 'AZIMUTH'
     TAKEOFF = 'TAKEOFF'
     DENSITY = 'DENSITY_KG_METERS3'
+
+    def __str__(self):
+        return self.value
+
+
+class VelocityType(Enum):
+    GROUP = 'GROUP'
+    PHASE = 'PHASE'
 
     def __str__(self):
         return self.value
@@ -323,7 +388,8 @@ class SeedEnsemble:
 
         srces = []
         for instrument in inventory.instruments:
-            srce = Seed(instrument.station_code, instrument.location_code, instrument.coordinates)
+            srce = Seed(instrument.station_code, instrument.location_code,
+                        instrument.coordinates)
             srces.append(srce)
 
         return cls(srces)
@@ -466,6 +532,11 @@ class TypedGrid(Grid):
 
     @property
     def grid_id(self):
+        """Unique identifier attached to this grid instance.
+
+        :returns: The resource identifier propagated from the base grid.
+        :rtype: ResourceIdentifier
+        """
         return self.resource_id
 
     def mv(self, base_name, origin, destination):
@@ -995,6 +1066,148 @@ class VelocityGrid3D(TypedGrid):
         smoothed_data = data * velocity_perturbation * base_velocity + base_velocity
         self.data = smoothed_data
 
+    @staticmethod
+    def _rho_gardner_gcc(vp_km_s: float):
+        """Compute density in g/cc from Vp (km/s) using Gardner (1974).
+
+        Parameters
+        ----------
+        vp_km_s : float or ndarray
+            P-wave velocity in km/s.
+
+        Returns
+        -------
+        float or ndarray
+            Density in g/cc.
+        """
+        return 1.74 * vp_km_s ** 0.25
+
+    @staticmethod
+    def _rho_brocher_gcc(vp_km_s: float):
+        """Compute density in g/cc from Vp (km/s) using Brocher (2005).
+
+        Parameters
+        ----------
+        vp_km_s : float or ndarray
+            P-wave velocity in km/s.
+
+        Returns
+        -------
+        float or ndarray
+            Density in g/cc.
+        """
+        return (
+                1.6612 * vp_km_s
+                - 0.4721 * vp_km_s ** 2
+                + 0.0671 * vp_km_s ** 3
+                - 0.0043 * vp_km_s ** 4
+                + 0.000106 * vp_km_s ** 5
+        )
+
+    def to_density(
+            self,
+            method: Literal["Gardner", "Brocher"],
+            poisson_ratio: float = 0.25,
+    ):
+        """Convert this velocity grid to a density grid (g/cc).
+
+        If the grid phase is S, Vp is estimated from Vs using the Poisson-ratio
+        relation:
+            Vp / Vs = sqrt(2 * (1 - ν) / (1 - 2ν)).
+        The chosen empirical relation (Gardner or Brocher) then maps Vp (km/s)
+        to density (g/cc).
+
+        Parameters
+        ----------
+        method : {"Gardner", "Brocher"}
+            Empirical Vp-to-density relation. Gardner (1974) is broadly used
+            for clastics; Brocher (2005) often fits crystalline crust better.
+        poisson_ratio : float, optional
+            Poisson's ratio ν used only when phase == Phases.S to estimate Vp
+            from Vs. Default is 0.25 (Poisson solid).
+
+        Returns
+        -------
+        DensityGrid3D
+            New density grid with density in g/cc.
+
+        Raises
+        ------
+        ValueError
+            If an unsupported method is requested.
+        """
+        vp_vs = np.sqrt((2.0 * (1.0 - poisson_ratio)) / (1.0 - 2.0 * poisson_ratio))
+
+        if self.phase == Phases.S:
+            vp = self.data * vp_vs
+        else:
+            vp = self.data
+
+        # Ensure Vp is in km/s for the empirical relations
+        if self.grid_type == GridTypes.VELOCITY_METERS:
+            vp = vp / 1000.0
+
+        if (method == "Gardner") or (method.lower() == "gardner"):
+            rho_gcc = self._rho_gardner_gcc(vp)
+        elif (method == "Brocher") or (method.lower() == "brocher"):
+            rho_gcc = self._rho_brocher_gcc(vp)
+        else:
+            raise ValueError(
+                "Unsupported method. Use 'Gardner' or 'Brocher'."
+            )
+
+        # If your DensityGrid3D supports explicit unit tags, set g/cc here.
+        return DensityGrid3D(
+            self.network_code,
+            rho_gcc,
+            self.origin,
+            self.spacing,
+            grid_units=self.grid_units,  # consider a GridUnits.G_PER_CC enum
+        )
+
+    def convert_to_vp(
+            self,
+            poisson_ratio: float = 0.25,
+            new_grid: bool = True,
+    ) -> Optional["VelocityGrid3D"]:
+        """Return or update the grid converted to P-wave velocity (Vp).
+
+        If this grid represents S-wave velocity (Vs), convert to Vp using
+        the Poisson-ratio relation:
+            Vp / Vs = sqrt(2 * (1 - ν) / (1 - 2ν)).
+        If the grid already represents Vp, do nothing.
+
+        Parameters
+        ----------
+        poisson_ratio : float, optional
+            Poisson's ratio ν used to compute Vp from Vs. Default is 0.25.
+        new_grid : bool, optional
+            If True, return a copy with data converted to Vp and phase set to P.
+            If False, convert in place and return None.
+
+        Returns
+        -------
+        VelocityGrid3D or None
+            Converted grid if `new_grid` is True; otherwise None.
+        """
+        if self.phase == Phases.P:
+            logger.info("Already P-wave velocity; no conversion performed.")
+            return self.copy() if new_grid else None
+
+        if self.phase == Phases.S:
+            vp_vs = np.sqrt((2.0 * (1.0 - poisson_ratio)) / (1.0 - 2.0 * poisson_ratio))
+            vp = self.data * vp_vs
+
+            if new_grid:
+                out_grid = self.copy()
+                out_grid.data = vp
+                out_grid.phase = Phases.P
+                return out_grid
+
+            self.data = vp
+            self.phase = Phases.P
+            return None
+
     def to_rgrid(self, n_secondary: Union[int, Tuple[int, int, int]], threads: int = 1):
 
         xrnge = np.arange(
@@ -1034,12 +1247,16 @@ class VelocityGrid3D(TypedGrid):
         __init__ method.
         """
 
-        # Get the instrument locations - use normalize_inventory_coordinates to ensure x -> Easting, y -> Northing
-        locations_easting, locations_northing, locations_elevation, _ = extract_inventory_easting_northing(inventory, strict=True)
+        # Get the instrument locations
+        locations_x = [instrument.x for instrument in inventory.instruments]
+        locations_y = [instrument.y for instrument in inventory.instruments]
+        locations_z = [instrument.z for instrument in inventory.instruments]
 
         # Determine the span of the inventory
-        min_coords = np.array([np.min(locations_easting), np.min(locations_northing), np.min(locations_elevation)])
-        max_coords = np.array([np.max(locations_easting), np.max(locations_northing), np.max(locations_elevation)])
+        min_coords = np.array(
+            [np.min(locations_x), np.min(locations_y), np.min(locations_z)])
+        max_coords = np.array(
+            [np.max(locations_x), np.max(locations_y), np.max(locations_z)])
         inventory_span = max_coords - min_coords
 
         # Calculate padding in grid units
@@ -1149,6 +1366,8 @@ class VelocityGrid3D(TypedGrid):
 
         :rtype: TTGrid
         """
+
+        _require_skfmm("compute travel times with the fast marching solver")
 
         if isinstance(seed, list):
             seed = np.array(seed)
@@ -1515,18 +1734,16 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
         super().__init__(p_velocity_grid, s_velocity_grid)
 
     def __getitem__(self, item):
-        if item.upper() == 'P':
+        if item.upper() == "P":
             return self.p_velocity_grid
-
-        elif item.upper() == 'S':
+        elif item.upper() == "S":
             return self.s_velocity_grid
-
-        elif item.upper() == 'DENSITY':
+        elif item.upper() == "DENSITY":
             return self.density_grid
-
         else:
-            raise ValueError(f'{item} is not a valid key. '
-                             f'The key value must either be "P" or "S"')
+            raise ValueError(
+                f'{item} is not a valid key. Use "P", "S", or "DENSITY".'
+            )
 
     def __repr__(self):
         return (f'P Velocity: {self.p_velocity_grid}\n'
@@ -1537,163 +1754,218 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
     def density(self):
         return self['density']
 
-    def to_phase_velocities(self, period_min: float = 0.1, period_max: float = 10.,
-                            n_periods: int = 10, logspace: bool = True,
-                            phase: Union[Phases, str] = Phases.RAYLEIGH,
-                            multithreading: bool = True,
-                            z: Union[List, np.ndarray] = None,
-                            disba_param: Union[DisbaParam] = DisbaParam()):
+    def to_surface_velocities(
+            self,
+            period_min: float = 0.1,
+            period_max: float = 10.0,
+            n_periods: int = 10,
+            logspace: bool = True,
+            phase: "Union[Phases, str]" = Phases.RAYLEIGH,
+            multithreading: bool = True,  # kept for API; ignored (runs serial)
+            z: "Union[Sequence, np.ndarray]" = None,
+            disba_param: "Union[DisbaParam]" = DisbaParam(),
+            velocity_type: VelocityType = VelocityType.GROUP
+    ) -> "PhaseVelocityEnsemble":
+        """Compute phase-velocity planes and return a PhaseVelocityEnsemble.
 
+        Notes
+        -----
+        - Computation is performed serially (no multithreading).
+        - Disba expects km and km/s. If this grid's ``grid_units`` are meters,
+          thickness is converted m→km and velocities m/s→km/s for computation.
+        - Returned PhaseVelocity grids' data units match this ensemble's
+          ``grid_type``:
+            * if ``grid_type == GridTypes.VELOCITY_METERS`` → data in m/s
+            * otherwise → data in km/s
+        - Spatial units of the returned grids (``grid_units``) are copied from
+          this ensemble (meters, kilometers, or feet).
+
+        Parameters
+        ----------
+        period_min, period_max : float
+            Period range in seconds.
+        n_periods : int
+            Number of periods.
+        logspace : bool
+            If True, log-uniform spacing; else linear.
+        phase : Phases or str
+            Seismic phase ('rayleigh' or 'love').
+        multithreading : bool
+            Ignored. Present for backward compatibility.
+        z : array-like or None
+            Custom vertical coordinates. If None, uses layer centers. When
+            ``grid_units == GridUnits.METER``, values are interpreted in meters;
+            otherwise in kilometers.
+        disba_param : DisbaParam
+            Parameters passed to Disba.
+        velocity_type: VelocityType
+            surface wave velocity to compute : group or phase velocity
+
+        Returns
+        -------
+        SurfaceVelocityEnsemble
+            An ensemble with one PhaseVelocity grid per requested period.
+        """
         if not isinstance(disba_param, DisbaParam):
-            raise TypeError(f'disba_param must be type DisbaParam')
+            raise TypeError("disba_param must be type DisbaParam")
 
         if isinstance(phase, str):
             Phases(phase.upper())
-
         if isinstance(phase, Phases):
             phase = phase.value.lower()
 
         if logspace:
-            periods = np.logspace(np.log10(period_min), np.log10(period_max), n_periods)
+            periods = np.logspace(np.log10(period_min), np.log10(period_max),
+                                  n_periods)
         else:
             periods = np.linspace(period_min, period_max, n_periods)
 
-        @dask.delayed
-        def phase_velocity_pnt(index_i, index_j, cells_s, cells_p, cells_density,
-                               list_periods, layers_thickness_param, algorithm_param,
-                               dc_param):
-            velocity_sij = cells_s[index_i, index_j]
-            velocity_pij = cells_p[index_i, index_j]
-            density_profile_ij = cells_density[index_i, index_j]
-            phase_disp = PhaseDispersion(thickness=layers_thickness_param,
-                                         velocity_p=velocity_pij,
-                                         velocity_s=velocity_sij,
-                                         density=density_profile_ij,
-                                         algorithm=algorithm_param,
-                                         dc=dc_param)
-            return phase_disp(list_periods, mode=0, wave=phase).velocity
-
-        @dask.delayed
-        def phase_velocity_interp(xi, yj, interpolated_points, s_wave_vel,
-                                  p_wave_vel, density_model, list_periods,
-                                  layers_thickness_param, algorithm_param,
-                                  dc_param):
-            indices = np.where(np.logical_and(interpolated_points[:, 0] == xi,
-                                              interpolated_points[:, 1] == yj
-                                              ))[0]
-            velocity_sij = s_wave_vel[indices]
-            velocity_pij = p_wave_vel[indices]
-            density_profile_ij = density_model[indices]
-            phase_disp = PhaseDispersion(thickness=layers_thickness_param,
-                                         velocity_p=velocity_pij,
-                                         velocity_s=velocity_sij,
-                                         density=density_profile_ij,
-                                         algorithm=algorithm_param,
-                                         dc=dc_param)
-            return phase_disp(list_periods, mode=0, wave=phase).velocity
         algorithm = disba_param.algorithm
         dc = disba_param.dc
 
+        # Prepare output containers (filled in serial loops)
+        nx, ny, nz = self.shape
+        planes_kms = [np.zeros((nx, ny), dtype=np.float64) for _ in range(n_periods)]
+
         if z is None:
-            thickness = self.spacing[2] * np.ones(shape=(self.shape[2] - 1))
+            # Native layers: build thickness and layer-centered properties
+            thickness = self.spacing[2] * np.ones(shape=(nz - 1), dtype=np.float64)
+
+            # Convert to km for Disba if spatial grid is meters
             if self.grid_units == GridUnits.METER:
-                thickness *= 1.e-3
-                velocity_s = self.s.data * 1.e-3
-                velocity_p = self.p.data * 1.e-3
-            else:
-                velocity_s = self.s.data
-                velocity_p = self.p.data
-            layers_s = 0.5 * (velocity_s[:, :, 1:] + velocity_s[:, :, :-1])
-            layers_p = 0.5 * (velocity_p[:, :, 1:] + velocity_p[:, :, :-1])
-            layers_density = 0.5 * (self.density.data[:, :, 1:] +
-                                    self.density.data[:, :, :-1])
+                thickness *= 1.0e-3
 
-            if multithreading:
-                results = []
-                for i in range(self.shape[0]):
-                    cmod_ij = []
-                    results.append(cmod_ij)
-                    for j in range(self.shape[1]):
-                        cmod_ij.append(phase_velocity_pnt(i, j, layers_s, layers_p,
-                                                          layers_density, periods,
-                                                          thickness, algorithm, dc))
-
-                phase_velocity = dask.compute(*results)  # todo see other arguments
-                phase_velocity = np.array(phase_velocity)
-                phase_velocity = [phase_velocity[:, :, k] for k in range(n_periods)]
+            # Convert velocity data to km/s if stored in m/s
+            if self.grid_type == GridTypes.VELOCITY_METERS:
+                vel_s = self.s.data.astype(np.float64) * 1.0e-3
+                vel_p = self.p.data.astype(np.float64) * 1.0e-3
             else:
-                phase_velocity = [np.zeros(shape=(self.shape[0], self.shape[1]))
-                                  for _ in range(n_periods)]
-                for i in range(self.shape[0]):
-                    for j in range(self.shape[1]):
-                        velocity_s_ij = layers_s[i, j]
-                        velocity_p_ij = layers_p[i, j]
-                        density_ij = layers_density[i, j]
-                        pd = PhaseDispersion(thickness=thickness,
-                                             velocity_p=velocity_p_ij,
-                                             velocity_s=velocity_s_ij,
-                                             density=density_ij,
-                                             algorithm=algorithm,
-                                             dc=dc)
-                        cmod = pd(periods, mode=0, wave=phase).velocity
-                        for k in range(n_periods):
-                            phase_velocity[k][i, j] = cmod[k]
+                vel_s = self.s.data.astype(np.float64)
+                vel_p = self.p.data.astype(np.float64)
+
+            rho = self.density.data.astype(np.float64)
+
+            # Layer-center averages
+            layers_s = 0.5 * (vel_s[:, :, 1:] + vel_s[:, :, :-1])
+            layers_p = 0.5 * (vel_p[:, :, 1:] + vel_p[:, :, :-1])
+            layers_rho = 0.5 * (rho[:, :, 1:] + rho[:, :, :-1])
+
+            # make sure the surface wave type is correct
+            if velocity_type not in (VelocityType.PHASE, VelocityType.GROUP):
+                raise ValueError("Surface wave velocity must be either group or phase")
+
+            for i in tqdm(range(nx)):
+                for j in range(ny):
+                    if velocity_type == VelocityType.PHASE:
+                        pd = PhaseDispersion(
+                            thickness=thickness,
+                            velocity_p=layers_p[i, j],
+                            velocity_s=layers_s[i, j],
+                            density=layers_rho[i, j],
+                            algorithm=algorithm,
+                            dc=dc,
+                        )
+                    elif velocity_type == VelocityType.GROUP:
+                        pd = GroupDispersion(
+                            thickness=thickness,
+                            velocity_p=layers_p[i, j],
+                            velocity_s=layers_s[i, j],
+                            density=layers_rho[i, j],
+                            algorithm=algorithm,
+                            dc=dc,
+                        )
+                    cmod = pd(periods, mode=0, wave=phase).velocity  # km/s
+                    for k in range(n_periods):
+                        planes_kms[k][i, j] = cmod[k]
+
         else:
-            # define layers thickness and centers
+            # User-provided vertical coordinates → build layer centers/thickness
+            z = np.asarray(z, dtype=np.float64)
             layers_centers = 0.5 * (z[1:] + z[:-1])
             layers_thickness = z[1:] - z[:-1]
-            # interpolation
+
+            # Interpolate properties at layer centers for each (x, y)
             x = np.arange(self.origin[0], self.corner[0], self.spacing[0])
             y = np.arange(self.origin[1], self.corner[1], self.spacing[1])
-            x_grd, y_grd, z_grd = np.meshgrid(x, y, layers_centers, indexing='ij')
-            coord_interpolation = np.column_stack((x_grd.reshape(-1), y_grd.reshape(-1),
-                                                   z_grd.reshape(-1)))
-            velocity_s = self.s.interpolate(coord_interpolation, grid_space=False)
-            velocity_p = self.p.interpolate(coord_interpolation, grid_space=False)
-            density = self.density.interpolate(coord_interpolation, grid_space=False)
+            xg, yg, zg = np.meshgrid(x, y, layers_centers, indexing="ij")
+            interp_xyz = np.column_stack(
+                (xg.reshape(-1), yg.reshape(-1), zg.reshape(-1))
+            )
+
+            vel_s = self.s.interpolate(interp_xyz, grid_space=False).astype(np.float64)
+            vel_p = self.p.interpolate(interp_xyz, grid_space=False).astype(np.float64)
+            rho = self.density.interpolate(interp_xyz, grid_space=False).astype(
+                np.float64
+            )
+
+            # Convert to Disba units when needed
             if self.grid_units == GridUnits.METER:
-                velocity_s *= 1.e-3
-                velocity_p *= 1.e-3
-                z *= 1.e-3
-            if multithreading:
-                results = []
-                for x_i in x:
-                    cmod_ij = []
-                    results.append(cmod_ij)
-                    for y_j in y:
-                        cmod_ij.append(phase_velocity_interp(x_i, y_j,
-                                                             coord_interpolation,
-                                                             velocity_s, velocity_p,
-                                                             density, periods,
-                                                             layers_thickness, algorithm,
-                                                             dc))
-
-                phase_velocity = dask.compute(*results)  # todo see other arguments
-                phase_velocity = np.array(phase_velocity)
-                phase_velocity = [phase_velocity[:, :, k] for k in range(n_periods)]
-
+                layers_thickness = layers_thickness.astype(np.float64) * 1.0e-3
+                if self.grid_type == GridTypes.VELOCITY_METERS:
+                    vel_s *= 1.0e-3
+                    vel_p *= 1.0e-3
             else:
-                # run code in one thread
-                phase_velocity = [np.zeros(shape=(self.shape[0], self.shape[1]))
-                                  for _ in range(n_periods)]
-                for i in range(self.shape[0]):
-                    for j in range(self.shape[1]):
-                        ind = np.where(np.logical_and(coord_interpolation[:, 0] == x[i],
-                                                      coord_interpolation[:, 1] == y[j]
-                                                      ))[0]
-                        velocity_s_ij = velocity_s[ind]
-                        velocity_p_ij = velocity_p[ind]
-                        density_ij = density[ind]
-                        pd = PhaseDispersion(thickness=layers_thickness,
-                                             velocity_p=velocity_p_ij,
-                                             velocity_s=velocity_s_ij,
-                                             density=density_ij,
-                                             algorithm=algorithm,
-                                             dc=dc)
-                        cmod = pd(periods, mode=0, wave=phase).velocity
-                        for k in range(n_periods):
-                            phase_velocity[k][i, j] = cmod[k]
-        return periods, phase_velocity
+                if self.grid_type == GridTypes.VELOCITY_METERS:
+                    # Spatial grid is km/ft, but data are m/s → convert to km/s
+                    vel_s *= 1.0e-3
+                    vel_p *= 1.0e-3
+
+            # Fill planes in serial
+            for ii in tqdm(range(nx)):
+                for jj in range(ny):
+                    mask = (interp_xyz[:, 0] == x[ii]) & (interp_xyz[:, 1] == y[jj])
+                    if velocity_type == VelocityType.PHASE:
+                        pd = PhaseDispersion(
+                            thickness=layers_thickness,
+                            velocity_p=vel_p[mask],
+                            velocity_s=vel_s[mask],
+                            density=rho[mask],
+                            algorithm=algorithm,
+                            dc=dc,
+                        )
+                    elif velocity_type == VelocityType.GROUP:
+                        pd = GroupDispersion(
+                            thickness=layers_thickness,
+                            velocity_p=vel_p[mask],
+                            velocity_s=vel_s[mask],
+                            density=rho[mask],
+                            algorithm=algorithm,
+                            dc=dc,
+                        )
+                    cmod = pd(periods, mode=0, wave=phase).velocity  # km/s
+                    for k in range(n_periods):
+                        planes_kms[k][ii, jj] = cmod[k]
+
+        # Convert planes back to the desired data unit and wrap as PhaseVelocity
+        ensemble = PhaseVelocityEnsemble()
+        for k, per in enumerate(periods):
+            if self.grid_type == GridTypes.VELOCITY_METERS:
+                data = planes_kms[k] * 1.0e3  # km/s → m/s
+                out_grid_type = GridTypes.VELOCITY_METERS
+            else:
+                data = planes_kms[k]
+                out_grid_type = self.grid_type
+            pv = SurfaceWaveVelocity(
+                network_code=self.network_code,
+                data_or_dims=data,
+                period=float(per),
+                phase=Phases(phase.upper()),
+                grid_type=out_grid_type,
+                grid_units=self.grid_units,
+                spacing=self.spacing[:-1],
+                origin=self.origin[:-1],
+                resource_id=ResourceIdentifier(),
+                value=0.0,
+                coordinate_system=self.coordinate_system,
+                label=self.label,
+                float_type=self.float_type if hasattr(self, "float_type")
+                else FloatTypes.FLOAT,
+                velocity_type=velocity_type,
+
+            )
+            ensemble.append(pv)
+
+        return ensemble
 
     def transform_to(self, values):
         return self.s.transform_to_grid(values)
@@ -1836,6 +2108,19 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             plt.grid(True)
             plt.show()
             return z, kernel_nodes
+
+    def write(self, path: Union[Path, str] = '.'):
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def read(cls, path: Union[Path, str]):
+        with open(path, 'rb') as f:
+            obj = pickle.load(f)
+        if not isinstance(obj, cls):
+            raise TypeError(f'The object in {path} is not a '
+                            f'SeismicPropertyGridEnsemble object')
+        return obj
 
 
 class SeededGridType(Enum):
@@ -2176,15 +2461,16 @@ class TTGrid(SeededGrid):
         return self.seed.location_code
 
     def write(self, filename, format='VTK', **kwargs):
-        """Write the grid data to a file.
+        """Write the grid data to disk.
 
-        This method writes the grid data to a file in the specified format.
-
-        :param filename: The name of the file to write the data to.
+        :param filename: Path where the grid should be serialised.
         :type filename: str
-        :param format: The format of the file (default: 'VTK').
+        :param format: Output format understood by :meth:`Grid.write`.
         :type format: str
-        :param **kwargs: Additional keyword arguments specific to the file format.
+        :param kwargs: Additional keyword arguments forwarded to the parent writer.
+        :type kwargs: dict
+        :returns: None
+        :rtype: None
         """
         field_name = None
         if format == 'VTK':
@@ -2618,7 +2904,7 @@ class AngleGrid(SeededGrid):
         super().write_nlloc(path=path)
 
 
-class PhaseVelocity(Grid):
+class SurfaceWaveVelocity(Grid):
     def __init__(self, network_code: str, data_or_dims: Union[np.ndarray, List, Tuple],
                  period: float, phase: Phases = Phases.RAYLEIGH,
                  grid_type=GridTypes.VELOCITY_METERS, grid_units=GridUnits.METER,
@@ -2627,39 +2913,45 @@ class PhaseVelocity(Grid):
                  resource_id: ResourceIdentifier = ResourceIdentifier(),
                  value: float = 0, coordinate_system: CoordinateSystem = CoordinateSystem.NED,
                  label: str = __default_grid_label__,
-                 float_type: FloatTypes = FloatTypes.FLOAT):
-        """Initialize a PhaseVelocity instance.
+                 float_type: FloatTypes = FloatTypes.FLOAT,
+                 velocity_type: VelocityType = VelocityType.GROUP):
+        """Initialise a phase-velocity grid for a single period.
 
-            :param network_code: The network code associated with the data.
-            :type network_code: str
-            :param data_or_dims: The data or dimensions of the grid.
-            :type data_or_dims: Union[np.ndarray, List, Tuple]
-            :param period: the wave period used to calculate the phase velocity.
-            :type period: float
-            :param phase: The seismic phase type (default: Phases.RAYLEIGH).
-            :type phase: Phases
-            :param grid_type: The type of grid (default: GridTypes.VELOCITY_METERS).
-            :type grid_type: GridTypes
-            :param grid_units: The units of the grid (default: GridUnits.METER).
-            :type grid_units: GridUnits
-            :param spacing: The spacing of the grid (default: None).
-            :type spacing: Union[np.ndarray, List, Tuple], optional
-            :param origin: The origin of the grid (default: None).
-            :type origin: Union[np.ndarray, List, Tuple], optional
-            :param resource_id: The resource identifier for the data (default: ResourceIdentifier()).
-            :type resource_id: ResourceIdentifier
-            :param value: The value associated with the data (default: 0).
-            :type value: float
-            :param coordinate_system: The coordinate system of the data (default: CoordinateSystem.NED).
-            :type coordinate_system: CoordinateSystem
-            :param label: The label of the grid (default: __default_grid_label__).
-            :type label: str
-            :param float_type: The float precision (default: FloatTypes.FLOAT).
-            :type float_type: FloatTypes
+        :param network_code: Network code associated with the phase-velocity model.
+        :type network_code: str
+        :param data_or_dims: The grid values or the grid dimensions used to build the
+                             underlying :class:`~uquake.grid.base.Grid`.
+        :type data_or_dims: Union[np.ndarray, List, Tuple]
+        :param period: Wave period used to compute the phase velocities, in seconds.
+        :type period: float
+        :param phase: Seismic phase for which the velocities are defined.
+        :type phase: Phases
+        :param velocity_type: can be either the group or the phase velocity
+        :type phase: VelocityType
+        :param grid_type: Storage type of the grid values.
+        :type grid_type: GridTypes
+        :param grid_units: Physical units of the grid's spatial axes.
+        :type grid_units: GridUnits
+        :param spacing: Grid spacing for each axis. If omitted, inferred from
+                        ``data_or_dims`` when possible.
+        :type spacing: Union[np.ndarray, List, Tuple], optional
+        :param origin: Grid origin expressed in the selected coordinate system.
+        :type origin: Union[np.ndarray, List, Tuple], optional
+        :param resource_id: Resource identifier attached to the grid metadata.
+        :type resource_id: ResourceIdentifier
+        :param value: Default fill value used when constructing an empty grid.
+        :type value: float
+        :param coordinate_system: Coordinate system in which the grid axes are
+                                  expressed.
+        :type coordinate_system: CoordinateSystem
+        :param label: Human-readable label attached to the grid.
+        :type label: str
+        :param float_type: Floating-point precision used to store grid values.
+        :type float_type: FloatTypes
         """
-
         self.network_code = network_code
         self.period = period
+        self.velocity_type = velocity_type
         self.grid_type = grid_type
         self.grid_units = grid_units
         self.phase = phase
@@ -2671,70 +2963,12 @@ class PhaseVelocity(Grid):
                          label=label)
 
     @classmethod
-    def from_seismic_property_grid_ensemble(cls,
-                                            seismic_param: SeismicPropertyGridEnsemble,
-                                            period: float, phase: Phases,
-                                            z_axis_log:bool = False,
-                                            npts_log_scale: int = 30,
-                                            disba_param: DisbaParam = DisbaParam()):
-        """Create a 2D Phase Velocity model.
-
-        This method constructs a PhaseVelocity instance from a SeismicPropertyGridEnsemble,
-        associating it with the specified period, phase, and DisbaParam.
-
-        :param seismic_param: The SeismicPropertyGridEnsemble used to create the \
-         PhaseVelocity instance.
-        :type seismic_param: SeismicPropertyGridEnsemble
-        :param period: the wave period used to calculate the phase velocity.
-        :type period: float
-        :param phase: The seismic phase.
-        :type phase: Phases
-        :param disba_param: Parameters of Disba to be used(default: DisbaParam()).
-        :type disba_param: DisbaParam, optional
-        :return: A PhaseVelocity instance created from the SeismicPropertyGridEnsemble.
-        :rtype: PhaseVelocity
-        """
-        if z_axis_log:
-            z_max = (seismic_param.spacing[2] * seismic_param.shape[2] +
-                     seismic_param.origin[2])
-            z = (np.logspace(0, np.log10(10 + 1), npts_log_scale) - 10 ** 0 +
-                 seismic_param.origin[2]) * z_max / 10
-        else:
-            z = None
-        _, phase_velocity = seismic_param.to_phase_velocities(period_min=period,
-                                                              period_max=period,
-                                                              n_periods=1,
-                                                              logspace=False,
-                                                              z=z,
-                                                              multithreading=True,
-                                                              disba_param=disba_param)
-        phase_velocity = phase_velocity[0]
-        if seismic_param.grid_type == GridTypes.VELOCITY_METERS:
-            phase_velocity *= 1.e3
-
-        return cls(
-            network_code=seismic_param.network_code,
-            data_or_dims=phase_velocity,
-            period=period,
-            phase=phase,
-            grid_type=seismic_param.grid_type,
-            grid_units=seismic_param.grid_units,
-            spacing=(seismic_param.spacing[0], seismic_param.spacing[1]),
-            origin=(seismic_param.origin[0], seismic_param.origin[1]),
-            resource_id=seismic_param.resource_id,
-            coordinate_system=seismic_param.coordinate_system,
-            label=seismic_param.label,
-            float_type=seismic_param.float_type
-        )
-
-    @classmethod
     def from_inventory(cls, network_code: str, inventory: Inventory,
-                       spacing: Union[float, Tuple[float, float]], 
-                       period: float,
+                       spacing: Union[float, Tuple[float, float]], period: float,
                        padding: Union[float, Tuple[float, float]] = 0.2,
                        phase: Phases = Phases.RAYLEIGH,
-                       **kwargs
-                       ):
+                       velocity_type: VelocityType = VelocityType.GROUP,
+                       **kwargs):
         """
         Create a grid object from a given inventory.
 
@@ -2753,23 +2987,25 @@ class PhaseVelocity(Grid):
         :type padding: Union[float, Tuple[float, float]], optional
         :param phase: The phase type, default is Phases.RAYLEIGH.
         :type phase: Phases, optional
-        :param kwargs: Additional keyword arguments.
+        :param velocity_type: The surface wave velocity type, default is
+            VelocityType.GROUP.
+        :type velocity_type: VelocityType, optional
+        :param kwargs: Additional keyword arguments forwarded to the constructor.
         :type kwargs: dict
-        :return: An instance of the Grid class created from the inventory.
-        :rtype: Grid
+        :return: A phase-velocity grid sized to the instrument coverage.
+        :rtype: PhaseVelocity
 
         :raises ValueError: If the padding or spacing values are invalid.
 
-        This method calculates the grid dimensions and origin by considering the
-        span of the inventory and the specified padding. It then creates and
-        returns a grid object with the calculated parameters.
+        This method calculates grid dimensions and origin from the inventory span
+        and requested padding before instantiating a :class:`PhaseVelocity` model.
         """
-       
-        locations_easting, locations_northing, _, _ = extract_inventory_easting_northing(inventory, strict=True)
+
+        locations_x, locations_y, _ = get_coordinates_inventory(inventory, strict=True)
 
         # Determine the span of the inventory
-        min_coords = np.array([np.min(locations_easting), np.min(locations_northing)])
-        max_coords = np.array([np.max(locations_easting), np.max(locations_northing)])
+        min_coords = np.array([np.min(locations_x), np.min(locations_y)])
+        max_coords = np.array([np.max(locations_x), np.max(locations_y)])
         inventory_span = max_coords - min_coords
 
         # Calculate padding in grid units
@@ -2786,10 +3022,92 @@ class PhaseVelocity(Grid):
         padded_corner = max_coords + total_padding / 2
 
         # Calculate grid dimensions
-        grid_dims = np.ceil((padded_corner - padded_origin) / np.array(spacing)).astype(int)
-
+        grid_dims = np.ceil((padded_corner - padded_origin) / np.array(spacing)).astype(
+            int)
         # Create and return the grid object
-        return cls(network_code, grid_dims, spacing=spacing, origin=padded_origin, period=period, phase=phase, **kwargs)
+        return cls(network_code, grid_dims, spacing=spacing, origin=padded_origin,
+                   period=period, phase=phase, velocity_type=velocity_type, **kwargs)
+
+    @classmethod
+    def _from_seismic_property_grid_ensemble(cls,
+                                             seismic_param: SeismicPropertyGridEnsemble,
+                                             period: float, phase: Phases,
+                                             z_axis_log: bool = False,
+                                             npts_log_scale: int = 30,
+                                             disba_param: DisbaParam = DisbaParam(),
+                                             velocity_type:
+                                             VelocityType = VelocityType.GROUP,
+                                             **kwargs):
+        """Build a phase-velocity grid from a seismic property ensemble.
+
+        :param seismic_param: Collection of seismic property grids used to derive
+                              phase velocities.
+        :type seismic_param: SeismicPropertyGridEnsemble
+        :param period: Wave period, in seconds, at which the dispersion relation is
+                       sampled.
+        :type period: float
+        :param phase: Seismic phase whose phase velocities will be extracted.
+        :type phase: Phases
+        :param z_axis_log: If ``True``, resample the vertical axis on a logarithmic
+                           scale before computing dispersion curves.
+        :type z_axis_log: bool, optional
+        :param npts_log_scale: Number of samples to use when ``z_axis_log`` is turned on.
+        :type npts_log_scale: int, optional
+        :param disba_param: Numerical parameters forwarded to
+                            :class:`disba.PhaseDispersion`.
+        :type disba_param: DisbaParam, optional
+        :param velocity_type: The surface wave velocity type, default is
+            VelocityType.GROUP.
+        :type velocity_type: VelocityType
+        :returns: A phase-velocity grid for the requested period and phase.
+        :rtype: PhaseVelocity
+        """
+        if z_axis_log:
+            z_max = (seismic_param.spacing[2] * seismic_param.shape[2] +
+                     seismic_param.origin[2])
+            z = (np.logspace(0, np.log10(10 + 1), npts_log_scale) - 10 ** 0 +
+                 seismic_param.origin[2]) * z_max / 10
+        else:
+            z = None
+
+        surface_velocity = seismic_param.to_surface_velocities(
+            period_min=period,
+            period_max=period,
+            n_periods=1,
+            logspace=False,
+            phase=phase,
+            z=z,
+            disba_param=disba_param,
+            velocity_type=velocity_type
+    )
+        surface_velocity = surface_velocity[0]
+        if seismic_param.grid_type == GridTypes.VELOCITY_METERS:
+            surface_velocity.data *= 1.e3
+
+        return cls(
+            network_code=seismic_param.network_code,
+            data_or_dims=surface_velocity.data,
+            period=period,
+            phase=phase,
+            grid_type=seismic_param.grid_type,
+            grid_units=seismic_param.grid_units,
+            spacing=(seismic_param.spacing[0], seismic_param.spacing[1]),
+            origin=(seismic_param.origin[0], seismic_param.origin[1]),
+            resource_id=seismic_param.resource_id,
+            coordinate_system=seismic_param.coordinate_system,
+            label=seismic_param.label,
+            float_type=seismic_param.float_type,
+            velocity_type=velocity_type,
+        )
+
+    @property
+    def type_velocity(self):
+        """Return the velocity type (group or phase)."""
+        return self.velocity_type
+
+    @property
+    def grid_id(self):
+        return self.resource_id
 
     def to_rgrid(self, n_secondary: Union[int, Tuple[int, int]], cell_slowness=False,
                  threads: int = 1):
@@ -2839,11 +3157,6 @@ class PhaseVelocity(Grid):
             grid.set_velocity(self.data)
         return grid
 
-
-    @property
-    def grid_id(self):
-        return self.resource_id
-
     def write(self, filename, format='VTK', **kwargs):
         """Write the grid data to a file.
 
@@ -2857,7 +3170,7 @@ class PhaseVelocity(Grid):
         """
         field_name = None
         if format == 'VTK':
-            field_name = f'velocity_{self.phase.value}'
+            field_name = f'{self.velocity_type} velocity_{self.phase.value}'
 
         super().write(filename, format=format, field_name=field_name, **kwargs)
 
@@ -2868,58 +3181,90 @@ class PhaseVelocity(Grid):
             vmin: Optional[float] = None,
             vmax: Optional[float] = None,
             mask: Optional[dict] = None,
+            geographic: bool = False,
             **imshow_kwargs,
     ):
+        """Plot the phase-velocity grid with optional receiver overlays.
+
+        :param receivers: Receiver positions to superimpose on the map. Provide either
+                          a ``(N, 2)`` array of ``(x, y)`` coordinates or a
+                          :class:`SeedEnsemble`.
+        :type receivers: Optional[Union[np.ndarray, SeedEnsemble]]
+        :param fig_size: Size of the matplotlib figure in inches ``(width, height)``.
+        :type fig_size: Tuple[float, float]
+        :param vmin: Lower bound for the colour scale. Defaults to the 1st percentile
+                     when omitted.
+        :type vmin: Optional[float]
+        :param vmax: Upper bound for the colour scale. Defaults to the 99th percentile
+                     when omitted.
+        :type vmax: Optional[float]
+        :param mask: Definition of regions to hide, following
+                     :meth:`~uquake.grid.base.Grid.masked_region_xy` conventions.
+        :type mask: Optional[dict]
+        :param geographic: If ``True``, align axes with easting/northing instead of
+                           grid indices.
+        :type geographic: bool
+        :param imshow_kwargs: Extra keyword arguments forwarded to
+                              :func:`matplotlib.axes.Axes.imshow`.
+        :type imshow_kwargs: dict
+        :returns: Tuple ``(fig, ax)`` with the generated matplotlib figure and axes.
+        :rtype: Tuple[matplotlib.figure.Figure, matplotlib.axes.Axes]
         """
-        Plot the Phase velocity with optional overlay of receiver positions.
+        if self.data.ndim != 2:
+            raise ValueError("SurfaceWaveVelocity.plot currently supports only 2D data.")
 
-        Parameters
-        ----------
-        receivers : np.ndarray or SeedEnsemble, optional
-            Receiver positions to overlay on the plot. Can be a 2D NumPy array of shape
-            (N, 2) containing (x, y) coordinates or a SeedEnsemble object.
-
-        fig_size : tuple of float, default=(10, 8)
-            Size of the matplotlib figure in inches (width, height).
-
-        vmin : float, optional
-            Minimum value for the colormap. If None, the 1st percentile of the data is used.
-
-        vmax : float, optional
-            Maximum value for the colormap. If None, the 99th percentile of the data is used.
-
-        mask : dict, optional
-            Dictionary specifying regions to mask out from the plot. Keys and structure
-            depend on implementation, e.g., {'polygon': [(x1, y1), ..., (xn, yn)]}.
-
-        **imshow_kwargs
-            Additional keyword arguments passed directly to `matplotlib.axes.Axes.imshow.
-
-        Returns
-        -------
-        fig : matplotlib.figure.Figure
-            The matplotlib figure object containing the plot.
-
-        ax : matplotlib.axes.Axes
-            The matplotlib axes object where the grid and overlays are plotted.
-        """
         fig, ax = plt.subplots(figsize=fig_size)
         if 'cmap' not in imshow_kwargs:
             imshow_kwargs.setdefault('cmap', 'seismic')
 
+        axis_order_map = {
+            CoordinateSystem.NED: (0, 1),
+            CoordinateSystem.NEU: (0, 1),
+            CoordinateSystem.ENU: (1, 0),
+            CoordinateSystem.END: (1, 0),
+        }
+
+        if geographic:
+            axis_order_for_plot = axis_order_map.get(
+                self.coordinate_system, (0, 1)
+            )
+        else:
+            axis_order_for_plot = (1, 0)
+
+        row_axis, col_axis = axis_order_for_plot
+        extent = (
+            self.origin[col_axis],
+            self.corner[col_axis],
+            self.origin[row_axis],
+            self.corner[row_axis],
+        )
+
+        display_data = np.transpose(self.data, axes=axis_order_for_plot)
+
         cax = ax.imshow(
-            self.data.T,
+            display_data,
             origin="lower",
-            extent=(self.origin[0], self.corner[0], self.origin[1], self.corner[1]),
+            extent=extent,
             **imshow_kwargs,
         )
 
         if mask is not None:
-            positive_mask = super().masked_region_xy(**mask,
-                                                     ax=ax)
-            grid_data = np.where(positive_mask, self.data, np.nan).T
+            positive_mask = super().masked_region_xy(**mask, ax=ax)
+            masked_data = np.where(positive_mask, self.data, np.nan)
+            grid_data = np.transpose(masked_data, axes=axis_order_for_plot)
+
+            if geographic and len(ax.images) > 1:
+                ax.images.pop()
+                positive_mask_plot = np.transpose(positive_mask,
+                                                  axes=axis_order_for_plot)
+                mask_rgba = to_rgba(mask.get('color', 'w'))
+                overlay = np.ones((*positive_mask_plot.shape, 4))
+                overlay[..., :3] = mask_rgba[:3]
+                overlay[..., 3] = (np.logical_not(positive_mask_plot).astype(float)
+                                   * mask_rgba[3])
+                ax.imshow(overlay, extent=extent, origin='lower', interpolation='none')
         else:
-            grid_data = self.data.T
+            grid_data = display_data
 
         if vmin is None:
             vmin = np.nanpercentile(grid_data, 1)
@@ -2930,14 +3275,24 @@ class PhaseVelocity(Grid):
         cb.update_normal(cax)
 
         if self.grid_units == GridUnits.METER:
-            ax.set_xlabel("Easting [m]", weight="bold")
-            ax.set_ylabel("Northing [m]", weight="bold")
-            cb.set_label("Vel " + self.phase.value + " [m/s]", rotation=270, labelpad=10, weight="bold")
+            if geographic:
+                ax.set_xlabel("Easting (m)")
+                ax.set_ylabel("Northing (m)")
+            else:
+                ax.set_xlabel("X (m)")
+                ax.set_ylabel("Y (m)")
+            cb.set_label(self.velocity_type + "Vel " + self.phase.value + " (m/s)",
+                         rotation=270, labelpad=10)
 
         if self.grid_units == GridUnits.KILOMETER:
-            ax.set_xlabel("Easting [km]", weight="bold")
-            ax.set_ylabel("Northing [km]", weight="bold")
-            cb.set_label("Velocity [km/s]", rotation=270, labelpad=10, weight="bold")
+            if geographic:
+                ax.set_xlabel("Easting (km)")
+                ax.set_ylabel("Northing (km)")
+            else:
+                ax.set_xlabel("X (km)")
+                ax.set_ylabel("Y (km)")
+            cb.set_label(self.velocity_type + "Vel " + self.phase.value + " (km/s)",
+                         rotation=270, labelpad=10)
 
         ax.set_title("Period = {0:1.2f} s".format(self.period), weight = "bold")
 
@@ -2951,6 +3306,7 @@ class PhaseVelocity(Grid):
         return fig, ax
 
     def __repr__(self):
+        """Return a concise text summary of key grid attributes."""
         repr_str = """
                 period :  %0.2f
                 spacing: %s
@@ -2960,65 +3316,806 @@ class PhaseVelocity(Grid):
         return repr_str
 
     def __str__(self):
+        """Alias to :meth:`__repr__` for readable printing."""
         return self.__repr__()
 
     def compute_frechet(self, sources: Union[SeedEnsemble, np.ndarray],
                         receivers: Union[SeedEnsemble, np.ndarray],
                         ns: Union[int, Tuple[int, int, int]] = 5,
                         tt_cal: bool = True, cell_slowness: bool = True,
-                        threads: int = 1):
+                        threads: int = 1, *, method: Optional[str] = None,
+                        sub_grid_resolution: float = 0.25,
+                        step_fraction: float = 0.5,
+                        ray_max_iter: int = 5000,
+                        progress: bool = False,
+                        pairwise: bool = False,
+                        return_dense: bool = False,
+                        batch_size: Optional[int] = None):
 
 
-        """
-        Calculate the Frechet derivative and travel times.
+        """Calculate Frechet derivatives between sources and receivers.
 
-        :param sources: The source ensemble containing locations.
+        :param sources: Source locations provided either as a :class:`SeedEnsemble`
+                        or as an array of ``(x, y)`` coordinates.
         :type sources: Union[SeedEnsemble, np.ndarray]
-        :param receivers: The receiver ensemble containing locations.
+        :param receivers: Receiver locations provided either as a
+                          :class:`SeedEnsemble` or an array of ``(x, y)`` coordinates.
         :type receivers: Union[SeedEnsemble, np.ndarray]
-        :param ns: Number of secondary nodes for grid refinement.
-                   If an integer is provided, it is used for all dimensions.
-                   If a tuple is provided, it specifies the number of nodes in the x, y,
-                   and z dimensions respectively.
+        :param ns: Number of secondary nodes when using the ``ttcrpy`` backend.
         :type ns: Union[int, Tuple[int, int, int]], optional
-        :param tt_cal: If True, the travel times will also be returned. Default is True.
+        :param tt_cal: If ``True`` also return the matrix of travel times.
         :type tt_cal: bool, optional
-        :param cell_slowness: If True, the grid will be created with cell slowness.
-                              If False, the grid will be created without cell slowness.
-                              Default is True.
+        :param cell_slowness: When ``True`` return derivatives with respect to
+                              slowness; otherwise derivatives are with respect to
+                              velocity.
         :type cell_slowness: bool, optional
-        :param threads: The number of threads to use for computation. Default is 1.
+        :param threads: Number of worker threads.
         :type threads: int, optional
-        :return: Frechet derivative and optionally travel times.
-        :rtype: Tuple[np.ndarray, np.ndarray] if tt_cal is True, otherwise np.ndarray
+        :param method: Backend used for the Frechet computation. ``"fmm"`` uses the
+                       internal fast-marching solver and gradient-based ray tracing,
+                       while ``"ttcrpy"`` falls back to the legacy implementation.
+                       When ``None`` the solver defaults to ``"fmm"`` if
+                       :mod:`scikit-fmm` is available, otherwise ``"ttcrpy"``.
+        :type method: Optional[str], optional
+        :param sub_grid_resolution: Fraction of the grid spacing used for the
+                                    high-resolution patch surrounding each source
+                                    when ``method="fmm"``.
+        :type sub_grid_resolution: float, optional
+        :param step_fraction: Maximum fraction of the smallest cell size employed
+                               when discretising rays for path-length accumulation.
+        :type step_fraction: float, optional
+        :param ray_max_iter: Maximum number of iterations allowed in the
+                             gradient-descent ray tracer.
+        :type ray_max_iter: int, optional
+        :param progress: Display a progress bar while iterating over sources.
+        :type progress: bool, optional
+        :param pairwise: When ``True`` treat the input as ordered source/receiver
+            pairs and return a sparse ``(N_pairs, N_cells)`` sensitivity matrix
+            (plus optional travel times). When ``False`` return the full
+            ``(N_sources, N_receivers, N_cells)`` dense array.
+        :type pairwise: bool, optional
+        :param batch_size: Optional number of source/receiver pairs to process per
+            batch when ``pairwise=True``. Each batch is computed independently and
+            the resulting matrices are stacked. Defaults to processing all pairs at
+            once.
+        :returns: When ``tt_cal`` is ``True`` returns ``(frechet, travel_times)``.
+                  Otherwise only the Frechet derivatives are returned. ``frechet``
+                  is a CSR matrix by default unless ``return_dense`` is ``True``.
+        :rtype: Union[sparse.csr_matrix, np.ndarray,
+                      Tuple[sparse.csr_matrix, np.ndarray],
+                      Tuple[np.ndarray, np.ndarray]]
         """
 
-        # Create the grid with specified parameters
-        grid = self.to_rgrid(n_secondary=ns, cell_slowness=cell_slowness,
-                             threads=threads)
+        if method is None:
+            method = "fmm" if _SKFMM_AVAILABLE else "ttcrpy"
+        method = method.lower()
 
-        # Extract source locations
+        dims = 2  # GroupVelocity or PhaseVelocity grids are defined in (x, y)
+
+        def _extract_coords(entity):
+            if isinstance(entity, SeedEnsemble):
+                return entity.locs[:, :dims]
+            return np.atleast_2d(entity)[:, :dims]
+
+        if batch_size is not None:
+            if batch_size <= 0:
+                raise ValueError("batch_size must be a positive integer")
+        src_coords = _extract_coords(sources)
+        rcv_coords = _extract_coords(receivers)
+
+        if batch_size is not None and pairwise and batch_size < src_coords.shape[0]:
+            matrices = []
+            travel_blocks = [] if tt_cal else None
+            for start in range(0, src_coords.shape[0], batch_size):
+                end = min(start + batch_size, src_coords.shape[0])
+                sub_sources = src_coords[start:end]
+                sub_receivers = rcv_coords[start:end]
+                result = self.compute_frechet(
+                    sub_sources,
+                    sub_receivers,
+                    ns=ns,
+                    tt_cal=tt_cal,
+                    cell_slowness=cell_slowness,
+                    threads=threads,
+                    method=method,
+                    sub_grid_resolution=sub_grid_resolution,
+                    step_fraction=step_fraction,
+                    ray_max_iter=ray_max_iter,
+                    progress=progress,
+                    pairwise=True,
+                    return_dense=return_dense,
+                    batch_size=None,
+                )
+                if tt_cal:
+                    sub_matrix, sub_tt = result
+                else:
+                    sub_matrix = result
+
+                if return_dense:
+                    matrices.append(np.asarray(sub_matrix))
+                else:
+                    matrices.append(sub_matrix.tocsr())
+
+                if tt_cal:
+                    travel_blocks.append(np.asarray(sub_tt))
+
+            if return_dense:
+                frechet_output = np.vstack(matrices)
+            else:
+                frechet_output = sparse.vstack(matrices, format="csr")
+
+            if tt_cal:
+                travel_output = np.concatenate(travel_blocks)
+                return frechet_output, travel_output
+            return frechet_output
+
+        if batch_size is not None and not pairwise:
+            raise NotImplementedError(
+                "batch_size is currently only supported when pairwise=True."
+            )
+
+        unique_src_coords, src_inverse, src_rep = _deduplicate_points(src_coords)
+        unique_rcv_coords, rcv_inverse, rcv_rep = _deduplicate_points(rcv_coords)
+
+        if pairwise and src_coords.shape[0] != rcv_coords.shape[0]:
+            raise ValueError("pairwise=True requires the same number of sources and receivers.")
+
+        if isinstance(sources, SeedEnsemble):
+            unique_src_seeds = [sources.seeds[idx] for idx in src_rep]
+            unique_sources = SeedEnsemble(unique_src_seeds, units=sources.units)
+        else:
+            unique_sources = unique_src_coords
+
+        if isinstance(receivers, SeedEnsemble):
+            unique_rcv_seeds = [receivers.seeds[idx] for idx in rcv_rep]
+            unique_receivers = SeedEnsemble(unique_rcv_seeds, units=receivers.units)
+        else:
+            unique_receivers = unique_rcv_coords
+
+        n_sources_orig = src_coords.shape[0]
+        n_receivers_orig = rcv_coords.shape[0]
+        n_unique_sources = unique_src_coords.shape[0]
+        n_unique_receivers = unique_rcv_coords.shape[0]
+
+        if n_unique_sources != n_sources_orig:
+            logger.info(
+                f"Collapsed {n_sources_orig} sources to {n_unique_sources} unique locations."
+            )
+        if n_unique_receivers != n_receivers_orig:
+            logger.info(
+                f"Collapsed {n_receivers_orig} receivers to {n_unique_receivers} unique locations."
+            )
+
+        n_pairs = src_coords.shape[0]
+
+        swap_axes = (not pairwise) and (n_unique_receivers < n_unique_sources)
+
+        if swap_axes:
+            logger.info(
+                "Using reciprocity: computing Frechet derivatives"
+                " with receivers as sources."
+            )
+
+        compute_sources = unique_receivers if swap_axes else unique_sources
+        compute_receivers = unique_sources if swap_axes else unique_receivers
+
+        def _entity_count(entity):
+            return len(entity.seeds) if isinstance(entity, SeedEnsemble) else\
+                np.atleast_2d(entity).shape[0]
+
+        start_time = time.perf_counter()
+        logger.info(
+            f"Computing Frechet derivatives using '{method}' backend for "
+            f"{_entity_count(compute_sources)} unique sources x {_entity_count(compute_receivers)} unique receivers."
+        )
+
+        if method == "fmm":
+            _require_skfmm("compute Frechet derivatives via the fast marching solver")
+            result = self._compute_frechet_fmm(
+                sources=compute_sources,
+                receivers=compute_receivers,
+                tt_cal=tt_cal,
+                cell_slowness=cell_slowness,
+                threads=threads,
+                sub_grid_resolution=sub_grid_resolution,
+                step_fraction=step_fraction,
+                ray_max_iter=ray_max_iter,
+                progress=progress,
+            )
+            if tt_cal:
+                frechet_unique, tt_unique = result
+            else:
+                frechet_unique = result
+                tt_unique = None
+        elif method == "ttcrpy":
+            frechet_rows, tt_rows = self._compute_frechet_ttcrpy(
+                sources=compute_sources,
+                receivers=compute_receivers,
+                ns=ns,
+                tt_cal=tt_cal,
+                cell_slowness=cell_slowness,
+                threads=threads,
+                progress=progress,
+            )
+            if pairwise:
+                row_blocks = []
+                tt_pairs = np.empty(n_pairs, dtype=float) if tt_cal else None
+                for pair_idx, (src_idx, rcv_idx) in enumerate(zip(src_inverse, rcv_inverse)):
+                    row_blocks.append(frechet_rows[src_idx].getrow(rcv_idx))
+                    if tt_cal:
+                        tt_pairs[pair_idx] = tt_rows[src_idx][rcv_idx]
+
+                if row_blocks:
+                    frechet_pairs = sparse.vstack(row_blocks, format="csr")
+                else:
+                    n_cells = frechet_rows[0].shape[1] if frechet_rows else 0
+                    frechet_pairs = sparse.csr_matrix((0, n_cells))
+
+                elapsed = time.perf_counter() - start_time
+                logger.info(
+                    f"Frechet computation ('{method}' backend) completed in {elapsed:.2f}s "
+                    f"for {n_pairs} source/receiver pairs."
+                )
+
+                if return_dense:
+                    frechet_dense = frechet_pairs.toarray()
+                    if tt_cal:
+                        return frechet_dense, np.asarray(tt_pairs, dtype=float)
+                    return frechet_dense
+
+                if tt_cal:
+                    return frechet_pairs, np.asarray(tt_pairs, dtype=float)
+                return frechet_pairs
+
+            frechet_unique = np.stack([mat.toarray() for mat in frechet_rows], axis=0)
+            tt_unique = np.stack(tt_rows, axis=0) if tt_cal else None
+        else:
+            raise ValueError("method must be either 'fmm' or 'ttcrpy'.")
+
+        if swap_axes:
+            frechet_unique = np.transpose(frechet_unique, (1, 0, 2))
+            if tt_unique is not None:
+                tt_unique = tt_unique.T
+
+        if pairwise:
+            frechet_pairs = frechet_unique[src_inverse, rcv_inverse, :]
+            if return_dense:
+                if tt_cal:
+                    return frechet_pairs, tt_unique[src_inverse, rcv_inverse]
+                return frechet_pairs
+            frechet_pairs_matrix = sparse.csr_matrix(
+                frechet_pairs.reshape(n_pairs, frechet_pairs.shape[-1])
+            )
+            frechet_pairs_matrix.original_shape = (n_pairs,)
+            if tt_cal:
+                return frechet_pairs_matrix, tt_unique[src_inverse, rcv_inverse]
+            return frechet_pairs_matrix
+
+        frechet_full = frechet_unique[src_inverse][:, rcv_inverse, :]
+        if return_dense:
+            if tt_cal:
+                return frechet_full, tt_unique[src_inverse][:, rcv_inverse]
+            return frechet_full
+
+        frechet_matrix = sparse.csr_matrix(
+            frechet_full.reshape(n_sources_orig * n_receivers_orig, frechet_full.shape[-1])
+        )
+        frechet_matrix.original_shape = (n_sources_orig, n_receivers_orig)
+        if tt_cal:
+            return frechet_matrix, tt_unique[src_inverse][:, rcv_inverse]
+        return frechet_matrix
+
+    def compute_frechet_eikonal(
+            self,
+            sources: Union[SeedEnsemble, np.ndarray],
+            receivers: Union[SeedEnsemble, np.ndarray],
+            ns: Union[int, Tuple[int, int, int]] = 5,
+            tt_cal: bool = True,
+            cell_slowness: bool = True,
+            threads: int = 1,
+            *,
+            method: Optional[str] = None,
+            sub_grid_resolution: float = 0.25,
+            step_fraction: float = 0.5,
+            ray_max_iter: int = 5_000,
+            progress: bool = False,
+            pairwise: bool = False,
+            return_rays: bool = False,
+            return_dense: bool = False,
+            batch_size: Optional[int] = None,
+    ):
+        """Compute Frechet derivatives using the Estuary ``eikonal`` backend.
+
+        Parameters
+        ----------
+        return_dense
+            When ``True`` materialise the sensitivity matrix as a dense NumPy array;
+            otherwise a CSR matrix is returned (the default).
+        """
+
+        if _eikonal_compute_frechet is None or EKImageData is None:
+            raise ImportError(
+                "The 'eikonal-ng' extensions are not available. Build them first or "
+                "install the package before calling compute_frechet_eikonal()."
+            )
+
+        if return_rays:
+            raise NotImplementedError(
+                "return_rays=True is not supported by compute_frechet_eikonal()."
+            )
+
+        if method is not None and method.lower() not in {"eikonal", "fmm"}:
+            raise ValueError(
+                "method must be None or 'eikonal' for compute_frechet_eikonal().")
+
+        if progress:
+            logger.warning(
+                "Progress reporting is not supported by the eikonal backend; ignoring.")
+
+        dims = 2
+
+        def _extract_coords(entity):
+            if isinstance(entity, SeedEnsemble):
+                return entity.locs[:, :dims]
+            return np.atleast_2d(entity)[:, :dims]
+
+        if batch_size is not None:
+            if batch_size <= 0:
+                raise ValueError("batch_size must be a positive integer")
+        src_coords = _extract_coords(sources)
+        rcv_coords = _extract_coords(receivers)
+
+        if batch_size is not None and pairwise and batch_size < src_coords.shape[0]:
+            matrices = []
+            travel_blocks = [] if tt_cal else None
+            for start in range(0, src_coords.shape[0], batch_size):
+                end = min(start + batch_size, src_coords.shape[0])
+                sub_sources = src_coords[start:end]
+                sub_receivers = rcv_coords[start:end]
+                result = self.compute_frechet_eikonal(
+                    sub_sources,
+                    sub_receivers,
+                    ns=ns,
+                    tt_cal=tt_cal,
+                    cell_slowness=cell_slowness,
+                    threads=threads,
+                    method=method,
+                    sub_grid_resolution=sub_grid_resolution,
+                    step_fraction=step_fraction,
+                    ray_max_iter=ray_max_iter,
+                    progress=progress,
+                    pairwise=True,
+                    return_rays=False,
+                    return_dense=return_dense,
+                    batch_size=None,
+                )
+                if tt_cal:
+                    sub_matrix, sub_tt = result
+                else:
+                    sub_matrix = result
+
+                if return_dense:
+                    matrices.append(np.asarray(sub_matrix))
+                else:
+                    matrices.append(sub_matrix.tocsr())
+
+                if tt_cal:
+                    travel_blocks.append(np.asarray(sub_tt))
+
+            if return_dense:
+                frechet_output = np.vstack(matrices)
+            else:
+                frechet_output = sparse.vstack(matrices, format="csr")
+
+            if tt_cal:
+                travel_output = np.concatenate(travel_blocks)
+                return frechet_output, travel_output
+            return frechet_output
+
+        if batch_size is not None and not pairwise:
+            raise NotImplementedError(
+                "batch_size is currently only supported when pairwise=True."
+            )
+
+        if pairwise and src_coords.shape[0] != rcv_coords.shape[0]:
+            raise ValueError(
+                "pairwise=True requires the same number of sources and receivers.")
+
+        unique_src_coords, src_inverse, _ = _deduplicate_points(src_coords)
+        unique_rcv_coords, rcv_inverse, _ = _deduplicate_points(rcv_coords)
+
+        n_sources = src_coords.shape[0]
+        n_receivers = rcv_coords.shape[0]
+
+        if pairwise:
+            unique_src_coords = src_coords
+            unique_rcv_coords = rcv_coords
+            src_inverse = np.arange(n_sources, dtype=int)
+            rcv_inverse = np.arange(n_receivers, dtype=int)
+
+        _ = (ns, sub_grid_resolution, ray_max_iter)
+        if threads not in (1, None):  # pragma: no cover - advisory warning
+            warnings.warn(
+                "The 'threads' parameter is ignored by compute_frechet_eikonal().",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
+        spacing_arr = np.atleast_1d(np.array(self.spacing, dtype=float))
+        if spacing_arr.size < dims:
+            spacing_arr = np.repeat(spacing_arr[0], dims)
+        spacing_arr = spacing_arr[:dims]
+        if not np.allclose(spacing_arr, spacing_arr[0]):
+            raise ValueError("compute_frechet_eikonal requires isotropic grid spacing.")
+        spacing_value = float(spacing_arr[0])
+
+        origin_arr = np.atleast_1d(np.array(self.origin, dtype=float))
+        if origin_arr.size < dims:
+            origin_arr = np.concatenate([origin_arr, np.zeros(dims - origin_arr.size)])
+        origin_vec = origin_arr[:dims]
+
+        velocity_data = np.asarray(self.data, dtype=float)
+        if np.any(velocity_data <= 0):
+            raise ValueError(
+                "Velocity grid must be strictly positive for eikonal computations.")
+
+        if self.grid_type == GridTypes.VELOCITY_KILOMETERS and self.grid_units == GridUnits.METER:
+            velocity = velocity_data.copy() * 1e3  # convert to m/s
+
+        elif self.grid_type == GridTypes.VELOCITY_METERS and self.grid_units == GridUnits.KILOMETER:
+            velocity = velocity_data.copy() * 1e-3  # convert to km/s
+
+        else:
+            raise ValueError("Grid type not supported")
+
+        velocity_grid = EKImageData(velocity, origin=tuple(origin_vec),
+                                    spacing=spacing_value)
+
+        # unique_src_grid = self.transform_to_grid(unique_src_coords)
+        # unique_rcv_grid = self.transform_to_grid(unique_rcv_coords)
+        self.transform_from_grid(unique_src_coords)
+
+        frechet_result = _eikonal_compute_frechet(
+            velocity=velocity_grid,
+            sources=unique_src_coords,
+            receivers=unique_rcv_coords,
+            spacing=spacing_value,
+            origin=origin_vec,
+            rk_step=step_fraction,
+            second_order=True,
+            cell_slowness=cell_slowness,
+            return_travel_times=tt_cal,
+            pairwise=pairwise,
+            return_rays=False,
+            dtype=float,
+            return_dense=return_dense,
+        )
+        if tt_cal:
+            frechet_output, travel_output = frechet_result
+        else:
+            frechet_output = frechet_result
+            travel_output = None
+
+        if not return_dense and not sparse.isspmatrix_csr(frechet_output):
+            frechet_output = sparse.csr_matrix(frechet_output)
+
+        if travel_output is not None:
+            return frechet_output, travel_output
+        return frechet_output
+
+    def _compute_frechet_ttcrpy(self,
+                                sources: Union[SeedEnsemble, np.ndarray],
+                                receivers: Union[SeedEnsemble, np.ndarray],
+                                ns: Union[int, Tuple[int, int, int]],
+                                tt_cal: bool,
+                                cell_slowness: bool,
+                                threads: int,
+                                progress: bool):
 
         if isinstance(sources, SeedEnsemble):
             srcs = sources.locs[:, :2]
         else:
             srcs = sources
+        srcs = np.atleast_2d(srcs)
 
-        # Extract receiver locations
         if isinstance(receivers, SeedEnsemble):
             rxs = receivers.locs[:, :2]
         else:
             rxs = receivers
+        rxs = np.atleast_2d(rxs)
 
-        # Perform ray tracing
-        tt, _, frechet = grid.raytrace(source=srcs, rcv=rxs, compute_L=True,
-                                       return_rays=True)
+        n_sources = srcs.shape[0]
+        n_receivers = rxs.shape[0]
+
+        worker_threads = threads if isinstance(threads, int) and threads > 0 else 1
+        grid = self.to_rgrid(n_secondary=ns, cell_slowness=cell_slowness,
+                             threads=worker_threads)
+        if hasattr(grid, "set_use_thread_pool"):
+            grid.set_use_thread_pool(worker_threads > 1)
+
+        tt_rows = []
+        frechet_rows = []
+
+        pbar = tqdm(total=n_sources, desc="Frechet (ttcrpy)", unit="src",
+                    disable=not progress)
+        try:
+            for src in srcs:
+                single_src = np.asarray(src, dtype=float).reshape(1, -1)
+                tt_single, _, frechet_single = grid.raytrace(
+                    source=single_src,
+                    rcv=rxs,
+                    compute_L=True,
+                    return_rays=True,
+                )
+
+                tt_processed = np.asarray(tt_single).reshape(n_receivers)
+
+                if sparse.issparse(frechet_single):
+                    frechet_processed = frechet_single.tocsr()
+                else:
+                    frechet_array = np.asarray(frechet_single)
+                    if frechet_array.size == 0:
+                        frechet_processed = sparse.csr_matrix((n_receivers, 0))
+                    else:
+                        if frechet_array.ndim == 1:
+                            if n_receivers != 1:
+                                raise ValueError(
+                                    "Unexpected Frechet shape for multiple receivers."
+                                )
+                            frechet_array = frechet_array.reshape(1, -1)
+                        if frechet_array.shape[0] != n_receivers:
+                            raise ValueError(
+                                f"Inconsistent Frechet derivative shape {frechet_array.shape} "
+                                f"for {n_receivers} receivers."
+                            )
+                        frechet_processed = sparse.csr_matrix(frechet_array)
+
+                tt_rows.append(tt_processed)
+                frechet_rows.append(frechet_processed)
+
+                pbar.update()
+        finally:
+            pbar.close()
+
         if tt_cal:
-            return frechet, tt
+            return frechet_rows, tt_rows
+        return frechet_rows, tt_rows
+
+    def _compute_frechet_fmm(self,
+                              sources: Union[SeedEnsemble, np.ndarray],
+                              receivers: Union[SeedEnsemble, np.ndarray],
+                              tt_cal: bool,
+                              cell_slowness: bool,
+                              threads: int,
+                              sub_grid_resolution: float,
+                              step_fraction: float,
+                              ray_max_iter: int,
+                              progress: bool):
+
+        if isinstance(sources, SeedEnsemble):
+            seeds = sources.seeds
         else:
-            return frechet
+            seeds = self._build_seeds_from_array(np.atleast_2d(sources))
+
+        if isinstance(receivers, SeedEnsemble):
+            receiver_coords = receivers.locs
+        else:
+            receiver_coords = np.atleast_2d(receivers)
+
+        if len(seeds) == 0 or receiver_coords.size == 0:
+            raise ValueError("Both sources and receivers must be provided to compute Frechet derivatives.")
+
+        n_sources = len(seeds)
+        n_receivers = receiver_coords.shape[0]
+        n_cells = int(self.data.size)
+
+        dtype = np.dtype(self.float_type.value)
+        tt = np.zeros((n_sources, n_receivers), dtype=np.float64)
+        frechet = np.zeros((n_sources, n_receivers, n_cells), dtype=np.float64)
+
+        velocity_flat = self.data.ravel(order='C').astype(np.float64)
+        dims = self.ndim
+
+        def _process_source(args):
+            idx, seed = args
+            tt_grid = self._build_travel_time_grid_fmm(
+                seed,
+                sub_grid_resolution=sub_grid_resolution,
+            )
+
+            source_tt = np.zeros(n_receivers, dtype=np.float64)
+            source_frechet = np.zeros((n_receivers, n_cells), dtype=np.float64)
+            seed_loc = np.asarray(seed.loc)
+
+            for j, rec in enumerate(receiver_coords):
+                receiver_point = self._prepare_receiver_point(rec, seed_loc, dims)
+                if not self.in_grid(receiver_point[:dims], grid_space=False):
+                    raise ValueError(f"Receiver {receiver_point[:dims]} is outside the grid bounds.")
+
+                ray = tt_grid.ray_tracer(receiver_point, grid_space=False, max_iter=ray_max_iter)
+                if ray is None or getattr(ray, 'nodes', None) is None or len(ray.nodes) < 2:
+                    raise RuntimeError("Ray tracing failed to converge for receiver {0}.".format(receiver_point))
+
+                path_nodes = np.asarray(ray.nodes)
+                frechet_row = self.path_lengths_from_nodes(path_nodes, step_fraction=step_fraction)
+
+                if not cell_slowness:
+                    with np.errstate(divide='ignore', invalid='ignore'):
+                        frechet_row = -frechet_row / np.square(velocity_flat)
+                        frechet_row[~np.isfinite(frechet_row)] = 0.0
+
+                source_frechet[j, :] = frechet_row
+
+                if hasattr(ray, 'travel_time') and ray.travel_time is not None:
+                    source_tt[j] = ray.travel_time
+                else:
+                    source_tt[j] = tt_grid.interpolate(receiver_point, grid_space=False, order=1)[0]
+
+            return idx, source_frechet, source_tt
+
+        tasks = list(enumerate(seeds))
+        max_workers = max(1, int(threads))
+
+        pbar = tqdm(total=n_sources, desc="Frechet (fmm)", unit="src",
+                    disable=not progress)
+        try:
+            if max_workers > 1:
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    results = []
+                    for res in executor.map(_process_source, tasks):
+                        results.append(res)
+                        pbar.update()
+            else:
+                results = []
+                for task in tasks:
+                    results.append(_process_source(task))
+                    pbar.update()
+        finally:
+            pbar.close()
+
+        for idx, source_frechet, source_tt in results:
+            frechet[idx, :, :] = source_frechet
+            tt[idx, :] = source_tt
+
+        frechet = frechet.astype(dtype, copy=False)
+        if tt_cal:
+            return frechet, tt.astype(dtype, copy=False)
+        return frechet
+
+    def _prepare_receiver_point(self, receiver: np.ndarray, seed_loc: np.ndarray,
+                                 dims: int) -> np.ndarray:
+        receiver = np.asarray(receiver, dtype=float)
+        if receiver.size < dims:
+            receiver = np.pad(receiver, (0, dims - receiver.size), constant_values=0.0)
+        point = seed_loc.copy()
+        point[:dims] = receiver[:dims]
+        return point
+
+    def _build_seeds_from_array(self, srcs: np.ndarray) -> List[Seed]:
+        seeds = []
+        dims = self.ndim
+        for idx, src in enumerate(np.asarray(srcs, dtype=float)):
+            if src.size < dims:
+                src = np.pad(src, (0, dims - src.size), constant_values=0.0)
+            coords = np.zeros(3, dtype=float)
+            coords[:dims] = src[:dims]
+            coordinates = Coordinates(coords[0], coords[1], coords[2],
+                                      coordinate_system=self.coordinate_system)
+            seeds.append(Seed(f'S{idx:04d}', f'L{idx:04d}', coordinates))
+        return seeds
+
+    def _build_travel_time_grid_fmm(self, seed: Seed,
+                                    sub_grid_resolution: float = 0.25) -> TTGrid:
+        _require_skfmm("build auxiliary travel-time grids using the fast marching solver")
+
+        if not self.in_grid(seed.loc[:self.ndim], grid_space=False):
+            raise ValueError(f'Source {seed.label} lies outside the grid bounds.')
+
+        origin = np.asarray(self.origin, dtype=float)
+        spacing = np.asarray(self.spacing, dtype=float)
+        shape = np.asarray(self.shape, dtype=int)
+        dims = self.ndim
+
+        sub_spacing = spacing * float(sub_grid_resolution)
+        n_pts_inner = np.maximum(4, (4 * spacing / sub_spacing * 1.2).astype(int))
+        for dim in range(dims):
+            if n_pts_inner[dim] % 2:
+                n_pts_inner[dim] += 1
+
+        seed_coords = np.asarray(seed.loc)[:dims]
+
+        local_axes = []
+        for dim in range(dims):
+            axis = np.arange(n_pts_inner[dim], dtype=float) * sub_spacing[dim]
+            axis = axis - np.mean(axis) + seed_coords[dim]
+            local_axes.append(axis)
+
+        local_mesh = np.meshgrid(*local_axes, indexing='ij')
+        local_coords = np.stack([m.ravel() for m in local_mesh], axis=1)
+        local_vel = self.interpolate(local_coords, grid_space=False).reshape(
+            [len(axis) for axis in local_axes]
+        )
+
+        phi_local = np.ones_like(local_mesh[0])
+        centre_idx = tuple(int(np.floor(len(axis) / 2)) for axis in local_axes)
+        phi_local[centre_idx] = 0.0
+
+        tt_local = skfmm.travel_time(phi_local, local_vel, dx=tuple(sub_spacing))
+
+        local_origin = [axis[0] for axis in local_axes]
+        tt_local_grid = TTGrid(
+            self.network_code,
+            tt_local,
+            local_origin,
+            sub_spacing,
+            seed,
+            phase=self.phase,
+            float_type=self.float_type,
+            grid_units=self.grid_units,
+            velocity_model_id=self.grid_id,
+            label=self.label,
+        )
+
+        global_axes = [origin[dim] + np.arange(shape[dim], dtype=float) * spacing[dim]
+                       for dim in range(dims)]
+        global_mesh = np.meshgrid(*global_axes, indexing='ij')
+        global_coords = np.stack([m.ravel() for m in global_mesh], axis=1)
+
+        corner_min = np.array([np.min(axis) for axis in local_axes])
+        corner_max = np.array([np.max(axis) for axis in local_axes])
+
+        mask = np.ones(global_coords.shape[0], dtype=bool)
+        for dim in range(dims):
+            mask &= (global_coords[:, dim] >= corner_min[dim]) & (global_coords[:, dim] <= corner_max[dim])
+
+        tt_interp = tt_local_grid.interpolate(global_coords[mask], grid_space=False, order=3)[0]
+        bias = float(np.max(tt_interp)) if tt_interp.size else 0.0
+
+        phi_global = np.ones(np.prod(shape), dtype=float)
+        phi_global[mask] = tt_interp - bias
+        phi_global = phi_global.reshape(tuple(shape))
+
+        tt_full = skfmm.travel_time(phi_global, self.data, dx=tuple(spacing))
+        tt_flat = tt_full.ravel() + bias
+        tt_flat[mask] = tt_interp
+        tt_full = tt_flat.reshape(tuple(shape))
+
+        if dims == 2:
+            tt_full = tt_full[:, :, np.newaxis]
+            origin_tt = np.concatenate([origin, [0.0]])
+            spacing_tt = np.concatenate([spacing, [np.mean(spacing)]])
+        else:
+            origin_tt = origin
+            spacing_tt = spacing
+
+        tt_grid = TTGrid(
+            self.network_code,
+            tt_full.astype(self.float_type.value),
+            origin_tt,
+            spacing_tt,
+            seed,
+            phase=self.phase,
+            float_type=self.float_type,
+            grid_units=self.grid_units,
+            velocity_model_id=self.grid_id,
+            label=self.label,
+        )
+
+        tt_grid.data -= tt_grid.interpolate(seed.T, grid_space=False, order=3)[0]
+        return tt_grid
 
     def to_time(self, seed: Seed, ns: Union[int, Tuple[int, int, int]] = 5):
+        """Generate a travel-time grid for a single source location.
+
+        :param seed: Source definition used as the emitter in the travel-time
+                     computation.
+        :type seed: Seed
+        :param ns: Number of secondary nodes used when constructing the auxiliary
+                   ray-tracing grid.
+        :type ns: Union[int, Tuple[int, int, int]], optional
+        :returns: Travel-time grid derived from the current phase-velocity model.
+        :rtype: TTGrid
+        """
         grid = self.to_rgrid(n_secondary=ns, cell_slowness=False)
         if self.grid_type == GridTypes.VELOCITY_KILOMETERS:
             grid.set_velocity(1.e3 * self.data)
@@ -3038,6 +4135,16 @@ class PhaseVelocity(Grid):
 
     def to_time_multi_threaded(self, seeds: SeedEnsemble,
                                ns: Union[int, Tuple[int, int, int]] = 5):
+        """Generate travel-time grids for multiple sources using thread-level parallelism.
+
+        :param seeds: Collection of source definitions to evaluate.
+        :type seeds: SeedEnsemble
+        :param ns: Number of secondary nodes used when constructing the auxiliary
+                   ray-tracing grid.
+        :type ns: Union[int, Tuple[int, int, int]], optional
+        :returns: Travel-time grids indexed by the order of the provided seeds.
+        :rtype: TravelTimeEnsemble
+        """
         grid = self.to_rgrid(n_secondary=ns, threads=len(seeds), cell_slowness=False)
         grid.set_velocity(self.data)
         src = np.zeros(shape=(len(seeds), 2))
@@ -3064,6 +4171,16 @@ class PhaseVelocity(Grid):
         return TravelTimeEnsemble(tt_ensemble)
 
     def __save_rays_vtk__(self, rays, filename):
+        """Export traced rays as polylines in VTK format.
+
+        :param rays: Iterable of arrays describing individual ray paths as ``(x, y)``
+                     sample coordinates.
+        :type rays: Sequence[np.ndarray]
+        :param filename: Destination filename passed to :mod:`evtk` (extension optional).
+        :type filename: str
+        :returns: None
+        :rtype: None
+        """
         n_rays = len(rays)
         points_per_line = np.zeros(n_rays)
         x = []
@@ -3080,6 +4197,24 @@ class PhaseVelocity(Grid):
 
     def raytracing(self, receivers, method="SPM", save_rays: bool = False,
                    save_tt_grid: list=[], folder=None):
+        """Trace inter-receiver rays across the phase-velocity grid.
+
+        :param receivers: Receiver locations as a ``(N, 2)`` or ``(N, 3)`` array; the
+                           third coordinate is ignored if provided.
+        :type receivers: np.ndarray
+        :param method: Ray-tracing method name understood by :mod:`ttcrpy`.
+        :type method: str
+        :param save_rays: If ``True``, export the traced rays using
+                          :meth:`__save_rays_vtk__`.
+        :type save_rays: bool
+        :param save_tt_grid: Optional arguments controlling the saving of the travel-time
+                              grid. The content is passed directly to :mod:`ttcrpy`.
+        :type save_tt_grid: list
+        :param folder: Output folder used when persisting rays or travel times.
+        :type folder: Optional[str]
+        :returns: None
+        :rtype: None
+        """
 
         if folder is None:
             folder = "."
@@ -3118,61 +4253,361 @@ class PhaseVelocity(Grid):
                           field_name="travel_time")
 
 
-class PhaseVelocityEnsemble(list):
-    """Represents an ensemble of PhaseVelocity instances.
+class PhaseVelocity(SurfaceWaveVelocity):
+    def __init__(self, network_code: str, data_or_dims: Union[np.ndarray, List, Tuple],
+                 period: float, phase: Phases = Phases.RAYLEIGH,
+                 grid_type=GridTypes.VELOCITY_METERS, grid_units=GridUnits.METER,
+                 spacing: Union[np.ndarray, List, Tuple] = None,
+                 origin: Union[np.ndarray, List, Tuple] = None,
+                 resource_id: ResourceIdentifier = ResourceIdentifier(),
+                 value: float = 0, coordinate_system: CoordinateSystem = CoordinateSystem.NED,
+                 label: str = __default_grid_label__,
+                 float_type: FloatTypes = FloatTypes.FLOAT, **kwargs):
+        """Initialise a phase-velocity grid for a single period.
+
+        :param network_code: Network code associated with the phase-velocity model.
+        :type network_code: str
+        :param data_or_dims: The grid values or the grid dimensions used to build the
+                             underlying :class:`~uquake.grid.base.Grid`.
+        :type data_or_dims: Union[np.ndarray, List, Tuple]
+        :param period: Wave period used to compute the phase velocities, in seconds.
+        :type period: float
+        :param phase: Seismic phase for which the velocities are defined.
+        :type phase: Phases
+        :param grid_type: Storage type of the grid values.
+        :type grid_type: GridTypes
+        :param grid_units: Physical units of the grid's spatial axes.
+        :type grid_units: GridUnits
+        :param spacing: Grid spacing for each axis. If omitted, inferred from
+                        ``data_or_dims`` when possible.
+        :type spacing: Union[np.ndarray, List, Tuple], optional
+        :param origin: Grid origin expressed in the selected coordinate system.
+        :type origin: Union[np.ndarray, List, Tuple], optional
+        :param resource_id: Resource identifier attached to the grid metadata.
+        :type resource_id: ResourceIdentifier
+        :param value: Default fill value used when constructing an empty grid.
+        :type value: float
+        :param coordinate_system: Coordinate system in which the grid axes are
+                                  expressed.
+        :type coordinate_system: CoordinateSystem
+        :param label: Human-readable label attached to the grid.
+        :type label: str
+        :param float_type: Floating-point precision used to store grid values.
+        :type float_type: FloatTypes
+        """
+        super().__init__(
+            network_code=network_code,
+            data_or_dims=data_or_dims,
+            period=period,
+            phase=phase,
+            velocity_type=VelocityType.PHASE,
+            grid_type=grid_type,
+            grid_units=grid_units,
+            spacing=spacing,
+            origin=origin,
+            resource_id=resource_id,
+            value=value,
+            coordinate_system=coordinate_system,
+            label=label,
+            float_type=float_type,
+        )
+
+    @classmethod
+    def from_inventory(cls, network_code: str, inventory: Inventory,
+                       spacing: Union[float, Tuple[float, float]], period: float,
+                       padding: Union[float, Tuple[float, float]] = 0.2,
+                       phase: Phases = Phases.RAYLEIGH,
+                       **kwargs):
+        """
+        Create a grid object from a given inventory.
+
+        :param network_code: The network code associated with the inventory.
+        :type network_code: str
+        :param inventory: The inventory containing instrument locations.
+        :type inventory: Inventory
+        :param spacing: The spacing of the grid. Can be a single float or a tuple of
+                        floats specifying spacing in the x and y directions.
+        :type spacing: Union[float, Tuple[float, float]]
+        :param period: The period associated with the grid.
+        :type period: float
+        :param padding: The padding to be added around the inventory span. Can be a
+                        single float or a tuple of floats specifying padding in the
+                         x and y directions. Default is 0.2.
+        :type padding: Union[float, Tuple[float, float]], optional
+        :param phase: The phase type, default is Phases.RAYLEIGH.
+        :type phase: Phases, optional
+        :param kwargs: Additional keyword arguments forwarded to the constructor.
+        :type kwargs: dict
+        :return: A phase-velocity grid sized to the instrument coverage.
+        :rtype: PhaseVelocity
+
+        :raises ValueError: If the padding or spacing values are invalid.
+
+        This method calculates grid dimensions and origin from the inventory span
+        and requested padding before instantiating a :class:`PhaseVelocity` model.
+        """
+        return super().from_inventory(network_code=network_code, inventory=inventory,
+                                      spacing=spacing, period=period,
+                                      padding=padding,
+                                      phase=phase,
+                                      velocity_type=VelocityType.PHASE,
+                                      **kwargs)
+
+    @classmethod
+    def from_seismic_property_grid_ensemble(cls,
+                                            seismic_param: SeismicPropertyGridEnsemble,
+                                            period: float, phase: Phases,
+                                            z_axis_log:bool = False,
+                                            npts_log_scale: int = 30,
+                                            disba_param: DisbaParam = DisbaParam(),
+                                            ):
+        """Build a phase-velocity grid from a seismic property ensemble.
+
+        :param seismic_param: Collection of seismic property grids used to derive
+                              phase velocities.
+        :type seismic_param: SeismicPropertyGridEnsemble
+        :param period: Wave period, in seconds, at which the dispersion relation is
+                       sampled.
+        :type period: float
+        :param phase: Seismic phase whose phase velocities will be extracted.
+        :type phase: Phases
+        :param z_axis_log: If ``True``, resample the vertical axis on a logarithmic
+                           scale before computing dispersion curves.
+        :type z_axis_log: bool, optional
+        :param npts_log_scale: Number of samples to use when ``z_axis_log`` is turned on.
+        :type npts_log_scale: int, optional
+        :param disba_param: Numerical parameters forwarded to
+                            :class:`disba.PhaseDispersion`.
+        :type disba_param: DisbaParam, optional
+        :returns: A phase-velocity grid for the requested period and phase.
+        :rtype: PhaseVelocity
+        """
+        return super()._from_seismic_property_grid_ensemble(
+            seismic_param=seismic_param,
+            period=period,
+            z_axis_log=z_axis_log,
+            npts_log_scale=npts_log_scale,
+            disba_param=disba_param,
+            phase=phase,
+            velocity_type=VelocityType.PHASE
+        )
+
+
+class GroupVelocity(SurfaceWaveVelocity):
+    def __init__(self, network_code: str, data_or_dims: Union[np.ndarray, List, Tuple],
+                 period: float, phase: Phases = Phases.RAYLEIGH,
+                 grid_type=GridTypes.VELOCITY_METERS, grid_units=GridUnits.METER,
+                 spacing: Union[np.ndarray, List, Tuple] = None,
+                 origin: Union[np.ndarray, List, Tuple] = None,
+                 resource_id: ResourceIdentifier = ResourceIdentifier(),
+                 value: float = 0, coordinate_system: CoordinateSystem = CoordinateSystem.NED,
+                 label: str = __default_grid_label__,
+                 float_type: FloatTypes = FloatTypes.FLOAT, **kwargs):
+        """Initialise a group-velocity grid for a single period.
+
+        :param network_code: Network code associated with the group-velocity model.
+        :type network_code: str
+        :param data_or_dims: The grid values or the grid dimensions used to build the
+                             underlying :class:`~uquake.grid.base.Grid`.
+        :type data_or_dims: Union[np.ndarray, List, Tuple]
+        :param period: Wave period used to compute the group velocities, in seconds.
+        :type period: float
+        :param phase: Seismic phase for which the velocities are defined.
+        :type phase: Phases
+        :param grid_type: Storage type of the grid values.
+        :type grid_type: GridTypes
+        :param grid_units: Physical units of the grid's spatial axes.
+        :type grid_units: GridUnits
+        :param spacing: Grid spacing for each axis. If omitted, inferred from
+                        ``data_or_dims`` when possible.
+        :type spacing: Union[np.ndarray, List, Tuple], optional
+        :param origin: Grid origin expressed in the selected coordinate system.
+        :type origin: Union[np.ndarray, List, Tuple], optional
+        :param resource_id: Resource identifier attached to the grid metadata.
+        :type resource_id: ResourceIdentifier
+        :param value: Default fill value used when constructing an empty grid.
+        :type value: float
+        :param coordinate_system: Coordinate system in which the grid axes are
+                                  expressed.
+        :type coordinate_system: CoordinateSystem
+        :param label: Human-readable label attached to the grid.
+        :type label: str
+        :param float_type: Floating-point precision used to store grid values.
+        :type float_type: FloatTypes
+        """
+        super().__init__(
+            network_code=network_code,
+            data_or_dims=data_or_dims,
+            period=period,
+            phase=phase,
+            velocity_type=VelocityType.GROUP,
+            grid_type=grid_type,
+            grid_units=grid_units,
+            spacing=spacing,
+            origin=origin,
+            resource_id=resource_id,
+            value=value,
+            coordinate_system=coordinate_system,
+            label=label,
+            float_type=float_type,
+        )
+
+    @classmethod
+    def from_inventory(cls, network_code: str, inventory: Inventory,
+                       spacing: Union[float, Tuple[float, float]], period: float,
+                       padding: Union[float, Tuple[float, float]] = 0.2,
+                       phase: Phases = Phases.RAYLEIGH,
+                       **kwargs):
+        """
+        Create a group-velocity grid object sized to the instrument coverage.
+
+        :param network_code: The network code associated with the inventory.
+        :type network_code: str
+        :param inventory: The inventory containing instrument locations.
+        :type inventory: Inventory
+        :param spacing: The spacing of the grid. Can be a single float or a tuple of
+                        floats specifying spacing in the x and y directions.
+        :type spacing: Union[float, Tuple[float, float]]
+        :param period: The period associated with the grid.
+        :type period: float
+        :param padding: The padding to be added around the inventory span. Can be a
+                        single float or a tuple specifying padding in x and y. Default 0.2.
+        :type padding: Union[float, Tuple[float, float]], optional
+        :param phase: The phase type, default is Phases.RAYLEIGH.
+        :type phase: Phases, optional
+        :param kwargs: Additional keyword arguments forwarded to the constructor.
+        :type kwargs: dict
+        :return: A group-velocity grid sized to the instrument coverage.
+        :rtype: GroupVelocity
+        """
+        return super().from_inventory(
+            network_code=network_code,
+            inventory=inventory,
+            spacing=spacing,
+            period=period,
+            padding=padding,
+            phase=phase,
+            velocity_type=VelocityType.GROUP,
+            **kwargs,
+        )
+
+    @classmethod
+    def from_seismic_property_grid_ensemble(cls,
+                                            seismic_param: SeismicPropertyGridEnsemble,
+                                            period: float, phase: Phases,
+                                            z_axis_log: bool = False,
+                                            npts_log_scale: int = 30,
+                                            disba_param: DisbaParam = DisbaParam(),
+                                            **kwargs):
+        """Build a group-velocity grid from a seismic property ensemble.
+
+        :param seismic_param: Collection of seismic property grids used to derive velocities.
+        :type seismic_param: SeismicPropertyGridEnsemble
+        :param period: Wave period (s) at which the dispersion relation is sampled.
+        :type period: float
+        :param phase: Seismic phase whose group velocities will be extracted.
+        :type phase: Phases
+        :param z_axis_log: If True, resample the vertical axis on a logarithmic scale.
+        :type z_axis_log: bool, optional
+        :param npts_log_scale: Number of samples if ``z_axis_log`` is True.
+        :type npts_log_scale: int, optional
+        :param disba_param: Numerical parameters forwarded to disba.PhaseDispersion.
+        :type disba_param: DisbaParam, optional
+        :returns: A group-velocity grid for the requested period and phase.
+        :rtype: GroupVelocity
+        """
+        return super()._from_seismic_property_grid_ensemble(
+            seismic_param=seismic_param,
+            period=period,
+            phase=phase,
+            z_axis_log=z_axis_log,
+            npts_log_scale=npts_log_scale,
+            disba_param=disba_param,
+            velocity_type=VelocityType.GROUP,
+        )
+
+
+class SurfaceVelocityEnsemble(list):
+    """Represents an ensemble of Phase or Group Velocity instances.
 
      This class extends the built-in list class to represent an ensemble \
       of PhaseVelocity instances.
 
      """
-
-    def __init__(self, *args):
+    def __init__(self, velocity_type: VelocityType = VelocityType.GROUP, *args):
+        self.velocity_type = velocity_type
         super().__init__(*args)
 
-    def append(self, phase_velocity):
-        if isinstance(phase_velocity, PhaseVelocity):
-            super().append(phase_velocity)
+    def append(self, surface_velocity):
+        if isinstance(surface_velocity, SurfaceWaveVelocity):
+            super().append(surface_velocity)
         else:
-            print("Only instances of the PhaseVelocity class can be added to the list.")
+            print("Only instances of the SurfaceVelocity class can be added to the "
+                  "list.")
 
-    def add_phase_velocity(self, phase_velocity):
-        self.append(phase_velocity)
+    def add_surface_velocity(self, surface_velocity):
+        self.append(surface_velocity)
 
     @classmethod
-    def from_seismic_property_grid_ensemble(
+    def _from_seismic_property_grid_ensemble(
             cls, seismic_properties: SeismicPropertyGridEnsemble,
             periods: list, phase: Phases = Phases.RAYLEIGH, z_axis_log:bool = False,
-            npts_log_scale: int = 30, disba_param: DisbaParam = DisbaParam()
+            npts_log_scale: int = 30, disba_param: DisbaParam = DisbaParam(),
+            type_velocity: VelocityType = VelocityType.GROUP
     ):
         """
-        Create a PhaseVelocityEnsemble from a SeismicPropertyGridEnsemble.
+        Construct a SurfaceVelocityEnsemble from a SeismicPropertyGridEnsemble.
 
-        This method constructs a PhaseVelocityEnsemble instance from a \
-        SeismicPropertyGridEnsemble, associating it with the specified periods and phase.
+        This class method generates a :class:`SurfaceVelocityEnsemble` instance from
+        a provided :class:`SeismicPropertyGridEnsemble`. It computes dispersion curves
+        for the specified seismic phase and associates them with the given periods.
+        The method supports both linear and logarithmic sampling of the depth axis.
 
-        :param seismic_properties: The SeismicPropertyGridEnsemble considered to create \
-        the PhaseVelocityEnsemble instance.
-        :type seismic_properties: SeismicPropertyGridEnsemble
-        :param periods: The list of periods.
-        :type periods: list
-        :param phase: The seismic phase (default: Phases.RAYLEIGH).
-        :type phase: Phases
-        :param disba_param: Disba parameters (default: DisbaParam()).
-        :type disba_param: DisbaParam, optional
-        :return: A PhaseVelocityEnsemble instance created from the SeismicPropertyGridEnsemble.
-        :rtype: PhaseVelocityEnsemble
+        Parameters
+        ----------
+        seismic_properties : SeismicPropertyGridEnsemble
+            The seismic property ensemble (Vs, Vp, density profiles) used as the
+            input model for computing surface velocities.
+        periods : list of float
+            A list of periods (in seconds) at which the velocity is evaluated.
+        phase : Phases, optional
+            The seismic wave phase to consider (default: ``Phases.RAYLEIGH``).
+        z_axis_log : bool, optional
+            If ``True``, the depth axis is sampled logarithmically (default: ``False``).
+        npts_log_scale : int, optional
+            Number of points to use when applying logarithmic depth scaling
+            (default: ``30``). Only relevant if ``z_axis_log=True``.
+        disba_param : DisbaParam, optional
+            Parameters controlling the numerical solver (default: ``DisbaParam()``).
+        type_velocity : VelocityType, optional
+            The type of velocity to compute, either ``VelocityType.GROUP`` or
+            ``VelocityType.PHASE`` (default: ``VelocityType.GROUP``).
+
+        Returns
+        -------
+        SurfaceVelocityEnsemble
+            An ensemble of surface velocities associated with the given seismic
+            property grid ensemble and computation settings.
+
         """
         cls_obj = cls()
         for p in periods:
-            cls_obj.append(PhaseVelocity.from_seismic_property_grid_ensemble(
-                seismic_properties, p, phase, z_axis_log, npts_log_scale, disba_param))
+            if type_velocity == VelocityType.PHASE:
+                cl_obj = PhaseVelocity.from_seismic_property_grid_ensemble(
+                        seismic_properties, p, phase, z_axis_log, npts_log_scale,
+                        disba_param)
+            elif type_velocity == VelocityType.GROUP:
+                cl_obj = GroupVelocity.from_seismic_property_grid_ensemble(
+                        seismic_properties, p, phase, z_axis_log, npts_log_scale,
+                        disba_param)
+            cls_obj.append(cl_obj)
         return cls_obj
 
     @property
     def periods(self):
         periods = []
-        for phase_velocity in self:
-            periods.append(phase_velocity.period)
+        for surface_velocity in self:
+            periods.append(surface_velocity.period)
 
         return periods
 
@@ -3183,7 +4618,7 @@ class PhaseVelocityEnsemble(list):
         return self[0].transform_to_grid(values)
 
     def transform_from(self, values):
-        return self[0].transform_from
+        return self[0].transform_from(values)
 
     def transform_from_grid(self, values):
         return self.transform_from(values)
@@ -3217,31 +4652,77 @@ class PhaseVelocityEnsemble(list):
         periods = self.periods
         plt.semilogx(periods, cmod, "-ob")
         plt.xlabel("Period (s)")
-        if self[0].grid_units == GridUnits.METER:
-            plt.ylabel("Phase velocity (m/s)")
-        if self[0].grid_units == GridUnits.KILOMETER:
-            plt.ylabel("Phase velocity (km/s)")
+        if self[0].grid_types == GridTypes.VELOCITY_METERS:
+            plt.ylabel(f"{self.velocity_type} velocity (m/s)")
+        if self[0].grid_types == GridTypes.VELOCITY_KILOMETERS:
+            plt.ylabel(f"{self.velocity_type} velocity (km/s)")
         plt.grid(which='major', linewidth=0.8)
         plt.grid(which='minor', linestyle=':', linewidth=0.5)
         plt.show()
 
 
-def extract_inventory_easting_northing(
+class PhaseVelocityEnsemble(SurfaceVelocityEnsemble):
+    """Represents an ensemble of PhaseVelocity instances.
+
+     This class extends the built-in list class to represent an ensemble \
+      of PhaseVelocity instances.
+
+     """
+
+    def __init__(self, *args):
+        super().__init__(velocity_type=VelocityType.PHASE, *args)
+
+    @classmethod
+    def from_seismic_property_grid_ensemble(
+            cls, seismic_properties: SeismicPropertyGridEnsemble,
+            periods: list, phase: Phases = Phases.RAYLEIGH, z_axis_log:bool = False,
+            npts_log_scale: int = 30, disba_param: DisbaParam = DisbaParam(),
+    ):
+        return super()._from_seismic_property_grid_ensemble(
+            seismic_properties,
+            periods, phase, z_axis_log,
+            npts_log_scale, disba_param,
+            VelocityType.PHASE)
+
+
+class GroupVelocityEnsemble(SurfaceVelocityEnsemble):
+    """Represents an ensemble of PhaseVelocity instances.
+
+     This class extends the built-in list class to represent an ensemble \
+      of GroupVelocity instances.
+
+     """
+
+    def __init__(self, *args):
+        super().__init__(velocity_type=VelocityType.GROUP, *args)
+
+    @classmethod
+    def from_seismic_property_grid_ensemble(
+            cls, seismic_properties: SeismicPropertyGridEnsemble,
+            periods: list, phase: Phases = Phases.RAYLEIGH, z_axis_log: bool = False,
+            npts_log_scale: int = 30, disba_param: DisbaParam = DisbaParam(),
+    ):
+        return super()._from_seismic_property_grid_ensemble(
+            seismic_properties,
+            periods, phase, z_axis_log,
+            npts_log_scale, disba_param,
+            VelocityType.GROUP)
+
+
+def get_coordinates_inventory(
     inventory: Inventory,
     strict: bool = False
-) -> Tuple[List[float], List[float], List[float], Set[CoordinateSystem]]:
+) -> Tuple[List[float], List[float], Set[CoordinateSystem]]:
     """
-    Extract instrument coordinates from an inventory in a consistent fashion.
-        - Easting becomes X
-        - Northing becomes Y
+    Extract coordinates from an Inventory object
 
     :param inventory: The Inventory containing instruments with coordinates.
     :param strict: If True, raise error on unknown/missing coordinate systems.
-    :return: (locations_easting, locations_northing, locations_elevation, unique_coordinate_systems)
+    :return: (locations_x, locations_y, unique_coordinate_systems)
     """
-    locations_easting = []
-    locations_northing = []
-    locations_elevation = []
+
+    locations_x = []
+    locations_y = []
     coord_systems = set()
 
     for inst in inventory.instruments:
@@ -3250,7 +4731,7 @@ def extract_inventory_easting_northing(
             if strict:
                 raise ValueError(f"Instrument {inst} has no `.coordinates` attribute.")
             else:
-                logger.warning("Instrument {} has no `.coordinates` — skipping.", inst)
+                print(f"Warning: Instrument {inst} has no `.coordinates` — skipping.")
                 continue
 
         coordinate_system = getattr(coords, "coordinate_system", None)
@@ -3258,15 +4739,76 @@ def extract_inventory_easting_northing(
             if strict:
                 raise ValueError(f"Instrument {inst} has no `coordinate_system`.")
             else:
-                logger.warning("Instrument {} has no `coordinate_system` — skipping.", inst)
+                print(f"Warning: Instrument {inst} has no `coordinate_system` — skipping.")
                 continue
 
-        locations_easting.append(coords.easting)
-        locations_northing.append(coords.northing)
-        locations_elevation.append(coords.elevation)
         coord_systems.add(coordinate_system)
 
-    if not locations_easting or not locations_northing or not locations_elevation:
+        locations_x.append(coords.x)
+        locations_y.append(coords.y)
+
+    if not locations_x or not locations_y:
         raise ValueError("No valid coordinates found in inventory.")
 
-    return locations_easting, locations_northing, locations_elevation, coord_systems
+    return locations_x, locations_y, coord_systems
+
+
+def _phase_velocity_pnt_worker(
+    i: int,
+    j: int,
+    layers_s: "np.ndarray",
+    layers_p: "np.ndarray",
+    layers_density: "np.ndarray",
+    periods: "np.ndarray",
+    thickness: "np.ndarray",
+    algorithm: str,
+    dc: float,
+    phase: str,
+) -> Tuple[int, int, "np.ndarray"]:
+    """Compute phase velocities for one grid cell (i, j) over all periods."""
+    velocity_sij = layers_s[i, j]
+    velocity_pij = layers_p[i, j]
+    density_ij = layers_density[i, j]
+    pd = PhaseDispersion(
+        thickness=thickness,
+        velocity_p=velocity_pij,
+        velocity_s=velocity_sij,
+        density=density_ij,
+        algorithm=algorithm,
+        dc=dc,
+    )
+    cmod = pd(periods, mode=0, wave=phase).velocity
+    return i, j, cmod
+
+
+def _phase_velocity_interp_worker(
+    xi: float,
+    yj: float,
+    interp_xyz: "np.ndarray",
+    s_vel: "np.ndarray",
+    p_vel: "np.ndarray",
+    density: "np.ndarray",
+    periods: "np.ndarray",
+    layer_thick: "np.ndarray",
+    algorithm: str,
+    dc: float,
+    phase: str,
+) -> Tuple[float, float, "np.ndarray"]:
+    """Compute phase velocities for one (x, y) profile over all periods."""
+    idx = np.where(
+        np.logical_and(interp_xyz[:, 0] == xi, interp_xyz[:, 1] == yj)
+    )[0]
+    velocity_sij = s_vel[idx]
+    velocity_pij = p_vel[idx]
+    density_ij = density[idx]
+    pd = PhaseDispersion(
+        thickness=layer_thick,
+        velocity_p=velocity_pij,
+        velocity_s=velocity_sij,
+        density=density_ij,
+        algorithm=algorithm,
+        dc=dc,
+    )
+    cmod = pd(periods, mode=0, wave=phase).velocity
+    return xi, yj, cmod
+

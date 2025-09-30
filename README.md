@@ -88,6 +88,18 @@ tt_grid_s = s_velocity.compute_travel_time_grid(seed_ensemble)
 tt_grid = tt_grid_p + tt_grid_s
 ```
 
+### Phase velocity plotting
+
+```python
+from uquake.grid.extended import PhaseVelocity
+
+# assume `phase_velocity` is a PhaseVelocity instance
+fig, ax = phase_velocity.plot(geographic=True)
+ax.set_title("Phase velocity oriented by easting/northing")
+```
+
+Set `geographic=True` to ensure the plot aligns eastings on the x-axis and northings on the y-axis based on the underlying coordinate system (e.g., NED → x = east, y = north).
+
 Documentation
 The full documentation for uquake is available [here](https://microquake-ai.github.com/uquake/docs).
 
@@ -102,5 +114,3 @@ uquake is released under the AGPL License.
 
 Support
 If you have any questions or need support, please file an issue in the GitHub issue tracker.
-
-
