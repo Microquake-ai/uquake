@@ -1760,51 +1760,81 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             period_max: float = 10.0,
             n_periods: int = 10,
             logspace: bool = True,
+            periods_list: Union[np.ndarray, list] = None,
             phase: "Union[Phases, str]" = Phases.RAYLEIGH,
             multithreading: bool = True,  # kept for API; ignored (runs serial)
             z: "Union[Sequence, np.ndarray]" = None,
             disba_param: "Union[DisbaParam]" = DisbaParam(),
             velocity_type: VelocityType = VelocityType.GROUP
-    ) -> "PhaseVelocityEnsemble":
-        """Compute phase-velocity planes and return a PhaseVelocityEnsemble.
+    ):
+        """
+        Compute surface-wave velocities and return a SurfaceVelocityEnsemble.
+
+        This computes either group or phase velocities for Rayleigh or Love waves at
+        requested periods, using DISBA under the hood. Periods can be provided
+        explicitly via ``periods_list`` or generated from a range.
 
         Notes
         -----
-        - Computation is performed serially (no multithreading).
-        - Disba expects km and km/s. If this grid's ``grid_units`` are meters,
-          thickness is converted m→km and velocities m/s→km/s for computation.
-        - Returned PhaseVelocity grids' data units match this ensemble's
+        - Computation is performed **serially** (``multithreading`` is ignored).
+        - DISBA expects inputs in kilometers and km/s. If this ensemble's
+          ``grid_units`` are meters, thickness is converted m→km and velocities m/s→km/s
+          for computation; outputs are converted back to match this ensemble's
           ``grid_type``:
-            * if ``grid_type == GridTypes.VELOCITY_METERS`` → data in m/s
-            * otherwise → data in km/s
-        - Spatial units of the returned grids (``grid_units``) are copied from
-          this ensemble (meters, kilometers, or feet).
+            * if ``grid_type == GridTypes.VELOCITY_METERS`` → data in **m/s**
+            * otherwise → data in **km/s**
+        - Period selection:
+          * Use **either** ``periods_list`` **or** the range arguments
+            (``period_min``, ``period_max``, ``n_periods``, ``logspace``).
+          * When ``periods_list`` is given, range arguments are ignored.
 
         Parameters
         ----------
-        period_min, period_max : float
-            Period range in seconds.
-        n_periods : int
-            Number of periods.
-        logspace : bool
-            If True, log-uniform spacing; else linear.
-        phase : Phases or str
-            Seismic phase ('rayleigh' or 'love').
-        multithreading : bool
-            Ignored. Present for backward compatibility.
-        z : array-like or None
-            Custom vertical coordinates. If None, uses layer centers. When
-            ``grid_units == GridUnits.METER``, values are interpreted in meters;
+        period_min : float, default=0.1
+            Minimum period in seconds (used when ``periods_list`` is None).
+        period_max : float, default=10.0
+            Maximum period in seconds (used when ``periods_list`` is None).
+        n_periods : int, default=10
+            Number of periods to sample between ``period_min`` and ``period_max``
+            (used when ``periods_list`` is None).
+        logspace : bool, default=True
+            If True, generate log-uniformly spaced periods; else linearly spaced
+            (used when ``periods_list`` is None).
+        periods_list : array-like of float or None, default=None
+            Alternative to the range arguments. Explicit list/array of periods (s).
+            Must be a 1D array of shape ``(n,)`` or a column vector ``(n, 1)``.
+            Values must be sorted in **non-decreasing** order (ascending; duplicates
+            allowed). If provided, ``period_min``, ``period_max``, ``n_periods``, and
+            ``logspace`` are ignored.
+        phase : Phases or str, default=Phases.RAYLEIGH
+            Seismic phase: ``"rayleigh"`` or ``"love"``.
+        multithreading : bool, default=True
+            Ignored. Present for backward compatibility (computation runs serially).
+        z : array-like or None, default=None
+            Optional custom vertical coordinates. If None, layer centers are used.
+            When ``grid_units == GridUnits.METER``, values are interpreted in meters;
             otherwise in kilometers.
-        disba_param : DisbaParam
-            Parameters passed to Disba.
-        velocity_type: VelocityType
-            surface wave velocity to compute : group or phase velocity
+        disba_param : DisbaParam, default=DisbaParam()
+            Parameters passed through to DISBA.
+        velocity_type : VelocityType, default=VelocityType.GROUP
+            Which surface-wave velocity to compute: group or phase.
 
         Returns
         -------
         SurfaceVelocityEnsemble
-            An ensemble with one PhaseVelocity grid per requested period.
+            An ensemble with one surface-velocity grid per requested period.
+
+        Raises
+        ------
+        ValueError
+            If ``periods_list`` is provided but not 1D ``(n,)`` or ``(n, 1)``, or if it
+            is not sorted in ascending order.
+        ValueError
+            If ``n_periods < 1`` or if ``period_max <= period_min`` when generating
+            periods from a range.
+        TypeError
+            If argument types are inconsistent with the expected types.
+
         """
         if not isinstance(disba_param, DisbaParam):
             raise TypeError("disba_param must be type DisbaParam")
@@ -1814,11 +1844,18 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
         if isinstance(phase, Phases):
             phase = phase.value.lower()
 
-        if logspace:
-            periods = np.logspace(np.log10(period_min), np.log10(period_max),
-                                  n_periods)
+        if periods_list is None:
+
+            if logspace:
+                periods = np.logspace(np.log10(period_min), np.log10(period_max),
+                                      n_periods)
+            else:
+                periods = np.linspace(period_min, period_max, n_periods)
         else:
-            periods = np.linspace(period_min, period_max, n_periods)
+            periods = np.asarray(periods_list).ravel()
+            if not np.all(periods[:-1] <= periods[1:]):
+                raise ValueError("periods must be sorted in ascending order")
+            n_periods = len(periods)
 
         algorithm = disba_param.algorithm
         dc = disba_param.dc
@@ -2915,7 +2952,7 @@ class SurfaceWaveVelocity(Grid):
                  label: str = __default_grid_label__,
                  float_type: FloatTypes = FloatTypes.FLOAT,
                  velocity_type: VelocityType = VelocityType.GROUP):
-        """Initialise a phase-velocity grid for a single period.
+        """Initialise a phase/group velocity grid for a single period.
 
         :param network_code: Network code associated with the phase-velocity model.
         :type network_code: str
@@ -3038,7 +3075,7 @@ class SurfaceWaveVelocity(Grid):
                                              velocity_type:
                                              VelocityType = VelocityType.GROUP,
                                              **kwargs):
-        """Build a phase-velocity grid from a seismic property ensemble.
+        """Build a phase/group-velocity grid from a seismic property ensemble.
 
         :param seismic_param: Collection of seismic property grids used to derive
                               phase velocities.
@@ -3071,9 +3108,7 @@ class SurfaceWaveVelocity(Grid):
             z = None
 
         surface_velocity = seismic_param.to_surface_velocities(
-            period_min=period,
-            period_max=period,
-            n_periods=1,
+            periods_list=[period],
             logspace=False,
             phase=phase,
             z=z,
@@ -3184,7 +3219,7 @@ class SurfaceWaveVelocity(Grid):
             geographic: bool = False,
             **imshow_kwargs,
     ):
-        """Plot the phase-velocity grid with optional receiver overlays.
+        """Plot the phase/group-velocity grid with optional receiver overlays.
 
         :param receivers: Receiver positions to superimpose on the map. Provide either
                           a ``(N, 2)`` array of ``(x, y)`` coordinates or a
@@ -3332,8 +3367,8 @@ class SurfaceWaveVelocity(Grid):
                         return_dense: bool = False,
                         batch_size: Optional[int] = None):
 
-
-        """Calculate Frechet derivatives between sources and receivers.
+        """
+        Calculate Frechet derivatives between sources and receivers.
 
         :param sources: Source locations provided either as a :class:`SeedEnsemble`
                         or as an array of ``(x, y)`` coordinates.
@@ -4590,17 +4625,23 @@ class SurfaceVelocityEnsemble(list):
             property grid ensemble and computation settings.
 
         """
-        cls_obj = cls()
-        for p in periods:
-            if type_velocity == VelocityType.PHASE:
-                cl_obj = PhaseVelocity.from_seismic_property_grid_ensemble(
-                        seismic_properties, p, phase, z_axis_log, npts_log_scale,
-                        disba_param)
-            elif type_velocity == VelocityType.GROUP:
-                cl_obj = GroupVelocity.from_seismic_property_grid_ensemble(
-                        seismic_properties, p, phase, z_axis_log, npts_log_scale,
-                        disba_param)
-            cls_obj.append(cl_obj)
+        if z_axis_log:
+            z_max = (seismic_properties.spacing[2] * seismic_properties.shape[2] +
+                     seismic_properties.origin[2])
+            z = (np.logspace(0, np.log10(10 + 1), npts_log_scale) - 10 ** 0 +
+                 seismic_properties.origin[2]) * z_max / 10
+        else:
+            z = None
+
+        cls_obj = seismic_properties.to_surface_velocities(
+            periods_list=periods,
+            phase=phase,
+            multithreading=True,  # kept for API; ignored (runs serial)
+            z=z,
+            disba_param=disba_param,
+            velocity_type=type_velocity,
+        )
+
         return cls_obj
 
     @property
