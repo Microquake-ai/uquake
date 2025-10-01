@@ -4,7 +4,7 @@ import numpy as np
 from uquake.grid.extended import (
     SurfaceWaveVelocity, GridUnits, GridTypes,
     Phases, CoordinateSystem, DisbaParam, FloatTypes, VelocityType, VelocityGrid3D,
-    DensityGrid3D, SeismicPropertyGridEnsemble, PhaseVelocity, GroupVelocity,
+    DensityGrid3D, SeismicPropertyGridEnsemble,
     SurfaceVelocityEnsemble, PhaseVelocityEnsemble, GroupVelocityEnsemble
 )
 
@@ -57,7 +57,8 @@ class TestSurfaceVelocityEnsembleFromSeismicPropertyGridEnsemble(unittest.TestCa
         )
 
     def test_build_group_velocity_ensemble_meters_matches_direct_call_and_scaling(self):
-        """Meters grid => each SurfaceWaveVelocity equals direct result × 1e3; periods preserved."""
+        """Meters grid => each SurfaceWaveVelocity equals direct result × 1e3;
+         periods preserved."""
         disba_param = DisbaParam(dc=0.001, dp=0.001)
 
         ens = self._from_ensemble(
