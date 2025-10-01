@@ -1974,7 +1974,11 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
                         planes_kms[k][ii, jj] = cmod[k]
 
         # Convert planes back to the desired data unit and wrap as PhaseVelocity
-        ensemble = PhaseVelocityEnsemble()
+        if velocity_type == VelocityType.PHASE:
+            ensemble = PhaseVelocityEnsemble()
+        if velocity_type == VelocityType.GROUP:
+            ensemble = GroupVelocityEnsemble()
+
         for k, per in enumerate(periods):
             if self.grid_type == GridTypes.VELOCITY_METERS:
                 data = planes_kms[k] * 1.0e3  # km/s → m/s
@@ -1982,25 +1986,44 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             else:
                 data = planes_kms[k]
                 out_grid_type = self.grid_type
-            pv = SurfaceWaveVelocity(
-                network_code=self.network_code,
-                data_or_dims=data,
-                period=float(per),
-                phase=Phases(phase.upper()),
-                grid_type=out_grid_type,
-                grid_units=self.grid_units,
-                spacing=self.spacing[:-1],
-                origin=self.origin[:-1],
-                resource_id=ResourceIdentifier(),
-                value=0.0,
-                coordinate_system=self.coordinate_system,
-                label=self.label,
-                float_type=self.float_type if hasattr(self, "float_type")
-                else FloatTypes.FLOAT,
-                velocity_type=velocity_type,
+            if velocity_type == VelocityType.PHASE:
+                sv = PhaseVelocity(
+                    network_code=self.network_code,
+                    data_or_dims=data,
+                    period=float(per),
+                    phase=Phases(phase.upper()),
+                    grid_type=out_grid_type,
+                    grid_units=self.grid_units,
+                    spacing=self.spacing[:-1],
+                    origin=self.origin[:-1],
+                    resource_id=ResourceIdentifier(),
+                    value=0.0,
+                    coordinate_system=self.coordinate_system,
+                    label=self.label,
+                    float_type=self.float_type if hasattr(self, "float_type")
+                    else FloatTypes.FLOAT,
 
-            )
-            ensemble.append(pv)
+                )
+            else:
+                sv = GroupVelocity(
+                    network_code=self.network_code,
+                    data_or_dims=data,
+                    period=float(per),
+                    phase=Phases(phase.upper()),
+                    grid_type=out_grid_type,
+                    grid_units=self.grid_units,
+                    spacing=self.spacing[:-1],
+                    origin=self.origin[:-1],
+                    resource_id=ResourceIdentifier(),
+                    value=0.0,
+                    coordinate_system=self.coordinate_system,
+                    label=self.label,
+                    float_type=self.float_type if hasattr(self, "float_type")
+                    else FloatTypes.FLOAT,
+
+                )
+
+            ensemble.append(sv)
 
         return ensemble
 
