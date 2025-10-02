@@ -3339,7 +3339,7 @@ class SurfaceWaveVelocity(Grid):
             else:
                 ax.set_xlabel("X (m)")
                 ax.set_ylabel("Y (m)")
-            cb.set_label(self.velocity_type + "Vel " + self.phase.value + " (m/s)",
+            cb.set_label(self.velocity_type.value + "Vel " + self.phase.value + " (m/s)",
                          rotation=270, labelpad=10)
 
         if self.grid_units == GridUnits.KILOMETER:
@@ -3349,7 +3349,7 @@ class SurfaceWaveVelocity(Grid):
             else:
                 ax.set_xlabel("X (km)")
                 ax.set_ylabel("Y (km)")
-            cb.set_label(self.velocity_type + "Vel " + self.phase.value + " (km/s)",
+            cb.set_label(self.velocity_type.value + "Vel " + self.phase.value + " (km/s)",
                          rotation=270, labelpad=10)
 
         ax.set_title("Period = {0:1.2f} s".format(self.period), weight = "bold")
