@@ -1129,6 +1129,124 @@ class VelocityGrid3D(TypedGrid):
         smoothed_data = data * (velocity_perturbation * base_velocity) + base_velocity
         self.data = smoothed_data
 
+    def checkerboard_var_size(self, anomaly_size: Union[Tuple, List],
+                              base_velocity: float, velocity_perturbation: float,
+                              n_sigma: float):
+        """
+        Checkerboard model without kernel interference:
+        - For depth layer L, block size in (x, y, z) = base_size * (2**L).
+        - Each voxel belongs to exactly one block (no overlap),
+            so no destructive/constructive
+          interference between kernels.
+        - Within each block we apply a Gaussian profile centered in the block (x,y,z),
+          then normalize per-layer so max |value| = 1 (hence peaks are ±1).
+        - First anomaly center near surface at z ≈ anomaly_size[2]/2 (top layer).
+
+        Parameters
+        ----------
+        anomaly_size : (float, float, float)
+            Base physical size of a checker block (x, y, z) for the TOP layer.
+        base_velocity : float
+        velocity_perturbation : float   # e.g., 0.1 for ±10%
+        n_sigma : float                  # sigma = block_size / n_sigma (per axis)
+        """
+        import numpy as np
+
+        nx, ny, nz = self.data.shape
+        dx, dy, dz = map(float, self.spacing)
+
+        # Base steps (cells) for the top layer
+        base_steps = (
+                    np.array(anomaly_size, dtype=float) / np.array([dx, dy, dz])).astype(
+            int)
+        if np.any(base_steps < 1):
+            raise ValueError("Base anomaly size too small relative to spacing.")
+        sx0, sy0, sz0 = map(int, base_steps)
+
+        # Build layer thicknesses in z (cells): doubles each layer
+        layer_thicknesses = []
+        remaining = nz
+        L = 0
+        while remaining > 0:
+            tL = sz0 * (2 ** L)
+            tL = max(1, int(tL))
+            layer_thicknesses.append(tL)
+            remaining -= tL
+            L += 1
+        n_layers = len(layer_thicknesses)
+
+        # Precompute index grids for x,y once (2D), and reuse for each z-slab/layer
+        ix, iy = np.indices((nx, ny))
+        field = np.zeros((nx, ny, nz), dtype=float)
+
+        z_start = 0
+        for L in range(n_layers):
+            # Block size (cells) for this layer: doubles in all directions
+            sx = sx0 * (2 ** L)
+            sy = sy0 * (2 ** L)
+            sz = sz0 * (2 ** L)
+
+            # z slab for this layer
+            z0 = z_start
+            z1 = min(nz, z_start + layer_thicknesses[L])
+            if z0 >= z1:
+                z_start += layer_thicknesses[L]
+                continue
+
+            # Choose offsets so first block centers are at ~ half a block from the boundary
+            # (matches “first center near surface at anomaly_size[2]/2” for z,
+            # and gives symmetry in x,y)
+            off_x = sx // 2  # integer half-block
+            off_y = sy // 2
+            # z center of the slab (in index)
+            zc_idx = z0 + max(1, sz) // 2
+
+            # Block indices for each x,y cell (same across the whole slab)
+            # Use floor division relative to offsets
+            bx = (ix - off_x) // sx
+            by = (iy - off_y) // sy
+
+            # Checkerboard sign per (x,y) tile, flip by layer too
+            sign_xy = ((bx + by + L) % 2 == 0).astype(float) * 2.0 - 1.0  # ∈ {+1, -1}
+
+            # Local centers (in *index* coordinates) for each (x,y) cell’s block
+            cx = off_x + bx * sx + sx / 2.0  # may be fractional if sx is even
+            cy = off_y + by * sy + sy / 2.0
+
+            # Distances from local block center, in *physical units*
+            dx_phys = (ix - cx) * dx
+            dy_phys = (iy - cy) * dy
+
+            # Gaussian sigmas in physical units
+            sig_x = max((sx * dx) / float(n_sigma), 1e-12)
+            sig_y = max((sy * dy) / float(n_sigma), 1e-12)
+            sig_z = max((sz * dz) / float(n_sigma), 1e-12)
+
+            # Lateral Gaussian (2D), no overlap because each point belongs to one block
+            Gxy = np.exp(
+                -((dx_phys ** 2) / (sig_x ** 2) + (dy_phys ** 2) / (sig_y ** 2)))
+
+            # For z within the slab, include vertical Gaussian around zc_idx (same center for slab)
+            z_idx = np.arange(z0, z1)
+            dz_phys = (z_idx - zc_idx) * dz
+            Gz = np.exp(-(dz_phys ** 2) / (sig_z ** 2))  # shape (z1-z0,)
+
+            # Combine to 3D via outer product: (nx,ny,1) * (1,1,nz_slab)
+            layer_vals = (sign_xy * Gxy)[:, :, None] * Gz[None, None, :]
+
+            # --- Per-layer peak normalization: make max|layer| == 1
+            peak = np.max(np.abs(layer_vals))
+            if peak and np.isfinite(peak):
+                layer_vals /= peak
+
+            # Accumulate into field
+            field[:, :, z0:z1] = layer_vals
+
+            z_start += layer_thicknesses[L]
+
+        # Map to velocity
+        self.data = field * (velocity_perturbation * base_velocity) + base_velocity
+
     @staticmethod
     def _rho_gardner_gcc(vp_km_s: float):
         """Compute density in g/cc from Vp (km/s) using Gardner (1974).
