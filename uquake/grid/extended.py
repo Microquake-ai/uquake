@@ -3266,8 +3266,11 @@ class SurfaceWaveVelocity(Grid):
         grid_dims = np.ceil((padded_corner - padded_origin) / np.array(spacing)).astype(
             int)
         # Create and return the grid object
+        # Create and return the grid object
         return cls(network_code, grid_dims, spacing=spacing, origin=padded_origin,
-                   period=period, phase=phase, velocity_type=velocity_type, **kwargs)
+                   period=period, phase=phase,
+                   coordinate_system=inventory[0][0].coordinates.coordinate_system,
+                   **kwargs)
 
     @classmethod
     def _from_seismic_property_grid_ensemble(cls,
