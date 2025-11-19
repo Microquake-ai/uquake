@@ -1004,8 +1004,10 @@ class VelocityGrid3D(TypedGrid):
         Parameters
         ----------
         anomaly_size : (float, float, float)
-            Base physical size (same units as self.spacing) of a checker block in (x, y, z).
-            Only x and y will double with each successive layer; z is the layer thickness.
+            Base physical size (same units as self.spacing) of a checker block in
+            (x, y, z).
+            Only x and y will double with each successive layer; z is the
+            layer thickness.
         base_velocity : float
             Background/base velocity.
         velocity_perturbation : float
