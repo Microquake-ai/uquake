@@ -3323,8 +3323,6 @@ class SurfaceWaveVelocity(Grid):
             velocity_type=velocity_type
     )
         surface_velocity = surface_velocity[0]
-        if seismic_param.grid_type == GridTypes.VELOCITY_METERS:
-            surface_velocity.data *= 1.e3
 
         return cls(
             network_code=seismic_param.network_code,
