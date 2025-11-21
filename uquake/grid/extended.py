@@ -4873,42 +4873,70 @@ class SurfaceVelocityEnsemble(list):
     def transform_from_grid(self, values):
         return self.transform_from(values)
 
-    def plot_dispersion_curve(self, x: Union[float, int], y: Union[float, int],
-                              grid_space: bool = False):
+    def plot_dispersion_curve(
+            self,
+            x: Union[float, int],
+            y: Union[float, int],
+            grid_space: bool = False,
+            ax: Optional[plt.Axes] = None,
+            **kwargs
+    ) -> Tuple[plt.Figure, plt.Axes]:
         """
-        plot the dispersion curve at a point x, y of the grid. If grid_space is True,
-        x, and y represent grid coordinates. If grid_space is False (default), x and
-        y represent the coordinates in spatial units (meters, km etc.).
+        Plot the dispersion curve at a point (x, y) of the grid.
 
-        :param x: x coordinates expressed in grid or model space
-        :type x: float or int
-        :param y: y coordinates expressed in grid or model space
-        :type y: float or int
-        :param grid_space: whether the coordinates are expressed in grid or model space
-        :type grid_space: bool
-        default value (False, model space)
+        If grid_space is True, x and y represent grid coordinates.
+        If grid_space is False (default), x and y represent spatial coordinates (e.g., meters or km).
+
+        :param x: x coordinate in grid or model space
+        :param y: y coordinate in grid or model space
+        :param grid_space: whether coordinates are expressed in grid or model space
+        :param ax: optional matplotlib axis to plot on; if None, a new figure and axis are created
+        :param kwargs: additional keyword arguments passed to `ax.semilogx`
+                       (e.g., color='r', label='Point A', linestyle='--', marker='^')
+        :return: (fig, ax)
         """
         cmod = []
         if not grid_space:
             tmp = self[0].transform_to((x, y))
-            i = int(tmp[0])
-            j = int(tmp[1])
+            i, j = int(tmp[0]), int(tmp[1])
         else:
             i, j = int(x), int(y)
+
         if not self[0].in_grid([i, j], grid_space=True):
-            raise IndexError(f'The point {i, j} is not inside the grid.')
+            raise IndexError(f"The point {(i, j)} is not inside the grid.")
+
         for k in self:
             cmod.append(k.data[i, j])
+
         periods = self.periods
-        plt.semilogx(periods, cmod, "-ob")
-        plt.xlabel("Period (s)")
-        if self[0].grid_types == GridTypes.VELOCITY_METERS:
-            plt.ylabel(f"{self.velocity_type} velocity (m/s)")
-        if self[0].grid_types == GridTypes.VELOCITY_KILOMETERS:
-            plt.ylabel(f"{self.velocity_type} velocity (km/s)")
-        plt.grid(which='major', linewidth=0.8)
-        plt.grid(which='minor', linestyle=':', linewidth=0.5)
-        plt.show()
+
+        # Create new figure/axes if none provided
+        created_new_fig = False
+        if ax is None:
+            fig, ax = plt.subplots()
+            created_new_fig = True
+        else:
+            fig = ax.get_figure()
+
+        # Default style if user doesn't override via kwargs
+        plot_kwargs = dict(marker='o', color='b', linestyle='-', label=f'({x}, {y})')
+        plot_kwargs.update(kwargs)
+
+        ax.semilogx(periods, cmod, **plot_kwargs)
+        ax.set_xlabel("Period (s)")
+
+        if self[0].grid_type == GridTypes.VELOCITY_METERS:
+            ax.set_ylabel(f"{self.velocity_type} velocity (m/s)")
+        elif self[0].grid_type == GridTypes.VELOCITY_KILOMETERS:
+            ax.set_ylabel(f"{self.velocity_type} velocity (km/s)")
+
+        ax.grid(which='major', linewidth=0.8)
+        ax.grid(which='minor', linestyle=':', linewidth=0.5)
+
+        if created_new_fig:
+            fig.tight_layout()
+
+        return fig, ax
 
 
 class PhaseVelocityEnsemble(SurfaceVelocityEnsemble):
