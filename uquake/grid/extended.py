@@ -60,6 +60,7 @@ from ttcrpy import rgrid
 from scipy.signal import fftconvolve
 from disba import PhaseDispersion, PhaseSensitivity, GroupDispersion, GroupSensitivity
 from evtk import hl
+from scipy.signal import fftconvolve
 import time
 import warnings
 import pickle
@@ -992,79 +993,259 @@ class VelocityGrid3D(TypedGrid):
                          float_type=float_type,
                          grid_id=grid_id, label=label)
 
-    def fill_checkerboard(self, anomaly_size, base_velocity, velocity_perturbation, n_sigma):
-        data = np.zeros(shape=self.data.shape)
+    def fill_checkerboard(self, anomaly_size, base_velocity, velocity_perturbation,
+                          n_sigma):
+        """
+        Fill self.data (3D) with a checkerboard velocity model whose lateral anomaly
+        size (x, y) doubles with depth layer, while vertical layer thickness (z)
+        remains constant. The first anomaly center near the surface is positioned
+        at depth anomaly_size[2] / 2.
 
-        # Convert anomaly size to grid index units and calculate the starting
-        # and ending indices.
-        step_anomaly = (np.array(anomaly_size) / np.array(self.spacing)).astype(int)
+        Parameters
+        ----------
+        anomaly_size : (float, float, float)
+            Base physical size (same units as self.spacing) of a checker block in
+            (x, y, z).
+            Only x and y will double with each successive layer; z is the
+            layer thickness.
+        base_velocity : float
+            Background/base velocity.
+        velocity_perturbation : float
+            Relative perturbation amplitude (e.g., 0.1 for ±10%).
+        n_sigma : float
+            Controls Gaussian kernel width per layer: sigma = block_size / n_sigma.
+        """
+        # Shapes & spacing
+        nx, ny, nz = self.data.shape
+        spacing = np.array(self.spacing, dtype=float)
 
-        if step_anomaly[0] >= self.shape[0]:
-            raise Exception("Dimension mismatch: anomaly exceeds the first axis "
-                            "of the grid!\n")
-        if step_anomaly[1] >= self.shape[1]:
-            raise Exception("Dimension mismatch: anomaly exceeds the second axis "
-                            "of the grid!\n")
-        if step_anomaly[2] >= self.shape[2]:
-            raise Exception("Dimension mismatch: anomaly exceeds the third axis "
-                            "of the grid!\n")
+        # Convert base physical anomaly size to integer cell steps
+        base_steps = (np.array(anomaly_size, dtype=float) / spacing).astype(int)
+        if np.any(base_steps < 1):
+            raise ValueError("Base anomaly size too small relative to spacing.")
 
-        # Starting indices
-        start_x = (self.data.shape[0] % step_anomaly[0] + step_anomaly[0]) // 2 - 1
-        start_y = (self.data.shape[1] % step_anomaly[1] + step_anomaly[1]) // 2 - 1
-        start_z = (self.data.shape[2] % step_anomaly[2] + step_anomaly[2]) // 2 - 1
+        # Layer thickness (in cells) stays constant
+        step_z = int(base_steps[2])
+        if step_z < 1:
+            raise ValueError("Layer thickness (z) must be >= 1 cell.")
 
-        # Generate the range of indices for each dimension.
-        x = np.arange(start_x, self.data.shape[0], step_anomaly[0])
-        y = np.arange(start_y, self.data.shape[1], step_anomaly[1])
-        z = np.arange(start_z, self.data.shape[2], step_anomaly[2])
+        # Number of depth layers that fit in the domain
+        n_layers = int(np.ceil(nz / step_z))
 
-        # Create a meshgrid to represent all points in the 3D grid space.
-        x_grid, y_grid, z_grid = np.meshgrid(
-            np.arange(len(x)),
-            np.arange(len(y)),
-            np.arange(len(z)),
-            indexing='ij'
-        )
-        indices = np.column_stack(
-            (x_grid.reshape((-1,)), y_grid.reshape((-1,)), z_grid.reshape((-1,))))
+        # The deepest layer has the largest lateral steps (doubling each layer)
+        max_step_x = base_steps[0] * (2 ** (n_layers - 1))
+        max_step_y = base_steps[1] * (2 ** (n_layers - 1))
 
-        # Set the perturbation values based on the checkerboard pattern rule.
-        # Calculate the sum of the indices
-        summ = indices[:, 0] + indices[:, 1] + indices[:, 2]
-        ind = np.where(summ % 2 == 0)[0]  # indices with even sum
-        data[x[indices[ind, 0]], y[indices[ind, 1]], z[indices[ind, 2]]] = 1
-        ind = np.where(summ % 2 == 1)[0]  # indices with odd sum
-        data[x[indices[ind, 0]], y[indices[ind, 1]], z[indices[ind, 2]]] = -1
+        # Pad: one block on each side using the *maximum* lateral size and one layer in z
+        pad = np.array([max_step_x, max_step_y, step_z], dtype=int)
+        ext_shape = (nx + 2 * pad[0], ny + 2 * pad[1], nz + 2 * pad[2])
 
-        # Create 3D Gaussian kernel
-        kernel_x, kernel_y, kernel_z = np.meshgrid(
-            np.arange(step_anomaly[0]) * self.spacing[0],
-            np.arange(step_anomaly[1]) * self.spacing[1],
-            np.arange(step_anomaly[2]) * self.spacing[2]
-        )
-        mu = np.array([
-            step_anomaly[0] * self.spacing[0] / 2.,
-            step_anomaly[1] * self.spacing[1] / 2.,
-            step_anomaly[2] * self.spacing[2] / 2.
-        ])
-        sigma = np.array([
-            step_anomaly[0] * self.spacing[0] / n_sigma,
-            step_anomaly[1] * self.spacing[1] / n_sigma,
-            step_anomaly[2] * self.spacing[2] / n_sigma
-        ])
-        kernel = np.exp(-(
-                (kernel_x - mu[0]) ** 2 / sigma[0] ** 2 + (kernel_y - mu[1]) ** 2 /
-                sigma[1] ** 2 + (kernel_z - mu[2]) ** 2 / sigma[2] ** 2))
-        kernel = kernel / np.sum(np.abs(kernel))  # normalization
+        accum = np.zeros(ext_shape, dtype=float)
 
-        # Convolution in the frequency domain
-        data = fftconvolve(data, kernel, mode="same")
-        data /= np.max(np.abs(data))
+        # Starting indices for x,y on original-domain boundaries
+        start_x_global = pad[0]
+        start_y_global = pad[1]
 
-        # Rescale the data
-        smoothed_data = data * velocity_perturbation * base_velocity + base_velocity
+        # For z, shift by half a layer block so first centers at anomaly_size[2]/2
+        half_block_z = int(round(step_z / 2))
+        # Center index for the first layer (L = 0)
+        first_layer_center_z = pad[2] + half_block_z
+
+        # Build per-layer seed + convolution, then add to accum
+        for L in range(n_layers):
+            # Lateral steps double with depth
+            step_x_L = base_steps[0] * (2 ** L)
+            step_y_L = base_steps[1] * (2 ** L)
+
+            # Defensive checks: allow large steps but ensure kernels will fit
+            if step_x_L < 1 or step_y_L < 1:
+                continue  # impossible given above checks, but be safe
+
+            # Seed grid for this layer
+            work_L = np.zeros(ext_shape, dtype=float)
+
+            # z-center for this layer (single plane of seeds)
+            z_center_L = first_layer_center_z + L * step_z
+            if z_center_L < 0 or z_center_L >= ext_shape[2]:
+                continue  # layer center outside extended domain
+
+            # x,y centers for this layer
+            x_centers = np.arange(start_x_global, ext_shape[0], step_x_L)
+            y_centers = np.arange(start_y_global, ext_shape[1], step_y_L)
+
+            if len(x_centers) == 0 or len(y_centers) == 0:
+                continue  # nothing to seed
+
+            # Checkerboard signs: alternate in x,y; flip every layer using +L
+            xg, yg = np.meshgrid(np.arange(len(x_centers)),
+                                 np.arange(len(y_centers)),
+                                 indexing='ij')
+            s = (xg + yg + L) % 2  # include L so adjacent layers alternate
+            sign = np.where(s == 0, 1.0, -1.0)
+
+            # Place impulses at centers with +/- signs
+            for i, xi in enumerate(x_centers):
+                for j, yj in enumerate(y_centers):
+                    work_L[xi, yj, z_center_L] = sign[i, j]
+
+            # Build a Gaussian kernel sized to this layer's block (step_x_L, step_y_L, step_z)
+            # Kernel coordinates in physical units for proper sigma scaling
+            kx = np.arange(step_x_L) * spacing[0]
+            ky = np.arange(step_y_L) * spacing[1]
+            kz = np.arange(step_z) * spacing[2]
+            KX, KY, KZ = np.meshgrid(kx, ky, kz, indexing='ij')
+
+            mu = np.array([step_x_L * spacing[0] / 2.0,
+                           step_y_L * spacing[1] / 2.0,
+                           step_z * spacing[2] / 2.0], dtype=float)
+            sigma = np.array([step_x_L * spacing[0] / float(n_sigma),
+                              step_y_L * spacing[1] / float(n_sigma),
+                              step_z * spacing[2] / float(n_sigma)], dtype=float)
+
+            # Avoid sigma=0
+            sigma[sigma == 0] = 1e-12
+
+            kernel_L = np.exp(-(((KX - mu[0]) ** 2) / (sigma[0] ** 2) +
+                                ((KY - mu[1]) ** 2) / (sigma[1] ** 2) +
+                                ((KZ - mu[2]) ** 2) / (sigma[2] ** 2)))
+            kernel_L /= np.sum(np.abs(kernel_L))
+
+            # Convolve this layer and add to accumulator
+            conv_L = fftconvolve(work_L, kernel_L, mode="same")
+            accum += conv_L
+
+        # Normalize and crop back to original domain
+        m = np.max(np.abs(accum))
+        if m > 0:
+            accum /= m
+
+        data = accum[
+               pad[0]: pad[0] + nx,
+               pad[1]: pad[1] + ny,
+               pad[2]: pad[2] + nz
+               ]
+
+        # Rescale to velocity
+        smoothed_data = data * (velocity_perturbation * base_velocity) + base_velocity
         self.data = smoothed_data
+
+    def checkerboard_var_size(self, anomaly_size: Union[Tuple, List],
+                              base_velocity: float, velocity_perturbation: float,
+                              n_sigma: float):
+        """
+        Checkerboard model without kernel interference:
+        - For depth layer L, block size in (x, y, z) = base_size * (2**L).
+        - Each voxel belongs to exactly one block (no overlap),
+            so no destructive/constructive
+          interference between kernels.
+        - Within each block we apply a Gaussian profile centered in the block (x,y,z),
+          then normalize per-layer so max |value| = 1 (hence peaks are ±1).
+        - First anomaly center near surface at z ≈ anomaly_size[2]/2 (top layer).
+
+        Parameters
+        ----------
+        anomaly_size : (float, float, float)
+            Base physical size of a checker block (x, y, z) for the TOP layer.
+        base_velocity : float
+        velocity_perturbation : float   # e.g., 0.1 for ±10%
+        n_sigma : float                  # sigma = block_size / n_sigma (per axis)
+        """
+        import numpy as np
+
+        nx, ny, nz = self.data.shape
+        dx, dy, dz = map(float, self.spacing)
+
+        # Base steps (cells) for the top layer
+        base_steps = (
+                    np.array(anomaly_size, dtype=float) / np.array([dx, dy, dz])).astype(
+            int)
+        if np.any(base_steps < 1):
+            raise ValueError("Base anomaly size too small relative to spacing.")
+        sx0, sy0, sz0 = map(int, base_steps)
+
+        # Build layer thicknesses in z (cells): doubles each layer
+        layer_thicknesses = []
+        remaining = nz
+        L = 0
+        while remaining > 0:
+            tL = sz0 * (2 ** L)
+            tL = max(1, int(tL))
+            layer_thicknesses.append(tL)
+            remaining -= tL
+            L += 1
+        n_layers = len(layer_thicknesses)
+
+        # Precompute index grids for x,y once (2D), and reuse for each z-slab/layer
+        ix, iy = np.indices((nx, ny))
+        field = np.zeros((nx, ny, nz), dtype=float)
+
+        z_start = 0
+        for L in range(n_layers):
+            # Block size (cells) for this layer: doubles in all directions
+            sx = sx0 * (2 ** L)
+            sy = sy0 * (2 ** L)
+            sz = sz0 * (2 ** L)
+
+            # z slab for this layer
+            z0 = z_start
+            z1 = min(nz, z_start + layer_thicknesses[L])
+            if z0 >= z1:
+                z_start += layer_thicknesses[L]
+                continue
+
+            # Choose offsets so first block centers are at ~ half a block from the boundary
+            # (matches “first center near surface at anomaly_size[2]/2” for z,
+            # and gives symmetry in x,y)
+            off_x = sx // 2  # integer half-block
+            off_y = sy // 2
+            # z center of the slab (in index)
+            zc_idx = z0 + max(1, sz) // 2
+
+            # Block indices for each x,y cell (same across the whole slab)
+            # Use floor division relative to offsets
+            bx = (ix - off_x) // sx
+            by = (iy - off_y) // sy
+
+            # Checkerboard sign per (x,y) tile, flip by layer too
+            sign_xy = ((bx + by + L) % 2 == 0).astype(float) * 2.0 - 1.0  # ∈ {+1, -1}
+
+            # Local centers (in *index* coordinates) for each (x,y) cell’s block
+            cx = off_x + bx * sx + sx / 2.0  # may be fractional if sx is even
+            cy = off_y + by * sy + sy / 2.0
+
+            # Distances from local block center, in *physical units*
+            dx_phys = (ix - cx) * dx
+            dy_phys = (iy - cy) * dy
+
+            # Gaussian sigmas in physical units
+            sig_x = max((sx * dx) / float(n_sigma), 1e-12)
+            sig_y = max((sy * dy) / float(n_sigma), 1e-12)
+            sig_z = max((sz * dz) / float(n_sigma), 1e-12)
+
+            # Lateral Gaussian (2D), no overlap because each point belongs to one block
+            Gxy = np.exp(
+                -((dx_phys ** 2) / (sig_x ** 2) + (dy_phys ** 2) / (sig_y ** 2)))
+
+            # For z within the slab, include vertical Gaussian around zc_idx (same center for slab)
+            z_idx = np.arange(z0, z1)
+            dz_phys = (z_idx - zc_idx) * dz
+            Gz = np.exp(-(dz_phys ** 2) / (sig_z ** 2))  # shape (z1-z0,)
+
+            # Combine to 3D via outer product: (nx,ny,1) * (1,1,nz_slab)
+            layer_vals = (sign_xy * Gxy)[:, :, None] * Gz[None, None, :]
+
+            # --- Per-layer peak normalization: make max|layer| == 1
+            peak = np.max(np.abs(layer_vals))
+            if peak and np.isfinite(peak):
+                layer_vals /= peak
+
+            # Accumulate into field
+            field[:, :, z0:z1] = layer_vals
+
+            z_start += layer_thicknesses[L]
+
+        # Map to velocity
+        self.data = field * (velocity_perturbation * base_velocity) + base_velocity
 
     @staticmethod
     def _rho_gardner_gcc(vp_km_s: float):
@@ -3085,8 +3266,11 @@ class SurfaceWaveVelocity(Grid):
         grid_dims = np.ceil((padded_corner - padded_origin) / np.array(spacing)).astype(
             int)
         # Create and return the grid object
+        # Create and return the grid object
         return cls(network_code, grid_dims, spacing=spacing, origin=padded_origin,
-                   period=period, phase=phase, velocity_type=velocity_type, **kwargs)
+                   period=period, phase=phase,
+                   coordinate_system=inventory[0][0].coordinates.coordinate_system,
+                   **kwargs)
 
     @classmethod
     def _from_seismic_property_grid_ensemble(cls,
@@ -3139,8 +3323,6 @@ class SurfaceWaveVelocity(Grid):
             velocity_type=velocity_type
     )
         surface_velocity = surface_velocity[0]
-        if seismic_param.grid_type == GridTypes.VELOCITY_METERS:
-            surface_velocity.data *= 1.e3
 
         return cls(
             network_code=seismic_param.network_code,
@@ -4691,42 +4873,70 @@ class SurfaceVelocityEnsemble(list):
     def transform_from_grid(self, values):
         return self.transform_from(values)
 
-    def plot_dispersion_curve(self, x: Union[float, int], y: Union[float, int],
-                              grid_space: bool = False):
+    def plot_dispersion_curve(
+            self,
+            x: Union[float, int],
+            y: Union[float, int],
+            grid_space: bool = False,
+            ax: Optional[plt.Axes] = None,
+            **kwargs
+    ) -> Tuple[plt.Figure, plt.Axes]:
         """
-        plot the dispersion curve at a point x, y of the grid. If grid_space is True,
-        x, and y represent grid coordinates. If grid_space is False (default), x and
-        y represent the coordinates in spatial units (meters, km etc.).
+        Plot the dispersion curve at a point (x, y) of the grid.
 
-        :param x: x coordinates expressed in grid or model space
-        :type x: float or int
-        :param y: y coordinates expressed in grid or model space
-        :type y: float or int
-        :param grid_space: whether the coordinates are expressed in grid or model space
-        :type grid_space: bool
-        default value (False, model space)
+        If grid_space is True, x and y represent grid coordinates.
+        If grid_space is False (default), x and y represent spatial coordinates (e.g., meters or km).
+
+        :param x: x coordinate in grid or model space
+        :param y: y coordinate in grid or model space
+        :param grid_space: whether coordinates are expressed in grid or model space
+        :param ax: optional matplotlib axis to plot on; if None, a new figure and axis are created
+        :param kwargs: additional keyword arguments passed to `ax.semilogx`
+                       (e.g., color='r', label='Point A', linestyle='--', marker='^')
+        :return: (fig, ax)
         """
         cmod = []
         if not grid_space:
             tmp = self[0].transform_to((x, y))
-            i = int(tmp[0])
-            j = int(tmp[1])
+            i, j = int(tmp[0]), int(tmp[1])
         else:
             i, j = int(x), int(y)
+
         if not self[0].in_grid([i, j], grid_space=True):
-            raise IndexError(f'The point {i, j} is not inside the grid.')
+            raise IndexError(f"The point {(i, j)} is not inside the grid.")
+
         for k in self:
             cmod.append(k.data[i, j])
+
         periods = self.periods
-        plt.semilogx(periods, cmod, "-ob")
-        plt.xlabel("Period (s)")
-        if self[0].grid_types == GridTypes.VELOCITY_METERS:
-            plt.ylabel(f"{self.velocity_type} velocity (m/s)")
-        if self[0].grid_types == GridTypes.VELOCITY_KILOMETERS:
-            plt.ylabel(f"{self.velocity_type} velocity (km/s)")
-        plt.grid(which='major', linewidth=0.8)
-        plt.grid(which='minor', linestyle=':', linewidth=0.5)
-        plt.show()
+
+        # Create new figure/axes if none provided
+        created_new_fig = False
+        if ax is None:
+            fig, ax = plt.subplots()
+            created_new_fig = True
+        else:
+            fig = ax.get_figure()
+
+        # Default style if user doesn't override via kwargs
+        plot_kwargs = dict(marker='o', color='b', linestyle='-', label=f'({x}, {y})')
+        plot_kwargs.update(kwargs)
+
+        ax.semilogx(periods, cmod, **plot_kwargs)
+        ax.set_xlabel("Period (s)")
+
+        if self[0].grid_type == GridTypes.VELOCITY_METERS:
+            ax.set_ylabel(f"{self.velocity_type} velocity (m/s)")
+        elif self[0].grid_type == GridTypes.VELOCITY_KILOMETERS:
+            ax.set_ylabel(f"{self.velocity_type} velocity (km/s)")
+
+        ax.grid(which='major', linewidth=0.8)
+        ax.grid(which='minor', linestyle=':', linewidth=0.5)
+
+        if created_new_fig:
+            fig.tight_layout()
+
+        return fig, ax
 
 
 class PhaseVelocityEnsemble(SurfaceVelocityEnsemble):
