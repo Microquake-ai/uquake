@@ -1343,7 +1343,8 @@ class VelocityGrid3D(TypedGrid):
             rho_gcc,
             self.origin,
             self.spacing,
-            grid_units=self.grid_units,  # consider a GridUnits.G_PER_CC enum
+            grid_units=self.grid_units, # consider a GridUnits.G_PER_CC enum
+            label=self.label, # use the same label to be compatible with vp grid
         )
 
     def convert_to_vp(
