@@ -57,14 +57,13 @@ from uquake.core.event import ResourceIdentifier
 from .base import __default_grid_label__
 from typing import Set, Tuple, Union
 from ttcrpy import rgrid
-from scipy.signal import fftconvolve
 from disba import PhaseDispersion, PhaseSensitivity, GroupDispersion, GroupSensitivity
 from evtk import hl
 from scipy.signal import fftconvolve
 import time
 import warnings
 import pickle
-from concurrent.futures import ProcessPoolExecutor, as_completed
+import copy
 
 from tqdm import tqdm
 
