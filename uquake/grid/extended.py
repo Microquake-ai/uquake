@@ -2307,19 +2307,12 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
         # ------------------------------------------------------------------
         # 1. Build 1D model (thickness, Vs, Vp, density, depth) at (x, y)
         # ------------------------------------------------------------------
+
         if z is None:
             # layer thickness from grid spacing
             layer_thickness = self.spacing[2] * np.ones(shape=(self.shape[2] - 1))
-
-            # velocities and density from grid
-            if self.grid_units == GridUnits.METER:
-                # convert from m to km for depth, and m/s to km/s for velocities
-                layer_thickness /= 1.0e3
-                vs_grid = self.s.data * 1.0e-3
-                vp_grid = self.p.data * 1.0e-3
-            else:
-                vs_grid = self.s.data
-                vp_grid = self.p.data
+            vs_grid = self.s.data
+            vp_grid = self.p.data
 
             # choose grid indices (i, j)
             if not grid_space:
@@ -2382,6 +2375,13 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
         # ------------------------------------------------------------------
         # 2. Compute sensitivity kernel
         # ------------------------------------------------------------------
+        # velocities and density from grid
+        if self.grid_type == GridTypes.VELOCITY_METERS:
+            # convert from m to km for depth, and m/s to km/s for velocities
+            layer_thickness /= 1.0e3
+            vp_profile *= 1.0e-3
+            vs_profile *= 1.0e-3
+
         kernel_nodes = self._compute_sensitivity_kernel(
             period=period,
             layers_thickness=layer_thickness,
