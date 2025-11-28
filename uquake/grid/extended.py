@@ -2215,6 +2215,51 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
     def transform_from(self, values):
         return self.s.transform_from(values)
 
+    def _compute_sensitivity_kernel(self,
+                                    period: float,
+                                    layers_thickness:np.ndarray,
+                                    velocity_p: np.ndarray,
+                                    velocity_s: np.ndarray,
+                                    density: np.ndarray,
+                                    phase: Union[Phases, str] = Phases.RAYLEIGH,
+                                    disba_param: Union[DisbaParam] = DisbaParam(),
+                                    velocity_type: VelocityType = VelocityType.GROUP
+                                    ):
+        if not isinstance(disba_param, DisbaParam):
+            raise TypeError(f'disba_param must be type DisbaParam')
+        if isinstance(phase, str):
+            Phases(phase.upper())
+        if isinstance(phase, Phases):
+            phase = phase.value.lower()
+
+        algorithm = disba_param.algorithm
+        dc = disba_param.dc
+        dp = disba_param.dp
+
+        # calculate the Sensitivity kernel
+        if velocity_type == VelocityType.PHASE:
+            sensitivty = PhaseSensitivity(thickness=layers_thickness,
+                                          velocity_p=velocity_p,
+                                          velocity_s=velocity_s,
+                                          density=density, dc=dc,
+                                          algorithm=algorithm, dp=dp)
+
+        if velocity_type == VelocityType.GROUP:
+            sensitivty = GroupSensitivity(thickness=layers_thickness,
+                                          velocity_p=velocity_p,
+                                          velocity_s=velocity_s,
+                                          density=density, dc=dc,
+                                          algorithm=algorithm, dp=dp)
+        kernel = sensitivty(period, mode=0, wave=phase,
+                                       parameter="velocity_s").kernel
+
+        kernel_nodes = np.zeros(shape=(len(velocity_s) + 1,))
+        kernel_nodes[0] = kernel[0]
+        kernel_nodes[-1] = kernel[-1]
+        kernel_nodes[1:-1] = 0.5 * (kernel[1:] + kernel[:-1])
+
+        return kernel_nodes
+
     def plot_sensitivity_kernel(self, period: float, x: Union[float, int],
                                 y: Union[float, int], z: Union[List, np.ndarray],
                                 phase: Union[Phases, str] = Phases.RAYLEIGH,
