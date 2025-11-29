@@ -31,7 +31,7 @@
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
-import matplotlib
+import copy
 import numpy as np
 from .base import Grid
 from pathlib import Path
@@ -63,8 +63,9 @@ from scipy.signal import fftconvolve
 import time
 import warnings
 import pickle
-import copy
-
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from joblib import Parallel, delayed
+from scipy.ndimage import gaussian_filter1d
 from tqdm import tqdm
 
 try:  # optional fast marching solver
@@ -144,6 +145,9 @@ class GridTypes(Enum):
     TIME = 'TIME'
     TIME2D = 'TIME2D'
     PROB_DENSITY = 'PROB_DENSITY'
+    SENSITIVITY = 'SENSITIVITY'
+    RESOLUTION = 'RESOLUTION'
+    STANDARD_DEV = 'STANDARD_DEV'
     MISFIT = 'MISFIT'
     ANGLE = 'ANGLE'
     ANGLE2D = 'ANGLE2D'
@@ -176,6 +180,9 @@ valid_grid_types = (
     'TIME',
     'TIME2D',
     'PROB_DENSITY',
+    'SENSITIVITY',
+    'RESOLUTION',
+    'STD'
     'MISFIT',
     'ANGLE',
     'ANGLE2D',
@@ -2214,6 +2221,104 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
     def transform_from(self, values):
         return self.s.transform_from(values)
 
+    def sensitivity_model(
+            self,
+            period: float,
+            phase: Union[Phases, str] = Phases.RAYLEIGH,
+            disba_param: DisbaParam = DisbaParam(),
+            velocity_type: VelocityType = VelocityType.GROUP,
+            gaussian_kernel: float = 0.,
+            parallel: bool = False,
+    ):
+        if isinstance(phase, str):
+            Phases(phase.upper())
+        if isinstance(phase, Phases):
+            phase = phase.value.lower()
+
+        nx = self.dims[0]
+        ny = self.dims[1]
+        layer_thickness = self.spacing[2] * np.ones(self.shape[2] - 1)
+
+        if self.grid_type == GridTypes.VELOCITY_METERS:
+            layer_thickness /= 1e3
+
+        i_indices = np.kron(np.arange(nx), np.ones(ny)).astype(int)
+        j_indices = np.kron(np.ones(nx), np.arange(ny)).astype(int)
+
+        kernels = np.empty(self.shape)
+
+        # ---------------------------------------------------------------
+        # Helper function (1 grid point → 1 kernel)
+        # ---------------------------------------------------------------
+        def compute_kernel_for_point(nn):
+            i = i_indices[nn]
+            j = j_indices[nn]
+
+            s_velocity_ij = self.s.data[i, j]
+            p_velocity_ij = self.p.data[i, j]
+            rho_ij = self.density.data[i, j]
+
+            s_layer = 0.5 * (s_velocity_ij[1:] + s_velocity_ij[:-1])
+            p_layer = 0.5 * (p_velocity_ij[1:] + p_velocity_ij[:-1])
+            rho_layer = 0.5 * (rho_ij[1:] + rho_ij[:-1])
+
+            # Mask negative velocities
+            if np.any(s_layer < 0) or np.any(p_layer < 0):
+                return i, j, np.zeros_like(s_velocity_ij)
+
+            # If grid in meters
+            if self.grid_type == GridTypes.VELOCITY_METERS:
+                s_layer *= 1e-3
+                p_layer *= 1e-3
+            if gaussian_kernel > 0:
+                p_layer = gaussian_filter1d(p_layer, sigma=gaussian_kernel)
+                s_layer = gaussian_filter1d(s_layer, sigma=gaussian_kernel)
+                p_layer = gaussian_filter1d(p_layer, sigma=gaussian_kernel)
+
+            kernel = self._compute_sensitivity_kernel(
+                period=period,
+                layers_thickness=layer_thickness,
+                velocity_p=p_layer,
+                velocity_s=s_layer,
+                density=rho_layer,
+                phase=phase,
+                disba_param=disba_param,
+                velocity_type=velocity_type,
+            )
+
+            return i, j, kernel
+
+        # ---------------------------------------------------------------
+        # Parallel mode
+        # ---------------------------------------------------------------
+        if parallel:
+            n_jobs = cpu_count()
+            results = Parallel(n_jobs=n_jobs)(
+                delayed(compute_kernel_for_point)(nn)
+                for nn in tqdm(range(nx * ny), desc="Computing kernels (parallel)")
+            )
+
+            for i, j, kernel in results:
+                kernels[i, j] = kernel
+
+        # ---------------------------------------------------------------
+        # Sequential mode
+        # ---------------------------------------------------------------
+        else:
+            for nn in tqdm(range(nx * ny), desc="Computing kernels"):
+                i, j, kernel = compute_kernel_for_point(nn)
+                kernels[i, j] = kernel
+
+        sensitivity = TypedGrid(data_or_dims=kernels,
+                               origin=self.origin,
+                               spacing=self.spacing, phase=phase,
+                               grid_type=GridTypes.SENSITIVITY,
+                               grid_units=self.grid_units,
+                               label=self.label,
+                               coordinate_system=self.coordinate_system)
+
+        return sensitivity
+
     def _compute_sensitivity_kernel(self,
                                     period: float,
                                     layers_thickness:np.ndarray,
@@ -2237,20 +2342,20 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
 
         # calculate the Sensitivity kernel
         if velocity_type == VelocityType.PHASE:
-            sensitivty = PhaseSensitivity(thickness=layers_thickness,
-                                          velocity_p=velocity_p,
-                                          velocity_s=velocity_s,
-                                          density=density, dc=dc,
-                                          algorithm=algorithm, dp=dp)
+            sensitivity = PhaseSensitivity(thickness=layers_thickness,
+                                           velocity_p=velocity_p,
+                                           velocity_s=velocity_s,
+                                           density=density, dc=dc,
+                                           algorithm=algorithm, dp=dp)
 
         if velocity_type == VelocityType.GROUP:
-            sensitivty = GroupSensitivity(thickness=layers_thickness,
-                                          velocity_p=velocity_p,
-                                          velocity_s=velocity_s,
-                                          density=density, dc=dc,
-                                          algorithm=algorithm, dp=dp)
-        kernel = sensitivty(period, mode=0, wave=phase,
-                                       parameter="velocity_s").kernel
+            sensitivity = GroupSensitivity(thickness=layers_thickness,
+                                           velocity_p=velocity_p,
+                                           velocity_s=velocity_s,
+                                           density=density, dc=dc,
+                                           algorithm=algorithm, dp=dp)
+        kernel = sensitivity(period, mode=0, wave=phase,
+                             parameter="velocity_s").kernel
 
         kernel_nodes = np.zeros(shape=(len(velocity_s) + 1,))
         kernel_nodes[0] = kernel[0]
