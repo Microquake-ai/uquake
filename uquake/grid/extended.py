@@ -31,7 +31,7 @@
     GNU Lesser General Public License, Version 3
     (http://www.gnu.org/copyleft/lesser.html)
 """
-import matplotlib
+import copy
 import numpy as np
 from .base import Grid
 from pathlib import Path
@@ -57,7 +57,6 @@ from uquake.core.event import ResourceIdentifier
 from .base import __default_grid_label__
 from typing import Set, Tuple, Union
 from ttcrpy import rgrid
-from scipy.signal import fftconvolve
 from disba import PhaseDispersion, PhaseSensitivity, GroupDispersion, GroupSensitivity
 from evtk import hl
 from scipy.signal import fftconvolve
@@ -65,7 +64,8 @@ import time
 import warnings
 import pickle
 from concurrent.futures import ProcessPoolExecutor, as_completed
-
+from joblib import Parallel, delayed
+from scipy.ndimage import gaussian_filter1d
 from tqdm import tqdm
 
 try:  # optional fast marching solver
@@ -145,6 +145,9 @@ class GridTypes(Enum):
     TIME = 'TIME'
     TIME2D = 'TIME2D'
     PROB_DENSITY = 'PROB_DENSITY'
+    SENSITIVITY = 'SENSITIVITY'
+    RESOLUTION = 'RESOLUTION'
+    STANDARD_DEV = 'STANDARD_DEV'
     MISFIT = 'MISFIT'
     ANGLE = 'ANGLE'
     ANGLE2D = 'ANGLE2D'
@@ -177,6 +180,9 @@ valid_grid_types = (
     'TIME',
     'TIME2D',
     'PROB_DENSITY',
+    'SENSITIVITY',
+    'RESOLUTION',
+    'STD'
     'MISFIT',
     'ANGLE',
     'ANGLE2D',
@@ -1344,6 +1350,7 @@ class VelocityGrid3D(TypedGrid):
             self.origin,
             self.spacing,
             grid_units=self.grid_units,  # consider a GridUnits.G_PER_CC enum
+            label=self.label,  # use the same label to be compatible with vp grid
         )
 
     def convert_to_vp(
@@ -2214,12 +2221,114 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
     def transform_from(self, values):
         return self.s.transform_from(values)
 
-    def plot_sensitivity_kernel(self, period: float, x: Union[float, int],
-                                y: Union[float, int], z: Union[List, np.ndarray],
-                                phase: Union[Phases, str] = Phases.RAYLEIGH,
-                                disba_param: Union[DisbaParam] = DisbaParam(),
-                                grid_space: bool = False):
+    def sensitivity_model(
+            self,
+            period: float,
+            phase: Union[Phases, str] = Phases.RAYLEIGH,
+            disba_param: DisbaParam = DisbaParam(),
+            velocity_type: VelocityType = VelocityType.GROUP,
+            gaussian_kernel: float = 0.,
+            parallel: bool = False,
+    ):
+        if isinstance(phase, str):
+            Phases(phase.upper())
+        if isinstance(phase, Phases):
+            phase = phase.value.lower()
 
+        nx = self.dims[0]
+        ny = self.dims[1]
+        layer_thickness = self.spacing[2] * np.ones(self.shape[2] - 1)
+
+        if self.grid_type == GridTypes.VELOCITY_METERS:
+            layer_thickness /= 1e3
+
+        i_indices = np.kron(np.arange(nx), np.ones(ny)).astype(int)
+        j_indices = np.kron(np.ones(nx), np.arange(ny)).astype(int)
+
+        kernels = np.empty(self.shape)
+
+        # ---------------------------------------------------------------
+        # Helper function (1 grid point → 1 kernel)
+        # ---------------------------------------------------------------
+        def compute_kernel_for_point(nn):
+            i = i_indices[nn]
+            j = j_indices[nn]
+
+            s_velocity_ij = self.s.data[i, j]
+            p_velocity_ij = self.p.data[i, j]
+            rho_ij = self.density.data[i, j]
+
+            s_layer = 0.5 * (s_velocity_ij[1:] + s_velocity_ij[:-1])
+            p_layer = 0.5 * (p_velocity_ij[1:] + p_velocity_ij[:-1])
+            rho_layer = 0.5 * (rho_ij[1:] + rho_ij[:-1])
+
+            # Mask negative velocities
+            if np.any(s_layer < 0) or np.any(p_layer < 0):
+                return i, j, np.zeros_like(s_velocity_ij)
+
+            # If grid in meters
+            if self.grid_type == GridTypes.VELOCITY_METERS:
+                s_layer *= 1e-3
+                p_layer *= 1e-3
+            if gaussian_kernel > 0:
+                p_layer = gaussian_filter1d(p_layer, sigma=gaussian_kernel)
+                s_layer = gaussian_filter1d(s_layer, sigma=gaussian_kernel)
+                rho_layer = gaussian_filter1d(rho_layer, sigma=gaussian_kernel)
+
+            kernel = self._compute_sensitivity_kernel(
+                period=period,
+                layers_thickness=layer_thickness,
+                velocity_p=p_layer,
+                velocity_s=s_layer,
+                density=rho_layer,
+                phase=phase,
+                disba_param=disba_param,
+                velocity_type=velocity_type,
+            )
+
+            return i, j, kernel
+
+        # ---------------------------------------------------------------
+        # Parallel mode
+        # ---------------------------------------------------------------
+        if parallel:
+            n_jobs = cpu_count()
+            results = Parallel(n_jobs=n_jobs)(
+                delayed(compute_kernel_for_point)(nn)
+                for nn in tqdm(range(nx * ny), desc="Computing kernels (parallel)")
+            )
+
+            for i, j, kernel in results:
+                kernels[i, j] = kernel
+
+        # ---------------------------------------------------------------
+        # Sequential mode
+        # ---------------------------------------------------------------
+        else:
+            for nn in tqdm(range(nx * ny), desc="Computing kernels"):
+                i, j, kernel = compute_kernel_for_point(nn)
+                kernels[i, j] = kernel
+
+        sensitivity = TypedGrid(data_or_dims=kernels,
+                               origin=self.origin,
+                               spacing=self.spacing, phase=phase,
+                               grid_type=GridTypes.SENSITIVITY,
+                               grid_units=self.grid_units,
+                               label=self.label,
+                               coordinate_system=self.coordinate_system)
+
+        return sensitivity
+
+    def _compute_sensitivity_kernel(self,
+                                    period: float,
+                                    layers_thickness:np.ndarray,
+                                    velocity_p: np.ndarray,
+                                    velocity_s: np.ndarray,
+                                    density: np.ndarray,
+                                    phase: Union[Phases, str] = Phases.RAYLEIGH,
+                                    disba_param: Union[DisbaParam] = DisbaParam(),
+                                    velocity_type: VelocityType = VelocityType.GROUP
+                                    ):
         if not isinstance(disba_param, DisbaParam):
             raise TypeError(f'disba_param must be type DisbaParam')
         if isinstance(phase, str):
@@ -2231,124 +2340,214 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
         dc = disba_param.dc
         dp = disba_param.dp
 
+        # calculate the Sensitivity kernel
+        if velocity_type == VelocityType.PHASE:
+            sensitivity = PhaseSensitivity(thickness=layers_thickness,
+                                           velocity_p=velocity_p,
+                                           velocity_s=velocity_s,
+                                           density=density, dc=dc,
+                                           algorithm=algorithm, dp=dp)
+
+        if velocity_type == VelocityType.GROUP:
+            sensitivity = GroupSensitivity(thickness=layers_thickness,
+                                           velocity_p=velocity_p,
+                                           velocity_s=velocity_s,
+                                           density=density, dc=dc,
+                                           algorithm=algorithm, dp=dp)
+        kernel = sensitivity(period, mode=0, wave=phase,
+                             parameter="velocity_s").kernel
+
+        kernel_nodes = np.zeros(shape=(len(velocity_s) + 1,))
+        kernel_nodes[0] = kernel[0]
+        kernel_nodes[-1] = kernel[-1]
+        kernel_nodes[1:-1] = 0.5 * (kernel[1:] + kernel[:-1])
+
+        return kernel_nodes
+
+    def plot_sensitivity_kernel(
+            self,
+            period: float,
+            x: Union[float, int],
+            y: Union[float, int],
+            z: Union[list, np.ndarray, None] = None,
+            phase: Union[Phases, str] = Phases.RAYLEIGH,
+            disba_param: DisbaParam = DisbaParam(),
+            grid_space: bool = False,
+            velocity_type: VelocityType = VelocityType.GROUP,
+    ) -> Tuple[plt.Figure, plt.Axes, plt.Axes]:
+        """
+        Plot sensitivity kernel and velocity profile.
+
+        Parameters
+        ----------
+        period : float
+            Wave period in seconds.
+        x, y : float or int
+            Horizontal coordinates of the point of interest.
+            Interpreted either in grid space (indices) or in physical space,
+            depending on `grid_space`.
+        z : array-like or None, optional
+            Depth boundaries of layers (top and bottom). If None, depths and
+            layer thicknesses are derived from the grid.
+        phase : Phases or str, optional
+            Surface wave phase type (e.g., Rayleigh or Love).
+        disba_param : DisbaParam, optional
+            Parameters for DISBA kernels.
+        grid_space : bool, optional
+            If True, `x` and `y` are interpreted as grid indices (i, j).
+            If False, they are interpreted as physical coordinates.
+        velocity_type : VelocityType, optional
+            Whether to use phase or group velocity kernels.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+        ax_kernel : matplotlib.axes.Axes
+            Axis for sensitivity kernel.
+        ax_velocity : matplotlib.axes.Axes
+            Axis for velocity profile.
+        """
+
+        # ------------------------------------------------------------------
+        # 1. Build 1D model (thickness, Vs, Vp, density, depth) at (x, y)
+        # ------------------------------------------------------------------
+
         if z is None:
-            # calculate the thickness and velocity values of layers
-            layers_thickness = self.spacing[2] * np.ones(shape=(self.shape[2] - 1))
-            if self.grid_units == GridUnits.METER:
-                layers_thickness /= 1.e3
-                velocity_s = self.s.data * 1.e-3
-                velocity_p = self.p.data * 1.e-3
+            # layer thickness from grid spacing
+            layer_thickness = self.spacing[2] * np.ones(shape=(self.shape[2] - 1))
+            vs_grid = self.s.data
+            vp_grid = self.p.data
 
-            else:
-                velocity_s = self.s.data
-                velocity_p = self.p.data
-
-            # check if the points are inside the grid
+            # choose grid indices (i, j)
             if not grid_space:
-                tmp = self.transform_to((x, y, self.origin[2]))
-                i = int(tmp[0])
-                j = int(tmp[1])
+                # transform physical coordinates to grid indices
+                gx, gy, _ = self.transform_to((x, y, self.origin[2]))
+                i, j = int(gx), int(gy)
             else:
                 i, j = int(x), int(y)
+
             if not self.s.in_grid([i, j, 0], grid_space=True):
-                raise IndexError(f'The point {i, j} is not inside the grid.')
+                raise IndexError(f"The point ({i}, {j}) is not inside the grid.")
 
-            # seismic parameters of layers (model 1D)
-            layers_s = 0.5 * (velocity_s[i, j, 1:] + velocity_s[i, j, :-1])
-            layers_p = 0.5 * (velocity_p[i, j, 1:] + velocity_p[i, j, :-1])
-            density = 0.5 * (self.density.data[i, j, 1:] + self.density.data[i, j, :-1])
-            # calculate the Sensitivity kernel
-            ps = PhaseSensitivity(thickness=layers_thickness, velocity_p=layers_p,
-                                  velocity_s=layers_s, density=density, dc=dc,
-                                  algorithm=algorithm, dp=dp)
-            sensitivity = ps(period, mode=0, wave=phase, parameter="velocity_s")
-            kernel = sensitivity.kernel
+            # 1D profiles: average between cell centers along depth
+            vs_profile = 0.5 * (vs_grid[i, j, 1:] + vs_grid[i, j, :-1])
+            vp_profile = 0.5 * (vp_grid[i, j, 1:] + vp_grid[i, j, :-1])
+            density_profile = 0.5 * (
+                    self.density.data[i, j, 1:] + self.density.data[i, j, :-1]
+            )
 
-            # interpolate the Sensitivity kernel in nodes
-            kernel_nodes = np.zeros(shape=(velocity_s.shape[2], ))
-            depth = self.origin[2] + np.arange(velocity_s.shape[2]) * self.spacing[2]
-            kernel_nodes[0] = kernel[0]
-            kernel_nodes[-1] = kernel[-1]
-            kernel_nodes[1:-1] = 0.5 * (kernel[1:] + kernel[:-1])
-
-            # plot the  Sensitivity kernel as function of depth
-            ax1 = plt.subplot(1, 2, 1)
-            ax1.plot(kernel_nodes, depth, "-ob")
-            ax1.set_ylim([depth[-1] + 0.5 * self.spacing[2], depth[0]])
-            ax1.set_xlabel("Sensitivity kernel")
-            ax1.set_title("Period {0:2.2f} (s)".format(period))
-            plt.grid(True)
-            ax2 = plt.subplot(1, 2, 2)
-            ax2.set_ylim([depth[-1] + 0.5 * self.spacing[2], depth[0]])
-            if self.grid_units == GridUnits.METER:
-                ax1.set_ylabel("Depth (m)")
-                ax2.plot(velocity_s[i, j, :] * 1.e3, depth, "-k")
-                ax2.set_xlabel("Velocity (m/s)")
-            else:
-                ax1.set_ylabel("Depth (km)")
-                ax2.plot(velocity_s[i, j, :], depth, "-k")
-                ax2.set_xlabel("Velocity (km/s)")
-            plt.grid(True)
-            plt.tight_layout()
-            plt.show()
-            return depth, kernel_nodes
+            # depth nodes (top of each cell)
+            depth = self.origin[2] + np.arange(self.s.data.shape[2]) * self.spacing[2]
 
         else:
-            # check if the point is inside the grid
+            # ensure we work in physical coordinates for in_grid
             if grid_space:
-                x, y, _ = self.transform_from((x, y, 0))
-            if not self.s.in_grid([x, y, self.origin[2]], grid_space=False):
-                raise IndexError(f'The point {x, y} is not inside the grid.')
-            # define layers thickness and centers
-            layer_centers = 0.5 * (z[1:] + z[:-1])
-            layers_thickness = z[1:] - z[:-1]
-            coord_interpolation = np.column_stack((x * np.ones_like(layer_centers),
-                                                   y * np.ones_like(layer_centers),
-                                                   layer_centers))
-            coord_interpolation_z = np.column_stack((x * np.ones_like(z),
-                                                     y * np.ones_like(z),
-                                                     z))
-
-            # interpolate seismic parameters at the centers of layers
-            velocity_s = self.s.interpolate(coord_interpolation, grid_space=False)
-            velocity_sz = self.s.interpolate(coord_interpolation_z, grid_space=False)
-            velocity_p = self.p.interpolate(coord_interpolation, grid_space=False)
-            density = self.density.interpolate(coord_interpolation, grid_space=False)
-            if self.grid_units == GridUnits.METER:
-                layers_thickness *= 1.e-3
-                velocity_s *= 1.e-3
-                velocity_p *= 1.e-3
-            ps = PhaseSensitivity(thickness=layers_thickness, velocity_p=velocity_p,
-                                  velocity_s=velocity_s, density=density, dc=dc,
-                                  algorithm=algorithm, dp=dp)
-            sensitivity = ps(period, mode=0, wave=phase, parameter="velocity_s")
-            kernel = sensitivity.kernel
-
-            # interpolate the Sensitivity kernel in nodes
-            kernel_nodes = np.zeros(shape=(len(z), ))
-            kernel_nodes[0] = kernel[0]
-            kernel_nodes[-1] = kernel[-1]
-            kernel_nodes[1:-1] = 0.5 * (kernel[1:] + kernel[:-1])
-
-            # plot kernel
-            ax1 = plt.subplot(1, 2, 1)
-            ax1.plot(kernel_nodes, z, "-ob")
-            ax1.set_ylim([z[-1] + 0.5 * self.spacing[2], z[0]])
-            ax1.set_xlabel("Sensitivity kernel")
-            ax1.set_title("Period {0:2.2f} (s)".format(period))
-            plt.grid(True)
-            ax2 = plt.subplot(1, 2, 2)
-            ax2.set_ylim([z[-1] + 0.5 * self.spacing[2], z[0]])
-            ax2.plot(velocity_sz, z, "-k")
-            if self.grid_units == GridUnits.METER:
-                ax1.set_ylabel("Depth (m)")
-                ax2.set_xlabel("Velocity (m/s)")
+                x_phys, y_phys, _ = self.transform_from((x, y, 0))
             else:
-                ax1.set_ylabel("Depth (km)")
-                ax2.set_xlabel("Velocity (km/s)")
-            plt.grid(True)
-            plt.show()
-            return z, kernel_nodes
+                x_phys, y_phys = x, y
+
+            if not self.s.in_grid([x_phys, y_phys, self.origin[2]], grid_space=False):
+                raise IndexError(
+                    f"The point ({x_phys}, {y_phys}) is not inside the grid.")
+
+            z = np.asarray(z)
+            layer_centers = 0.5 * (z[1:] + z[:-1])
+            layer_thickness = z[1:] - z[:-1]
+
+            # coordinates for interpolation (centers and z nodes)
+            coord_centers = np.column_stack(
+                (
+                    x_phys * np.ones_like(layer_centers),
+                    y_phys * np.ones_like(layer_centers),
+                    layer_centers,
+                )
+            )
+            coord_z_nodes = np.column_stack(
+                (x_phys * np.ones_like(z), y_phys * np.ones_like(z), z)
+            )
+
+            # interpolate seismic parameters at layer centers
+            vs_profile = self.s.interpolate(coord_centers, grid_space=False)
+
+            # keep velocity_sz in case you need it later, but not used for plotting:
+            _vs_at_nodes = self.s.interpolate(coord_z_nodes, grid_space=False)
+
+            vp_profile = self.p.interpolate(coord_centers, grid_space=False)
+            density_profile = self.density.interpolate(coord_centers, grid_space=False)
+            depth = copy.copy(z)
+
+        # ------------------------------------------------------------------
+        # 2. Compute sensitivity kernel
+        # ------------------------------------------------------------------
+        # velocities and density from grid
+        if self.grid_type == GridTypes.VELOCITY_METERS:
+            # convert from m to km for depth, and m/s to km/s for velocities
+            layer_thickness /= 1.0e3
+            vp_profile *= 1.0e-3
+            vs_profile *= 1.0e-3
+
+        kernel_nodes = self._compute_sensitivity_kernel(
+            period=period,
+            layers_thickness=layer_thickness,
+            velocity_p=vp_profile,
+            velocity_s=vs_profile,
+            density=density_profile,
+            phase=phase,
+            disba_param=disba_param,
+            velocity_type=velocity_type,
+        )
+
+        # ------------------------------------------------------------------
+        # 3. Create figure and axes
+        # ------------------------------------------------------------------
+        fig, (ax_kernel, ax_velocity) = plt.subplots(1, 2, figsize=(11, 5))
+
+        # ---- Left axis: sensitivity kernel ----
+        ax_kernel.plot(kernel_nodes, depth, "-ob")
+        ax_kernel.set_ylim([depth[-1] + 0.5 * self.spacing[2], depth[0]])
+
+        if velocity_type == VelocityType.PHASE:
+            ax_kernel.set_xlabel("Phase sensitivity kernel")
+        else:
+            ax_kernel.set_xlabel("Group sensitivity kernel")
+
+        ax_kernel.set_title(f"Period {period:.2f} s")
+        ax_kernel.grid(True)
+
+        # ------------------------------------------------------------------
+        # 4. Right axis: velocity profile
+        # ------------------------------------------------------------------
+        ax_velocity.set_ylim([depth[-1] + 0.5 * self.spacing[2], depth[0]])
+
+        # y-label depends only on depth units
+        if self.grid_units == GridUnits.METER:
+            ax_kernel.set_ylabel("Depth (m)")
+        else:
+            ax_kernel.set_ylabel("Depth (km)")
+
+        if self.grid_type == GridTypes.VELOCITY_METERS:
+            ax_velocity.set_xlabel("S wave velocity (m/s)")
+        else:
+            ax_velocity.set_xlabel("S wave velocity (km/s)")
+
+        # choose representation (stairs vs line) based on whether we have explicit layers
+        if z is None:
+            # use stairs when layer_thickness and layer centers come from the grid
+            vs_plot = vs_profile
+            ax_velocity.stairs(vs_plot, depth, orientation="horizontal", color="k")
+        else:
+            # user-provided z: simple line profile
+            vs_plot = _vs_at_nodes
+            ax_velocity.plot(vs_plot, depth, "-k")
+
+        # x-limits from Vs profile
+        min_vs = float(np.min(vs_plot))
+        max_vs = float(np.max(vs_plot))
+        ax_velocity.set_xlim([min_vs, max_vs])
+        ax_velocity.grid(True)
+
+        fig.tight_layout()
+        return fig, ax_kernel, ax_velocity
 
     def write(self, path: Union[Path, str] = '.'):
         with open(path, 'wb') as f:
