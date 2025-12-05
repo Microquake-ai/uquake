@@ -2273,7 +2273,7 @@ class SeismicPropertyGridEnsemble(VelocityGridEnsemble):
             if gaussian_kernel > 0:
                 p_layer = gaussian_filter1d(p_layer, sigma=gaussian_kernel)
                 s_layer = gaussian_filter1d(s_layer, sigma=gaussian_kernel)
-                p_layer = gaussian_filter1d(p_layer, sigma=gaussian_kernel)
+                rho_layer = gaussian_filter1d(rho_layer, sigma=gaussian_kernel)
 
             kernel = self._compute_sensitivity_kernel(
                 period=period,
