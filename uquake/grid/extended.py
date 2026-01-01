@@ -5148,6 +5148,17 @@ class SurfaceVelocityEnsemble(list):
                             f'SurfaceVelocityEnsemble object')
         return obj
 
+    @classmethod
+    def read_gcs(cls, path, token: Union[str, Path]):
+        import fsspec
+        token = str(token) if isinstance(token, Path) else token
+        with fsspec.open(path, "rb", token=token) as f:
+            obj = pickle.load(f)
+
+        if not isinstance(obj, cls):
+            raise TypeError(f"The object in {path} is not a {cls.__name__} object")
+
+        return obj
 
 class PhaseVelocityEnsemble(SurfaceVelocityEnsemble):
     """Represents an ensemble of PhaseVelocity instances.
