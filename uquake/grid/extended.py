@@ -5139,6 +5139,15 @@ class SurfaceVelocityEnsemble(list):
 
         return fig, ax
 
+    @classmethod
+    def read(cls, path: Union[Path, str]):
+        with open(path, 'rb') as f:
+            obj = pickle.load(f)
+        if not isinstance(obj, cls):
+            raise TypeError(f'The object in {path} is not a '
+                            f'SurfaceVelocityEnsemble object')
+        return obj
+
 
 class PhaseVelocityEnsemble(SurfaceVelocityEnsemble):
     """Represents an ensemble of PhaseVelocity instances.
