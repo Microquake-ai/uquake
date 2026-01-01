@@ -5084,12 +5084,14 @@ class SurfaceVelocityEnsemble(list):
         Plot the dispersion curve at a point (x, y) of the grid.
 
         If grid_space is True, x and y represent grid coordinates.
-        If grid_space is False (default), x and y represent spatial coordinates (e.g., meters or km).
+        If grid_space is False (default), x and y represent spatial coordinates (e.g.,
+         meters or km).
 
         :param x: x coordinate in grid or model space
         :param y: y coordinate in grid or model space
         :param grid_space: whether coordinates are expressed in grid or model space
-        :param ax: optional matplotlib axis to plot on; if None, a new figure and axis are created
+        :param ax: optional matplotlib axis to plot on; if None, a new figure and
+            axis are created
         :param kwargs: additional keyword arguments passed to `ax.semilogx`
                        (e.g., color='r', label='Point A', linestyle='--', marker='^')
         :return: (fig, ax)
