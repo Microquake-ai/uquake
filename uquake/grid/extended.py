@@ -5150,6 +5150,38 @@ class SurfaceVelocityEnsemble(list):
 
     @classmethod
     def read_gcs(cls, path, token: Union[str, Path]):
+        """
+        Read and deserialize a pickled object from a GCS
+
+        Parameters
+        ----------
+        path : str
+            Filesystem path to the pickled object. This may be a local path or a
+            remote path supported by fsspec (e.g. ``gs://bucket/object.pkl``).
+
+        token : str or pathlib.Path
+            Authentication token passed to ``fsspec``.
+            Supported values include:
+            - ``"google_default"`` to use Application Default Credentials
+            - A path to a Google Cloud service account JSON file
+            - ``"anon"`` for anonymous access (public buckets)
+
+            If a ``Path`` is provided, it is converted to ``str`` automatically.
+
+        Returns
+        -------
+        cls
+            The deserialized object, which must be an instance of ``cls``.
+
+        Raises
+        ------
+        TypeError
+            If the deserialized object is not an instance of ``cls``.
+        FileNotFoundError
+            If the path does not exist or cannot be opened.
+        pickle.UnpicklingError
+            If the file is not a valid pickle.
+        """
         import fsspec
         token = str(token) if isinstance(token, Path) else token
         with fsspec.open(path, "rb", token=token) as f:
